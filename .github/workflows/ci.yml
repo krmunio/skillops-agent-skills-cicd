@@ -1,0 +1,74 @@
+name: Baseline validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: baseline-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-and-container:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SKILLOPS_CONTAINER_TESTS: "1"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Record execution identity
+        shell: bash
+        run: |
+          mkdir -p ci-artifacts
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          {
+            printf 'commit=%s\n' "$SOURCE_SHA"
+            python --version
+            docker version --format '{{.Server.Version}}'
+            printf 'scope=offline CLI mocks + real Docker controls + historical snapshot checks\n'
+            printf 'live_copilot_evaluation=false\n'
+          } | tee ci-artifacts/environment.txt
+      - name: Prepare pinned Python image
+        shell: bash
+        run: |
+          docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+          docker tag python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea python:3.12-slim
+          docker image inspect python:3.12-slim --format '{{.Id}}' | tee -a ci-artifacts/environment.txt
+      - name: Run offline and actual container checks
+        id: tests
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee ci-artifacts/tests.log
+      - name: Record validation boundary
+        if: always()
+        shell: bash
+        env:
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+        run: |
+          {
+            printf '## Baseline validation\n\n'
+            printf 'Source commit: `%s`\n\n' "$SOURCE_SHA"
+            printf 'Test step outcome: **%s**\n\n' "$TEST_OUTCOME"
+            printf 'Offline CLI mocks, real Docker controls, and historical snapshot checks.\n\n'
+            printf '**No live Copilot model evaluation ran in this workflow.**\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: baseline-ci-${{ env.SOURCE_SHA }}
+          path: ci-artifacts/
+          if-no-files-found: error
+          retention-days: 30
