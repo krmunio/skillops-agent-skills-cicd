@@ -1,0 +1,7 @@
+{
+  "target_repository": "krmunio/example-http-client",
+  "target_commit_sha": "main",
+  "skill_name": "http-retry",
+  "skill_content_hash": "sha256:not-a-real-hash",
+  "skill_path": "../skills/http-retry/corrected-candidate"
+}
