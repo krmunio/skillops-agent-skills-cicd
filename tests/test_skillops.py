@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from skillops.core import RunResult, evaluate_artifact, validate_manifest
+from skillops.core import DEMO_SNAPSHOT, DEMO_TARGET_REPO, RunResult, evaluate_artifact, validate_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -58,8 +58,8 @@ class SkillOpsCliTests(unittest.TestCase):
                 "--candidate-skill", "examples/skills/http-retry/corrected-candidate",
                 "--baseline-artifact", "examples/fixtures/http-retry/baseline/retry_client.py",
                 "--candidate-artifact", "examples/fixtures/http-retry/corrected-candidate/missing.py",
-                "--target-repo", "krmunio/example-http-client",
-                "--snapshot", "1111111111111111111111111111111111111111",
+                "--target-repo", DEMO_TARGET_REPO,
+                "--snapshot", DEMO_SNAPSHOT,
                 "--out-dir", tmp,
             )
             self.assertEqual(result.returncode, 1, result.stderr)
@@ -74,6 +74,14 @@ class SkillOpsCliTests(unittest.TestCase):
         self.assertFalse(bad_ok)
         self.assertTrue(any("target_commit_sha" in error for error in bad_errors))
         self.assertTrue(any("skill_content_hash" in error for error in bad_errors))
+
+    def test_manifest_validation_cli_reports_json_and_exit_codes(self):
+        valid = self.run_cli("validate-manifest", "--manifest", "examples/manifests/corrected-fixture.json")
+        self.assertEqual(valid.returncode, 0, valid.stderr)
+        self.assertTrue(json.loads(valid.stdout)["valid"])
+        invalid = self.run_cli("validate-manifest", "--manifest", "examples/manifests/invalid-manifest.json")
+        self.assertEqual(invalid.returncode, 1, invalid.stderr)
+        self.assertFalse(json.loads(invalid.stdout)["valid"])
 
     def test_protected_file_change_rejects_candidate(self):
         artifact = ROOT / "examples/fixtures/http-retry/corrected-candidate/retry_client.py"
