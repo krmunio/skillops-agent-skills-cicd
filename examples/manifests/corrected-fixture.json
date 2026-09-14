@@ -1,0 +1,8 @@
+{
+  "target_repository": "krmunio/example-http-client",
+  "target_commit_sha": "2222222222222222222222222222222222222222",
+  "skill_name": "http-retry",
+  "skill_content_hash": "sha256:d85bf06c1b5e6f8b10eb766832312463282b0bc7b5a84535e49a4fc89b2decaa",
+  "skill_path": "../skills/http-retry/corrected-candidate",
+  "review_note": "SkillOps 프로젝트의 예제 배포 manifest이며 GitHub 기본 형식이 아니다."
+}

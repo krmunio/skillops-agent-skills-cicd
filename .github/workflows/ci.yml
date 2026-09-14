@@ -1,0 +1,65 @@
+name: SkillOps CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run unit tests
+        run: python -m unittest discover -s tests
+      - name: Run risky offline demo
+        run: |
+          set +e
+          python -m skillops demo risky --out-dir reports/risky
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected risky candidate to exit 1 (REJECTED), got $status" >&2
+            exit 1
+          fi
+      - name: Run corrected offline demo
+        run: python -m skillops demo corrected --out-dir reports/corrected
+      - name: Run blocked live demo
+        run: |
+          set +e
+          python -m skillops demo live-blocked --out-dir reports/live-blocked
+          status=$?
+          set -e
+          if [ "$status" -ne 2 ]; then
+            echo "Expected live run to exit 2 (BLOCKED), got $status" >&2
+            exit 1
+          fi
+      - name: Validate manifests
+        run: |
+          python -m skillops validate-manifest --manifest examples/manifests/corrected-fixture.json
+          set +e
+          python -m skillops validate-manifest --manifest examples/manifests/invalid-manifest.json
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "Expected invalid manifest validation to fail" >&2
+            exit 1
+          fi
+      - name: Publish demo summary
+        run: |
+          echo "## Corrected candidate" >> "$GITHUB_STEP_SUMMARY"
+          cat reports/corrected/report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "## Risky candidate" >> "$GITHUB_STEP_SUMMARY"
+          cat reports/risky/report.md >> "$GITHUB_STEP_SUMMARY"
+          echo "## Live blocked" >> "$GITHUB_STEP_SUMMARY"
+          cat reports/live-blocked/report.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: skillops-reports
+          path: reports/**
