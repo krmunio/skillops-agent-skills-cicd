@@ -81,6 +81,7 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 
 def run_fixture(subject: str, skill_dir: Path, artifact_file: Path, workspace_root: Path) -> RunResult:
+    """Collect a trusted fixture artifact into a clean subject workspace."""
     workspace = workspace_root / subject
     workspace.mkdir(parents=True, exist_ok=True)
     if not artifact_file.is_file():
@@ -120,7 +121,8 @@ def load_run_result(path: Path) -> RunResult:
 
 
 def _load_retry_module(path: Path):
-    spec = importlib.util.spec_from_file_location(f"skillops_artifact_{hash(path)}", path)
+    module_id = hashlib.sha1(str(path.resolve()).encode()).hexdigest()
+    spec = importlib.util.spec_from_file_location(f"skillops_artifact_{module_id}", path)
     if spec is None or spec.loader is None:
         raise ValueError(f"cannot import artifact: {path}")
     module = importlib.util.module_from_spec(spec)
@@ -138,6 +140,7 @@ def _call_request(module: Any, method: str, service: FakeHTTPService, max_retrie
 
 
 def evaluate_artifact(result: RunResult) -> dict[str, Any]:
+    """Run the independent HTTP retry evaluator against a collected artifact."""
     protected_changes = sorted(
         path for path in result.changed_files
         if path in PROTECTED_FILES or any(path.startswith(prefix) for prefix in PROTECTED_PREFIXES)
@@ -204,6 +207,7 @@ def evaluate_artifact(result: RunResult) -> dict[str, Any]:
 
 def decide(execution_mode: str, baseline_eval: dict[str, Any] | None, candidate_eval: dict[str, Any] | None,
            blocked_reason: str | None = None) -> tuple[str, list[str], list[str]]:
+    """Apply SkillOps approval policy and return decision, reasons, and regressions."""
     if blocked_reason:
         return "BLOCKED", [blocked_reason], []
     if candidate_eval is None:
@@ -236,6 +240,7 @@ def build_report(execution_mode: str, baseline: RunResult | None, candidate: Run
                  baseline_eval: dict[str, Any] | None, candidate_eval: dict[str, Any] | None,
                  target_repo: str, snapshot: str, duration_seconds: float,
                  blocked_reason: str | None = None) -> dict[str, Any]:
+    """Assemble the JSON/Markdown report data from execution and evaluation results."""
     decision, reasons, regressions = decide(execution_mode, baseline_eval, candidate_eval, blocked_reason)
     candidate_cases = candidate_eval.get("cases", []) if candidate_eval else []
     passed = sum(1 for case in candidate_cases if case.get("passed"))
