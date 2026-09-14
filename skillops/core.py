@@ -25,12 +25,13 @@ TRUSTED_FIXTURE_ROOT = REPO_ROOT / "examples" / "fixtures"
 DEMO_TARGET_REPO = "krmunio/example-http-client"
 DEMO_SNAPSHOT = "1111111111111111111111111111111111111111"
 DEMO_LIVE_SNAPSHOT = "0000000000000000000000000000000000000000"
+DEMO_REQUEST_PATH = "/charge"
 
 
 @dataclass
 class RunResult:
     subject: str
-    skill_hash: str
+    skill_content_hash: str
     workspace: Path
     artifact_path: Path | None
     changed_files: list[str]
@@ -107,7 +108,7 @@ def run_fixture(subject: str, skill_dir: Path, artifact_file: Path, workspace_ro
         result = RunResult(subject, skill_hash(skill_dir), workspace, dest, [artifact_file.name])
     (workspace / "run_result.json").write_text(json.dumps({
         "subject": result.subject,
-        "skill_hash": result.skill_hash,
+        "skill_hash": result.skill_content_hash,
         "artifact_path": str(result.artifact_path) if result.artifact_path else None,
         "changed_files": result.changed_files,
         "error": result.error,
@@ -127,7 +128,7 @@ def load_run_result(path: Path) -> RunResult:
     artifact = Path(data["artifact_path"]) if data.get("artifact_path") else None
     return RunResult(
         subject=str(data["subject"]),
-        skill_hash=str(data["skill_hash"]),
+        skill_content_hash=str(data["skill_hash"]),
         workspace=path.parent,
         artifact_path=artifact,
         changed_files=changed,
@@ -157,7 +158,7 @@ def _is_trusted_artifact(path: Path, workspace: Path) -> bool:
 
 
 def _call_request(module: Any, method: str, service: FakeHTTPService, max_retries: int = 2) -> dict[str, Any]:
-    response = module.request(method, service, "/charge", max_retries=max_retries)
+    response = module.request(method, service, DEMO_REQUEST_PATH, max_retries=max_retries)
     if not isinstance(response, dict) or "status" not in response:
         raise AssertionError("request() must return a response dict with status")
     return response
@@ -275,8 +276,8 @@ def build_report(execution_mode: str, baseline: RunResult | None, candidate: Run
     return {
         "execution_mode": execution_mode,
         "skill_hashes": {
-            "baseline": baseline.skill_hash if baseline else "unavailable",
-            "candidate": candidate.skill_hash if candidate else "unavailable",
+            "baseline": baseline.skill_content_hash if baseline else "unavailable",
+            "candidate": candidate.skill_content_hash if candidate else "unavailable",
         },
         "target_repository_snapshot": {"repository": target_repo, "commit_sha": snapshot},
         "evaluator_version": EVALUATOR_VERSION,
