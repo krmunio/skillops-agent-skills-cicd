@@ -1,0 +1,18 @@
+{
+  "policy_name": "skillops-first-pr-approval-policy",
+  "protected_paths": [
+    "tests/",
+    "skillops/",
+    ".github/workflows/",
+    "examples/manifests/approval_policy.json"
+  ],
+  "reject_on": [
+    "protected_test_failure",
+    "baseline_regression",
+    "unauthorized_evaluator_or_policy_change",
+    "execution_limit_exceeded",
+    "missing_or_invalid_result_data"
+  ],
+  "fixture_decision": "DEMO_ONLY",
+  "live_without_supported_runner": "BLOCKED"
+}

@@ -22,6 +22,9 @@ PROTECTED_FILES = {"examples/manifests/approval_policy.json"}
 IDEMPOTENT_METHODS = {"GET", "HEAD", "PUT", "DELETE", "OPTIONS"}
 TRANSIENT_STATUSES = {502, 503, 504}
 TRUSTED_FIXTURE_ROOT = REPO_ROOT / "examples" / "fixtures"
+DEMO_TARGET_REPO = "krmunio/example-http-client"
+DEMO_SNAPSHOT = "1111111111111111111111111111111111111111"
+DEMO_LIVE_SNAPSHOT = "0000000000000000000000000000000000000000"
 
 
 @dataclass
@@ -361,8 +364,8 @@ def evaluate_command(args: argparse.Namespace) -> int:
 def demo_command(args: argparse.Namespace) -> int:
     base = REPO_ROOT / "examples"
     if args.scenario == "live-blocked":
-        ns = argparse.Namespace(execution_mode="live", out_dir=args.out_dir, target_repo="krmunio/example-http-client",
-                                snapshot="0000000000000000000000000000000000000000")
+        ns = argparse.Namespace(execution_mode="live", out_dir=args.out_dir, target_repo=DEMO_TARGET_REPO,
+                                snapshot=DEMO_LIVE_SNAPSHOT)
         return evaluate_command(ns)
     candidate_dir = "risky-candidate" if args.scenario == "risky" else "corrected-candidate"
     ns = argparse.Namespace(
@@ -372,8 +375,8 @@ def demo_command(args: argparse.Namespace) -> int:
         baseline_artifact=str(base / "fixtures/http-retry/baseline/retry_client.py"),
         candidate_artifact=str(base / f"fixtures/http-retry/{candidate_dir}/retry_client.py"),
         out_dir=args.out_dir,
-        target_repo="krmunio/example-http-client",
-        snapshot="1111111111111111111111111111111111111111",
+        target_repo=DEMO_TARGET_REPO,
+        snapshot=DEMO_SNAPSHOT,
     )
     return evaluate_command(ns)
 
