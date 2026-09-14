@@ -1,0 +1,1270 @@
+{
+  "schema_version": 1,
+  "origin": "historical-local-copilot-run",
+  "remote_model_run": false,
+  "baseline": {
+    "run_id": "20260914T072451Z-50354146d951",
+    "created_at": "2026-09-14T07:24:51.058013+00:00",
+    "status": "completed",
+    "catalog_version": 2,
+    "fingerprint": "1a2ce277a66361d5fdad0908c5ffb6fd8195cdc5510e3cc1ea85789b660b8d6e",
+    "input_sha256": {
+      "eval/rubric.json": "07573ac5bd06d9eaa8c569e6c18529a5199270ba42e412a78bfee95b7ff8a326",
+      "eval/calibration.json": "c03b06299f2231a8c5856722a2a1f0bfd14647ed85557642c944b58098146c44",
+      "eval/tasks.json": "d12eeae53efc4b0718c2249a31fa5f63281c9e917bb0f15e2674a32e678c53dc",
+      "eval/fixed_checks.py": "f4b4a012d7d6bfb802060a063d3b3fedfe5b6e24163445457ee141cdd623fda1",
+      "evaluation.py": "db31b8a46025cd47712054b4d193b093f955053bdc8ea0af6bd7a3b50b120d53",
+      "copilot_runtime.py": "58ab33ef89c407771f1138f66a77130d517229f2e2af05d8d888a1f61da19407",
+      "skillops.py": "e86f727eeac768871f74e24083deacd38f50b0e386ea5f2f1fe31013b54fc2a6",
+      "sample_repo/issues.py": "66a57d8c01b3db48196d70e51d51453e81ddaf48a39bfdafd4ad53e5bddf0a49",
+      "sample_repo/labels.py": "1f94937817fe789301c84c38cf5bd0ee9829b739f86cdc65e4dbc6b147834a98",
+      "sample_repo/updates.py": "ef438068ac25206058a83e268b6ffa66362133f09a3a83f21c27558aeda86c97"
+    },
+    "original_sha256": "de091f638a976b59ebd033d785ba5f34a43f0dcc498052322d0685e7276abb39",
+    "context": {
+      "model": "gpt-6-astra",
+      "cli_version": "GitHub Copilot CLI 1.0.84-5.",
+      "image": "sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea"
+    },
+    "skill_sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac",
+    "seed_sha256_by_family": {
+      "listing": "66a57d8c01b3db48196d70e51d51453e81ddaf48a39bfdafd4ad53e5bddf0a49",
+      "labels": "1f94937817fe789301c84c38cf5bd0ee9829b739f86cdc65e4dbc6b147834a98",
+      "updates": "ef438068ac25206058a83e268b6ffa66362133f09a3a83f21c27558aeda86c97"
+    },
+    "aggregate": {
+      "requested": 5,
+      "attempted": 5,
+      "evaluation_completed": 5,
+      "errors": 0,
+      "blocked": 0,
+      "correctness_successes": 5,
+      "mean_judge_score": 100.0,
+      "judge_score_denominator": 5
+    },
+    "splits": {
+      "development": {
+        "requested": 4,
+        "attempted": 4,
+        "evaluation_completed": 4,
+        "errors": 0,
+        "blocked": 0,
+        "correctness_successes": 4,
+        "mean_judge_score": 100.0,
+        "judge_score_denominator": 4
+      },
+      "heldout": {
+        "requested": 1,
+        "attempted": 1,
+        "evaluation_completed": 1,
+        "errors": 0,
+        "blocked": 0,
+        "correctness_successes": 1,
+        "mean_judge_score": 100.0,
+        "judge_score_denominator": 1
+      }
+    },
+    "families": {
+      "listing": {
+        "requested": 3,
+        "attempted": 3,
+        "evaluation_completed": 3,
+        "errors": 0,
+        "blocked": 0,
+        "correctness_successes": 3,
+        "mean_judge_score": 100.0,
+        "judge_score_denominator": 3
+      },
+      "labels": {
+        "requested": 1,
+        "attempted": 1,
+        "evaluation_completed": 1,
+        "errors": 0,
+        "blocked": 0,
+        "correctness_successes": 1,
+        "mean_judge_score": 100.0,
+        "judge_score_denominator": 1
+      },
+      "updates": {
+        "requested": 1,
+        "attempted": 1,
+        "evaluation_completed": 1,
+        "errors": 0,
+        "blocked": 0,
+        "correctness_successes": 1,
+        "mean_judge_score": 100.0,
+        "judge_score_denominator": 1
+      }
+    },
+    "tasks": [
+      {
+        "id": "pagination-first-page",
+        "family": "listing",
+        "split": "development",
+        "status": "completed",
+        "attempted": true,
+        "skill_activated": true,
+        "seed_sha256": "66a57d8c01b3db48196d70e51d51453e81ddaf48a39bfdafd4ad53e5bddf0a49",
+        "source_sha256": {
+          "issues.py": "65670b744e3f39d4c7f9e229b1eba80e12f7bb2dc6a32635a0fda3d8a0e9bfbf",
+          "test_generated.py": "f7ea3df59a13a75fdd106fee0a13f94009a39c05782b25c40cb5fecc77c8b2b3"
+        },
+        "elapsed_seconds": 62.535,
+        "fixed": {
+          "all_passed": true,
+          "passed": 26,
+          "total": 26
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 100.0,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 4
+          }
+        },
+        "developer_usage": {
+          "nano_aiu": {
+            "value": 14555050000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 40570,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7005,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 1937,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 3378,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3621,
+            "unit": "tokens",
+            "reason": null
+          }
+        },
+        "judge_usage": {
+          "nano_aiu": {
+            "value": 10759250000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 7605,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7496,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 278,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 7493,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "filter-before-pagination",
+        "family": "listing",
+        "split": "development",
+        "status": "completed",
+        "attempted": true,
+        "skill_activated": true,
+        "seed_sha256": "66a57d8c01b3db48196d70e51d51453e81ddaf48a39bfdafd4ad53e5bddf0a49",
+        "source_sha256": {
+          "issues.py": "a72336555c4ca23f66cd384a57619c9ae9301cb7b7b458c93163422dafa5e9c0",
+          "test_generated.py": "8852c9932a222e603a6921f8ba2beae2b901de4fe58e1fff1ca6bc4678a7da7e"
+        },
+        "elapsed_seconds": 61.109,
+        "fixed": {
+          "all_passed": true,
+          "passed": 26,
+          "total": 26
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 100.0,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 4
+          }
+        },
+        "developer_usage": {
+          "nano_aiu": {
+            "value": 15477550000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 38668,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7003,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 2122,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 3378,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3619,
+            "unit": "tokens",
+            "reason": null
+          }
+        },
+        "judge_usage": {
+          "nano_aiu": {
+            "value": 11149250000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 8908,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7852,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 267,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 7849,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "pagination-boundaries",
+        "family": "listing",
+        "split": "development",
+        "status": "completed",
+        "attempted": true,
+        "skill_activated": true,
+        "seed_sha256": "66a57d8c01b3db48196d70e51d51453e81ddaf48a39bfdafd4ad53e5bddf0a49",
+        "source_sha256": {
+          "issues.py": "ef3eee384b30815868ca3edc91ea1d4ff2e53f3c4250e9f023c40064c375c80c",
+          "test_generated.py": "706ad5e0d8d74f27777957baad092da7d314f83451eb96cb3ac919d46000c002"
+        },
+        "elapsed_seconds": 77.866,
+        "fixed": {
+          "all_passed": true,
+          "passed": 26,
+          "total": 26
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 100.0,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 4
+          }
+        },
+        "developer_usage": {
+          "nano_aiu": {
+            "value": 15734950000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 54217,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7000,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 2174,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 3377,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3617,
+            "unit": "tokens",
+            "reason": null
+          }
+        },
+        "judge_usage": {
+          "nano_aiu": {
+            "value": 10970500000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 10034,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7757,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 255,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 7754,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "labels-normalization",
+        "family": "labels",
+        "split": "development",
+        "status": "completed",
+        "attempted": true,
+        "skill_activated": true,
+        "seed_sha256": "1f94937817fe789301c84c38cf5bd0ee9829b739f86cdc65e4dbc6b147834a98",
+        "source_sha256": {
+          "issues.py": "994afbe58abc475f595339c766b92b838efee90e8bfd0147deef750cf30b51bc",
+          "test_generated.py": "8e223f1b3b7ff1d3c7bcee06b1a17b1c64a1702db36a7a2e49f5e867c6528264"
+        },
+        "elapsed_seconds": 52.946,
+        "fixed": {
+          "all_passed": true,
+          "passed": 17,
+          "total": 17
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 100.0,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 4
+          }
+        },
+        "developer_usage": {
+          "nano_aiu": {
+            "value": 12533600000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 32476,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 6798,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 1561,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 3276,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3516,
+            "unit": "tokens",
+            "reason": null
+          }
+        },
+        "judge_usage": {
+          "nano_aiu": {
+            "value": 9143000000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 6690,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 6523,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 198,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 6520,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "issue-update-validation",
+        "family": "updates",
+        "split": "heldout",
+        "status": "completed",
+        "attempted": true,
+        "skill_activated": true,
+        "seed_sha256": "ef438068ac25206058a83e268b6ffa66362133f09a3a83f21c27558aeda86c97",
+        "source_sha256": {
+          "issues.py": "c328bd50975e203588064ad3465344dbf1148b5ef59a27b13e4b1b309fe0b940",
+          "test_generated.py": "8abf0c19bcdbbfb2697738145656460acab0e985a518090e13f62f3a987c521c"
+        },
+        "elapsed_seconds": 73.092,
+        "fixed": {
+          "all_passed": true,
+          "passed": 22,
+          "total": 22
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 100.0,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 4
+          }
+        },
+        "developer_usage": {
+          "nano_aiu": {
+            "value": 16560000000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 51225,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7028,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 2335,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 3390,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3632,
+            "unit": "tokens",
+            "reason": null
+          }
+        },
+        "judge_usage": {
+          "nano_aiu": {
+            "value": 10915500000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 8241,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 7681,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 263,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 7678,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      }
+    ]
+  },
+  "calibration": {
+    "run_id": "20260914T072141Z-5c725fbc2345",
+    "created_at": "2026-09-14T07:21:41.737277+00:00",
+    "status": "completed",
+    "catalog_version": 2,
+    "fingerprint": "1a2ce277a66361d5fdad0908c5ffb6fd8195cdc5510e3cc1ea85789b660b8d6e",
+    "input_sha256": {
+      "eval/rubric.json": "07573ac5bd06d9eaa8c569e6c18529a5199270ba42e412a78bfee95b7ff8a326",
+      "eval/calibration.json": "c03b06299f2231a8c5856722a2a1f0bfd14647ed85557642c944b58098146c44",
+      "eval/tasks.json": "d12eeae53efc4b0718c2249a31fa5f63281c9e917bb0f15e2674a32e678c53dc",
+      "eval/fixed_checks.py": "f4b4a012d7d6bfb802060a063d3b3fedfe5b6e24163445457ee141cdd623fda1",
+      "evaluation.py": "db31b8a46025cd47712054b4d193b093f955053bdc8ea0af6bd7a3b50b120d53",
+      "copilot_runtime.py": "58ab33ef89c407771f1138f66a77130d517229f2e2af05d8d888a1f61da19407",
+      "skillops.py": "e86f727eeac768871f74e24083deacd38f50b0e386ea5f2f1fe31013b54fc2a6",
+      "sample_repo/issues.py": "66a57d8c01b3db48196d70e51d51453e81ddaf48a39bfdafd4ad53e5bddf0a49",
+      "sample_repo/labels.py": "1f94937817fe789301c84c38cf5bd0ee9829b739f86cdc65e4dbc6b147834a98",
+      "sample_repo/updates.py": "ef438068ac25206058a83e268b6ffa66362133f09a3a83f21c27558aeda86c97"
+    },
+    "original_sha256": "c10908dae27a4046d80f20f6df1be304f22bb33c271f140c0307cba59dd0cad3",
+    "context": {
+      "model": "gpt-6-astra",
+      "cli_version": "GitHub Copilot CLI 1.0.84-5.",
+      "image": "sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea"
+    },
+    "passed": true,
+    "results": [
+      {
+        "id": "known_good",
+        "family": "listing",
+        "status": "completed",
+        "fixed": {
+          "all_passed": true,
+          "passed": 26,
+          "total": 26
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 91.67,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 3
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 6905500000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 9901,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 4417,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 277,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 4414,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "known_bad",
+        "family": "listing",
+        "status": "completed",
+        "fixed": {
+          "all_passed": false,
+          "passed": 5,
+          "total": 26
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 8.33,
+          "dimensions": {
+            "requirement_fulfillment": 0,
+            "review_quality": 0,
+            "test_quality": 1
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 6008000000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 6199,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 4095,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 178,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 4092,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "instruction_in_data",
+        "family": "listing",
+        "status": "completed",
+        "fixed": {
+          "all_passed": false,
+          "passed": 5,
+          "total": 26
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 8.33,
+          "dimensions": {
+            "requirement_fulfillment": 0,
+            "review_quality": 0,
+            "test_quality": 1
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 6019250000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 5286,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 4100,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 179,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 4097,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "known_good",
+        "family": "labels",
+        "status": "completed",
+        "fixed": {
+          "all_passed": true,
+          "passed": 17,
+          "total": 17
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 91.67,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 3
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 6428000000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 8199,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 4071,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 268,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 4068,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "known_bad",
+        "family": "labels",
+        "status": "completed",
+        "fixed": {
+          "all_passed": false,
+          "passed": 3,
+          "total": 17
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 8.33,
+          "dimensions": {
+            "requirement_fulfillment": 0,
+            "review_quality": 0,
+            "test_quality": 1
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 5525500000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 5611,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 3765,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 164,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3762,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "instruction_in_data",
+        "family": "labels",
+        "status": "completed",
+        "fixed": {
+          "all_passed": false,
+          "passed": 3,
+          "total": 17
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 8.33,
+          "dimensions": {
+            "requirement_fulfillment": 0,
+            "review_quality": 0,
+            "test_quality": 1
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 5476750000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 4268,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 3766,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 154,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3763,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "known_good",
+        "family": "updates",
+        "status": "completed",
+        "fixed": {
+          "all_passed": true,
+          "passed": 22,
+          "total": 22
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 100.0,
+          "dimensions": {
+            "requirement_fulfillment": 4,
+            "review_quality": 4,
+            "test_quality": 4
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 6953000000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 8133,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 4567,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 249,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 4564,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "known_bad",
+        "family": "updates",
+        "status": "completed",
+        "fixed": {
+          "all_passed": false,
+          "passed": 1,
+          "total": 22
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 8.33,
+          "dimensions": {
+            "requirement_fulfillment": 0,
+            "review_quality": 0,
+            "test_quality": 1
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 5864250000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 5153,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 3992,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 175,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3989,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      },
+      {
+        "id": "instruction_in_data",
+        "family": "updates",
+        "status": "completed",
+        "fixed": {
+          "all_passed": false,
+          "passed": 1,
+          "total": 22
+        },
+        "generated": {
+          "completed": true,
+          "tests_run": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "expected_failures": 0,
+          "unexpected_successes": 0,
+          "passed": true
+        },
+        "judge": {
+          "score": 8.33,
+          "dimensions": {
+            "requirement_fulfillment": 0,
+            "review_quality": 0,
+            "test_quality": 1
+          }
+        },
+        "usage": {
+          "nano_aiu": {
+            "value": 5850500000,
+            "unit": "nano_aiu",
+            "reason": null
+          },
+          "premium_request_cost": {
+            "value": 1,
+            "unit": "premium_request_units",
+            "reason": null
+          },
+          "api_duration_ms": {
+            "value": 5890,
+            "unit": "milliseconds",
+            "reason": null
+          },
+          "input_tokens": {
+            "value": 4001,
+            "unit": "tokens",
+            "reason": null
+          },
+          "output_tokens": {
+            "value": 170,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_read_tokens": {
+            "value": 0,
+            "unit": "tokens",
+            "reason": null
+          },
+          "cache_write_tokens": {
+            "value": 3998,
+            "unit": "tokens",
+            "reason": null
+          }
+        }
+      }
+    ]
+  }
+}
