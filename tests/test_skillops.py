@@ -87,7 +87,7 @@ class SkillOpsCliTests(unittest.TestCase):
         artifact = ROOT / "examples/fixtures/http-retry/corrected-candidate/retry_client.py"
         result = RunResult(
             subject="candidate",
-            skill_hash="sha256:" + "0" * 64,
+            skill_content_hash="sha256:" + "0" * 64,
             workspace=artifact.parent,
             artifact_path=artifact,
             changed_files=["tests/test_skillops.py"],
@@ -101,7 +101,7 @@ class SkillOpsCliTests(unittest.TestCase):
             artifact.write_text("raise RuntimeError('should not execute')\n", encoding="utf-8")
             result = RunResult(
                 subject="candidate",
-                skill_hash="sha256:" + "0" * 64,
+                skill_content_hash="sha256:" + "0" * 64,
                 workspace=Path(tmp),
                 artifact_path=artifact,
                 changed_files=[],
