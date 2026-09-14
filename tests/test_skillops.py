@@ -87,6 +87,21 @@ class SkillOpsCliTests(unittest.TestCase):
         evaluation = evaluate_artifact(result)
         self.assertEqual(evaluation["protected_files_changed"], ["tests/test_skillops.py"])
 
+    def test_untrusted_artifact_is_not_imported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            artifact = Path(tmp) / "retry_client.py"
+            artifact.write_text("raise RuntimeError('should not execute')\n", encoding="utf-8")
+            result = RunResult(
+                subject="candidate",
+                skill_hash="sha256:" + "0" * 64,
+                workspace=Path(tmp),
+                artifact_path=artifact,
+                changed_files=[],
+            )
+            evaluation = evaluate_artifact(result)
+        self.assertFalse(evaluation["valid_result_data"])
+        self.assertEqual(evaluation["cases"][0]["name"], "trusted fixture artifact")
+
 
 if __name__ == "__main__":
     unittest.main()

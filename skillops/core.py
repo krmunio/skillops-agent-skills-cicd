@@ -21,6 +21,7 @@ PROTECTED_PREFIXES = ("tests/", "skillops/", ".github/workflows/")
 PROTECTED_FILES = {"examples/manifests/approval_policy.json"}
 IDEMPOTENT_METHODS = {"GET", "HEAD", "PUT", "DELETE", "OPTIONS"}
 TRANSIENT_STATUSES = {502, 503, 504}
+TRUSTED_FIXTURE_ROOT = REPO_ROOT / "examples" / "fixtures"
 
 
 @dataclass
@@ -56,6 +57,14 @@ def sha256_file(path: Path) -> str:
     return "sha256:" + digest.hexdigest()
 
 
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+    except ValueError:
+        return False
+    return True
+
+
 def skill_hash(skill_dir: Path) -> str:
     digest = hashlib.sha256()
     if not skill_dir.is_dir():
@@ -86,9 +95,12 @@ def run_fixture(subject: str, skill_dir: Path, artifact_file: Path, workspace_ro
     workspace.mkdir(parents=True, exist_ok=True)
     if not artifact_file.is_file():
         result = RunResult(subject, skill_hash(skill_dir), workspace, None, [], f"artifact not found: {artifact_file}")
+    elif not _is_relative_to(artifact_file, TRUSTED_FIXTURE_ROOT):
+        result = RunResult(subject, skill_hash(skill_dir), workspace, None, [], f"untrusted fixture artifact: {artifact_file}")
     else:
         dest = workspace / artifact_file.name
         shutil.copy2(artifact_file, dest)
+        (workspace / ".skillops_trusted_fixture").write_text(str(artifact_file.resolve()), encoding="utf-8")
         result = RunResult(subject, skill_hash(skill_dir), workspace, dest, [artifact_file.name])
     (workspace / "run_result.json").write_text(json.dumps({
         "subject": result.subject,
@@ -132,6 +144,15 @@ def _load_retry_module(path: Path):
     return module
 
 
+def _is_trusted_artifact(path: Path, workspace: Path) -> bool:
+    if _is_relative_to(path, TRUSTED_FIXTURE_ROOT):
+        return True
+    marker = workspace / ".skillops_trusted_fixture"
+    if not marker.is_file():
+        return False
+    return _is_relative_to(Path(marker.read_text(encoding="utf-8").strip()), TRUSTED_FIXTURE_ROOT)
+
+
 def _call_request(module: Any, method: str, service: FakeHTTPService, max_retries: int = 2) -> dict[str, Any]:
     response = module.request(method, service, "/charge", max_retries=max_retries)
     if not isinstance(response, dict) or "status" not in response:
@@ -152,6 +173,10 @@ def evaluate_artifact(result: RunResult) -> dict[str, Any]:
     if result.artifact_path is None or not result.artifact_path.is_file():
         return {"valid_result_data": False, "protected_files_changed": protected_changes,
                 "cases": [{"name": "runner produced artifact", "passed": False, "reason": "missing artifact_path"}]}
+    if not _is_trusted_artifact(result.artifact_path, result.workspace):
+        return {"valid_result_data": False, "protected_files_changed": protected_changes,
+                "cases": [{"name": "trusted fixture artifact", "passed": False,
+                           "reason": "only pre-vetted repository fixtures may be imported"}]}
     try:
         module = _load_retry_module(result.artifact_path)
     except Exception as exc:  # pragma: no cover - exact import failures vary
