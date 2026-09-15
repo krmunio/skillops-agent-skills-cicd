@@ -1,0 +1,10 @@
+.skillops-private/
+runs/
+__pycache__/
+*.py[cod]
+.superpowers/
+.copilot-tracking/
+.publication/
+.env
+.env.*
+ci-artifacts/

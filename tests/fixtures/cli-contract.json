@@ -1,0 +1,113 @@
+{
+  "cli_version": "1.0.84-5",
+  "captured_date": "2026-09-14",
+  "source": "sanitized-real-CLI-probes",
+  "redactions": "Session and tool-call identifiers replaced with synthetic identifiers.",
+  "judge": [
+    {
+      "type": "model.call_start",
+      "data": {
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "type": "assistant.message",
+      "data": {
+        "model": "gpt-6-astra",
+        "phase": "final_answer",
+        "content": "SKILLOPS_READY",
+        "toolRequests": []
+      }
+    },
+    {
+      "type": "session.usage_checkpoint",
+      "data": {
+        "promptCacheBreakState": [
+          {
+            "models": {
+              "gpt-6-astra": {
+                "model": "gpt-6-astra",
+                "tool_count": 0,
+                "tools": [],
+                "tools_truncated": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "result",
+      "sessionId": "synthetic-judge-session",
+      "exitCode": 0
+    }
+  ],
+  "developer": [
+    {
+      "type": "model.call_start",
+      "data": {
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "type": "tool.execution_start",
+      "data": {
+        "toolCallId": "synthetic-develop-call",
+        "toolName": "skill",
+        "arguments": {
+          "skill": "develop"
+        }
+      }
+    },
+    {
+      "type": "tool.execution_complete",
+      "data": {
+        "toolCallId": "synthetic-develop-call",
+        "success": true
+      }
+    },
+    {
+      "type": "model.call_start",
+      "data": {
+        "model": "gpt-6-astra"
+      }
+    },
+    {
+      "type": "assistant.message",
+      "data": {
+        "model": "gpt-6-astra",
+        "phase": "final_answer",
+        "content": "SKILLOPS_SKILL_READY",
+        "toolRequests": []
+      }
+    },
+    {
+      "type": "session.usage_checkpoint",
+      "data": {
+        "promptCacheBreakState": [
+          {
+            "models": {
+              "gpt-6-astra": {
+                "model": "gpt-6-astra",
+                "tool_count": 1,
+                "tools": [
+                  {
+                    "name": "skill",
+                    "schema_hash": "a7ac9beec0b8",
+                    "safe": true
+                  }
+                ],
+                "tools_truncated": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "result",
+      "sessionId": "synthetic-developer-session",
+      "exitCode": 0
+    }
+  ]
+}

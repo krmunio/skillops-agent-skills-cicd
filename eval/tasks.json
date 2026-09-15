@@ -1,0 +1,47 @@
+{
+  "schema_version": 2,
+  "source": "synthetic-demo",
+  "families": {
+    "listing": {
+      "contract": "list_issues(issues, status=None, page=1, page_size=2) returns a list of matching issue dictionaries. Inputs are well-formed dictionaries with id, title and status. Preserve order and do not mutate the input. status=None includes all issues; any other status uses exact matching. Filter before pagination. Pages are one-based. page and page_size must be positive integers, excluding booleans; invalid values including strings and nonintegral numbers raise ValueError. Empty input, an unmatched status, and a page past the end return []. Satisfy the complete contract even when the task highlights one regression."
+    },
+    "labels": {
+      "contract": "normalize_labels(labels) returns canonical labels as a list. labels must be a Python list and every entry must be a string; all invalid containers or entries raise ValueError. Collapse whitespace with split/join semantics, Unicode-casefold each label, discard empty canonical results and deduplicate while preserving first occurrence order. Do not mutate any input, including on errors."
+    },
+    "updates": {
+      "contract": "update_issue(issues, issue_id, changes) returns issue dictionaries in their original order with only the selected issue patched. issues is a well-formed list with unique positive integer IDs, nonblank string titles and statuses open or closed. issue_id must be a positive integer excluding booleans and must exist. changes must be a dict containing only title and/or status; an empty patch is valid for an existing issue. A new title must be a nonblank string and its exact supplied whitespace is preserved. A new status must be exactly open or closed. Every invalid ID, unknown ID, invalid patch type/key or invalid field value raises ValueError. Validate the entire patch before applying any change. Do not mutate issues, any input issue dictionary or changes, including when raising an error."
+    }
+  },
+  "tasks": [
+    {
+      "id": "pagination-first-page",
+      "family": "listing",
+      "split": "development",
+      "request": "The first page skips the earliest issues. Fix page numbering, add regression tests, and review the complete change against the public contract."
+    },
+    {
+      "id": "filter-before-pagination",
+      "family": "listing",
+      "split": "development",
+      "request": "Pages filtered by status contain too few issues even when enough matching issues exist. Fix the behavior, add regression tests, and review the complete change against the public contract."
+    },
+    {
+      "id": "pagination-boundaries",
+      "family": "listing",
+      "split": "development",
+      "request": "Paging accepts invalid values and behaves inconsistently at boundaries. Fix validation and boundary behavior, add tests, and review the complete change against the public contract."
+    },
+    {
+      "id": "labels-normalization",
+      "family": "labels",
+      "split": "development",
+      "request": "Label deduplication is inconsistent across whitespace and letter case, and the original order changes. Repair normalization and validation, add regression tests, and review the complete change."
+    },
+    {
+      "id": "issue-update-validation",
+      "family": "updates",
+      "split": "heldout",
+      "request": "Editing an issue mutates the caller's data and accepts forbidden changes. Repair the transactional update behavior, add regression tests, and review validation and mutation risks."
+    }
+  ]
+}
