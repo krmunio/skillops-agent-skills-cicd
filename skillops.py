@@ -330,16 +330,65 @@ def git_command(runtime, repo, *args):
     return result.stdout
 
 
-def stage_repository(runtime, work, seed):
+def stage_repository(runtime, work, seed, skill_bytes):
     skill = work / ".github/skills/develop/SKILL.md"
     skill.parent.mkdir(parents=True)
-    shutil.copyfile(runtime.project / "skills/develop/SKILL.md", skill)
+    skill.write_bytes(skill_bytes)
     repo = work / "repo"
     repo.mkdir()
     (repo / "issues.py").write_text(seed)
     git_command(runtime, repo, "init", "--quiet", "--template=")
     git_command(runtime, repo, "add", "issues.py")
     return repo, skill
+
+
+def evaluate_task(runtime, model, task, contract, seed, skill_bytes, rubric, context, identity, task_dir):
+    family = task["family"]
+    row = {"id": task["id"], "family": family, "split": task["split"], "status": "running", "attempted": True,
+           "seed_sha256": sha256(seed.encode()).hexdigest(), "skill_sha256": sha256(skill_bytes).hexdigest()}
+    task_dir.mkdir()
+    started, phase = time.monotonic(), "generation"
+    workspace = tempfile.TemporaryDirectory(prefix="developer-", dir=runtime.private)
+    try:
+        if fingerprint(runtime.project, context) != identity:
+            raise RuntimeFailure("inputs_changed", "Evaluation input fingerprint changed.")
+        work = Path(workspace.name)
+        repo, staged_skill = stage_repository(runtime, work, seed, skill_bytes)
+        prompt = (
+            "Invoke /develop first. Fix the Python source below, generate executable unittest tests, and review the diff. "
+            "You have only the skill tool. The runner will apply and execute your files. "
+            "Do not claim you executed tests. Return exactly one JSON object (no Markdown): "
+            '{"files":{"issues.py":"full source","test_generated.py":"full unittest source"},'
+            '"review":{"summary":"diff-grounded assessment","risks":[]}}.\n'
+            + canonical({"request": task["request"], "contract": contract, "source": seed})
+        )
+        developer = runtime.invoke(prompt, model, "developer", work, task_dir / "developer.json", staged_skill)
+        row["developer_usage"] = developer["usage"]
+        row["skill_activated"] = developer["skill_activated"]
+        phase = "validation"
+        proposal = validate_proposal(strict_json(developer["content"]))
+        apply_proposal(repo, proposal)
+        write_json(task_dir / "proposal.json", proposal)
+        git_command(runtime, repo, "add", "--intent-to-add", "test_generated.py")
+        diff = git_command(runtime, repo, "diff", "--no-ext-diff", "--no-textconv", "--", "issues.py", "test_generated.py")
+        (task_dir / "diff.patch").write_text(diff)
+        phase = "execution"
+        row["execution"] = execute(repo, context["image"], family)
+        phase = "evaluation"
+        row["source_sha256"] = {name: sha256(content.encode()).hexdigest() for name, content in proposal["files"].items()}
+        judge = judge_call(runtime, judge_prompt(contract, task["request"], seed, proposal, row["execution"], rubric, diff),
+                           model, task_dir / "judge.json")
+        row.update(judge=validate_judge(strict_json(judge["content"])), judge_usage=judge["usage"], status="completed")
+    except RuntimeFailure as error:
+        row.update(status="timeout" if error.code == "timeout" else phase + "_error",
+                   error={"code": error.code, "message": str(error)})
+    except OSError as error:
+        row.update(status=phase + "_error", error={"code": "io_error", "message": error.strerror})
+    finally:
+        workspace.cleanup()
+    row["elapsed_seconds"] = round(time.monotonic() - started, 3)
+    row["artifacts"] = str(task_dir.relative_to(runtime.project))
+    return row
 
 
 def baseline(runtime, model, judge_work):
@@ -365,51 +414,8 @@ def baseline(runtime, model, judge_work):
         for task in tasks:
             family = task["family"]
             seed, contract = seeds[family], data["families"][family]["contract"]
-            row = {"id": task["id"], "family": family, "split": task["split"], "status": "running", "attempted": True,
-                   "seed_sha256": report["seed_sha256_by_family"][family]}
             task_dir = directory / task["id"]
-            task_dir.mkdir()
-            started, phase = time.monotonic(), "generation"
-            workspace = tempfile.TemporaryDirectory(prefix="developer-", dir=runtime.private)
-            try:
-                if fingerprint(runtime.project, context) != identity:
-                    raise RuntimeFailure("inputs_changed", "Evaluation input fingerprint changed.")
-                work = Path(workspace.name)
-                repo, staged_skill = stage_repository(runtime, work, seed)
-                prompt = (
-                    "Invoke /develop first. Fix the Python source below, generate executable unittest tests, and review the diff. "
-                    "You have only the skill tool. The runner will apply and execute your files. "
-                    "Do not claim you executed tests. Return exactly one JSON object (no Markdown): "
-                    '{"files":{"issues.py":"full source","test_generated.py":"full unittest source"},'
-                    '"review":{"summary":"diff-grounded assessment","risks":[]}}.\n'
-                    + canonical({"request": task["request"], "contract": contract, "source": seed})
-                )
-                developer = runtime.invoke(prompt, model, "developer", work, task_dir / "developer.json", staged_skill)
-                row["developer_usage"] = developer["usage"]
-                row["skill_activated"] = developer["skill_activated"]
-                phase = "validation"
-                proposal = validate_proposal(strict_json(developer["content"]))
-                apply_proposal(repo, proposal)
-                write_json(task_dir / "proposal.json", proposal)
-                git_command(runtime, repo, "add", "--intent-to-add", "test_generated.py")
-                diff = git_command(runtime, repo, "diff", "--no-ext-diff", "--no-textconv", "--", "issues.py", "test_generated.py")
-                (task_dir / "diff.patch").write_text(diff)
-                phase = "execution"
-                row["execution"] = execute(repo, context["image"], family)
-                phase = "evaluation"
-                row["source_sha256"] = {name: sha256(content.encode()).hexdigest() for name, content in proposal["files"].items()}
-                judge = judge_call(runtime, judge_prompt(contract, task["request"], seed, proposal, row["execution"], rubric, diff),
-                                   model, task_dir / "judge.json")
-                row.update(judge=validate_judge(strict_json(judge["content"])), judge_usage=judge["usage"], status="completed")
-            except RuntimeFailure as error:
-                row.update(status="timeout" if error.code == "timeout" else phase + "_error",
-                           error={"code": error.code, "message": str(error)})
-            except OSError as error:
-                row.update(status=phase + "_error", error={"code": "io_error", "message": error.strerror})
-            finally:
-                workspace.cleanup()
-            row["elapsed_seconds"] = round(time.monotonic() - started, 3)
-            row["artifacts"] = str(task_dir.relative_to(runtime.project))
+            row = evaluate_task(runtime, model, task, contract, seed, skill_bytes, rubric, context, identity, task_dir)
             report["tasks"].append(row)
             report["aggregate"] = summarize(report["tasks"], requested)
             render_report(directory, report)
@@ -440,7 +446,7 @@ def baseline(runtime, model, judge_work):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SkillOps coding-task baseline evaluation.")
+    parser = argparse.ArgumentParser(description="SkillOps skill generation and coding-task evaluation.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("doctor", help="Inspect the isolated runtime without model calls.")
     commands.add_parser("login", help="Authenticate the dedicated Copilot profile interactively.")
@@ -449,6 +455,10 @@ def main():
     for name in ("calibrate", "baseline"):
         command = commands.add_parser(name, help=f"Run the actual {name} workflow.")
         command.add_argument("--model", default="gpt-6-astra")
+    for name, argument in (("propose", "baseline"), ("compare", "candidate")):
+        command = commands.add_parser(name, help=f"Run the actual {name} workflow.")
+        command.add_argument("--model", default="gpt-6-astra")
+        command.add_argument(f"--{argument}", required=True, help="Generated run ID (not a path).")
     args = parser.parse_args()
     try:
         runtime = CopilotRuntime(Path(__file__).resolve().parent)
@@ -466,8 +476,14 @@ def main():
                 report, exit_code = probe(runtime, workdir, args.model)
             elif args.command == "calibrate":
                 report, exit_code = calibrate(runtime, args.model, workdir)
-            else:
+            elif args.command == "baseline":
                 report, exit_code = baseline(runtime, args.model, workdir)
+            else:
+                from candidates import compare, propose
+                if args.command == "propose":
+                    report, exit_code = propose(runtime, args.model, args.baseline)
+                else:
+                    report, exit_code = compare(runtime, args.model, workdir, args.candidate)
             print(json.dumps(report, indent=2))
             return exit_code
     except RuntimeFailure as error:

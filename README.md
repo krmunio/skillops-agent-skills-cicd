@@ -1,5 +1,7 @@
 # skillops-agent-skills-cicd
 
+[English](README.md) | [Korean](README.ko.md)
+
 Agent-skill CI/CD, starting with a reproducible coding-task baseline.
 
 ## Repository validation
@@ -22,9 +24,10 @@ The baseline evaluator now supports three independent Python issue-management
 families, an unchanged development skill v1, five coding tasks, protected
 checks, a calibrated independent judge, and JSON/Markdown reports.
 
-Candidate generation, version comparison, canary, promotion and rollback are
-not implemented. This milestone establishes a measured starting point, not
-an improvement claim.
+The LLM can now author a candidate development skill directly from historical
+development feedback, and the runner can compare it with the unchanged base
+on fresh paired tasks. Generated instructions and their rationale are hypotheses,
+not proven improvements. Canary deployment, promotion and rollback are not implemented.
 
 Requirements: Linux, Python 3.12+, Git, an installed and authenticated GitHub
 Copilot CLI with access to the chosen model, and a running Docker daemon.
@@ -136,8 +139,8 @@ Updates exercise validated, nonmutating atomic patches. Their seeds are in
 A family cannot appear in both development and held-out splits. The previously
 evaluated listing boundary request is now a development regression; the new
 updates family is held out from development-task inputs. Historical v1 reports
-keep their original split labels. This does not claim that benchmark authors
-have never seen the held-out data, or that a future optimizer is already implemented.
+keep their original split labels. Held-out separation applies to generator inputs;
+it does not claim that benchmark authors have never seen the held-out data.
 
 ## Read the evidence
 
@@ -163,7 +166,7 @@ milliseconds). Missing values are `null` with `not_reported_by_cli`, never zero
 or an estimated dollar amount. Calibration/probes are separate from baseline
 usage; include them when accounting for the complete workflow.
 
-Exit code 0 means the requested workflow completed (or calibration passed).
+For baseline/calibration, exit code 0 means the requested workflow completed (or calibration passed).
 Exit code 2 means a blocker, calibration failure or incomplete task evaluation.
 It does not mean the measured code is correct merely because baseline exited 0.
 
@@ -188,6 +191,94 @@ listing passed 26/26 checks per task, labels 17/17 and updates 22/22.
 All family calibration gates passed, and the task-weighted mean judge score
 was 100/100. The expansion adds distinct targets, but its scores still show a
 ceiling; it is not a claim that the development skill improved.
+
+## Generate and compare a skill candidate
+
+```bash
+python3 skillops.py propose --baseline BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops.py calibrate --model gpt-6-astra
+python3 skillops.py compare --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+```
+
+Use the generated run IDs, not filesystem paths. The baseline must exist locally;
+the public historical projection alone is not an input report for `propose`.
+When a matching calibration already exists, comparison can reuse it. Code,
+benchmark, runtime or judge-context changes require fresh calibration.
+
+`propose` makes one actual zero-tool Copilot generator call. Only current
+development-task requests and numeric feedback are selected from the historical
+report, along with the existing skill. Held-out rows, full-report aggregates,
+model response text and source-code answers are not sent to the generator.
+Static benchmark/rubric/control/seed hashes and the original skill must match.
+Historical runner differences are recorded, not passed off as fresh comparison.
+If development tasks have no observed failures, the prompt says so and asks for
+an efficiency hypothesis rather than inventing failure-driven learning.
+
+The model returns a replacement instruction body and a rationale. The runner
+preserves the `develop` frontmatter and saves `base-SKILL.md`, `SKILL.md`,
+`generator.json` and `candidate.json` in a new run directory. The existing v1
+file is not changed. Bounded schemas and rejection of obvious benchmark names/code
+are narrow safeguards, not proof that generated instructions are universally safe.
+Hashes identify snapshots; they are not signatures against malicious local edits.
+
+`compare` executes five fresh base/candidate pairs (20 developer/judge calls),
+alternating which arm runs first. Both arms use the same task executor,
+benchmark, current calibration, model and explicit skill snapshots; every role
+gets a fresh session/workspace. It never reuses historical baseline executions as
+the comparison's base arm. Incomplete pairs remain in the requested denominator.
+Including a fresh nine-call calibration and one generator call takes 30 model
+calls; failed prerequisites stop dependent calls, with no automatic retries.
+
+`comparison.json` and `comparison.md` record order, hashes, task evidence,
+per-arm/split summaries and the decision. Demo policy v1 requires:
+
+- Complete pairs and passing fixed/generated tests for every candidate task.
+- No decrease in any paired judge dimension.
+- Both total task cost and time at most 5% worse than the fresh base.
+- At least one corrected fixed/generated failure or increased judge dimension,
+  **or** at least 10% lower total task cost or time.
+
+Cost is actual developer-plus-judge NanoAIU; time sums complete task elapsed
+seconds. Generator/calibration usage is separate and must be included when
+accounting for the full optimization workflow. Missing metrics are not zero.
+One pair per task, shared-model judging and variable cache/network effects do
+not establish statistical superiority or family-independent generalization.
+
+Comparison exits **0** for provisional `eligible_for_canary`, **1** for
+`rejected`, and **2** for `blocked`. Eligibility does not deploy anything.
+Rejection or no measured improvement is a valid outcome; the workflow does not
+keep generating candidates until it can advertise a favorable score.
+
+### First actual candidate outcome
+
+On September 15, 2026, the generator authored a candidate proposing reuse of a
+requirement-to-assertion checklist. The base was 1,028 bytes and the candidate
+2,410 bytes; greater length was not treated as evidence of improvement.
+The actual generator, nine calibration controls and twenty paired calls used
+30 distinct CLI sessions. Both arms completed five tasks and passed every
+protected/generated suite, with mean judge score 100/100 and denominator five.
+
+| Metric | Fresh base | Candidate |
+|---|---:|---:|
+| Developer + judge cost (NanoAIU) | 125,712,450,000 | 127,772,200,000 |
+| Total task elapsed seconds | 296.064 | 302.923 |
+
+The observed candidate cost was 1.64% higher and elapsed time 2.32% higher.
+Policy returned **rejected** because neither quality nor the required efficiency
+improvement was observed. This is one small comparison, not proof of statistical
+degradation. The base skill stayed unchanged; no candidate was deployed.
+These figures exclude generation and calibration costs.
+
+Local receipt IDs: candidate `20260915T005404Z-611d681b8bf7`,
+calibration `20260915T010210Z-45057be9ce19`,
+comparison `20260915T010916Z-74058d9807da`. Full receipts remain in ignored
+`runs/`; these identifiers are not links to committed public artifacts.
+
+This historical run predates the oversized-metric input guard. Its original
+receipts and fingerprint are preserved; the guard changes the source fingerprint
+and requires matching fresh calibration before a new live comparison.
+The guard was checked offline against the recorded decision, not by rerunning
+the models. It adds no spending cap and does not change the selection policy.
 
 ## Execution boundary and validation
 
