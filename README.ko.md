@@ -14,6 +14,8 @@
 - 기존 스킬과 후보를 새 세션에서 실행하는 동일 작업별 비교
 - 품질·비용·시간에 따른 판정과 JSON/Markdown 보고서
 - 모델 인증 없이 실행되는 GitHub Actions 검사와 공개용 과거 평가 기록
+- 로컬 대상 프로젝트·스킬·평가셋 등록과 변경 불가능한 초기 스킬 pin
+- 등록한 소스와 pin을 사용하는 평가 흐름 및 읽기 전용 배포 자격 검사
 
 **Canary 배포, 승격, 롤백은 아직 구현하지 않았습니다.**
 후보의 변경 이유는 모델이 제시한 가설이며, 개선이 입증됐다는 뜻이 아닙니다.
@@ -251,6 +253,67 @@ Generator 1회, 교정 9회, 비교 20회는 서로 다른 실제 CLI 세션 30�
 새 실제 비교 전에는 변경된 코드에 맞는 새 교정이 필요합니다.
 가드는 모델 재실행 없이 기존 판정과의 일치 여부를 오프라인으로 확인했습니다.
 지출 상한을 추가하거나 후보 선택 정책을 변경한 것은 아닙니다.
+
+## 프로젝트 등록과 배포 자격 검사
+
+다음 명령은 모델을 호출하지 않으며 Copilot 인증이나 Docker가 필요하지 않습니다.
+
+```bash
+python3 skillops.py register --repository sample --path sample_repo \
+  --skill develop --evaluation-set issue-management-v2
+python3 skillops.py repositories
+```
+
+등록 시 엔진의 `skills/develop/SKILL.md` 내용을 SHA-256으로 식별하는 변경 불가능한
+snapshot으로 저장합니다. 이후 원본 파일을 수정해도 기존 pin은 바뀌지 않습니다.
+중복 ID·경로 등록은 덮어쓰지 않고 거부합니다. ID는 GitHub URL이 아닌 소문자 slug입니다.
+상대 경로는 SkillOps 설치 폴더 기준이며, 절대 경로로 다른 로컬 프로젝트를 지정할 수 있습니다.
+
+첫 어댑터는 대상 폴더 바로 아래의 `issues.py`, `labels.py`, `updates.py`와
+`eval/tasks.json`의 기존 이슈 관리 계약만 지원합니다. 작업군별 소스 파일을 독립적인
+Python 파일로 평가합니다. 등록은 입력 형태와 파일 존재를 확인하며 정확성을 보증하지 않습니다.
+원격 저장소 clone, 애플리케이션 의존성 설치, 임의 테스트 명령 실행 또는 다른 언어의
+자동 지원 기능은 아닙니다.
+
+**별도로 승인한 실제 모델 평가**에서는 등록 ID를 지정합니다.
+
+```bash
+python3 skillops.py calibrate --repository sample --model gpt-6-astra
+python3 skillops.py baseline --repository sample --model gpt-6-astra
+python3 skillops.py propose --baseline BOUND_BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops.py compare --repository sample --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+python3 skillops.py eligibility --repository sample --comparison COMPARISON_RUN_ID
+```
+
+앞의 네 명령은 모델을 호출하고 `eligibility`는 호출하지 않습니다.
+후보 생성은 baseline의 연결 정보를 이어받되 development 결과만 모델에 전달합니다.
+교정은 평가기가 소유한 대조 사례를 사용하며 대상 소스를 임의로 알려진 오답으로 간주하지 않습니다.
+등록한 실제 소스와 고정된 스킬이 baseline·비교 실행에 전달됩니다.
+대상 프로젝트의 다른 파일은 실행 컨테이너에 함께 제공하지 않습니다.
+`--repository`를 생략한 기존 명령은 이전의 미등록 평가 방식으로 동작합니다.
+
+등록된 평가의 fingerprint에는 저장소·스킬·평가셋 식별자와 소스·pin 해시가 포함됩니다.
+대상·pin·평가기 변경 후에는 해당 조건에 맞는 새 교정과 평가 근거가 필요합니다.
+비교 기록은 후보 메타데이터와 실제 사용한 교정 파일의 정확한 해시를 포함하고,
+완료 시 비교 파일의 해시를 로컬 레지스트리에 기록합니다.
+
+배포 자격 검사는 등록된 비교 해시, 입력·snapshot 일치, 유효한 교정,
+작업별 소스·스킬 활성화 근거 및 다시 계산한 판정을 확인합니다.
+종료 코드는 **0: eligible_for_canary**, **1: rejected**, **2: blocked**입니다.
+어떤 결과에서도 pin이나 대상 파일을 변경하지 않습니다.
+과거 미등록 실행, 외부에서 복사한 미등록 보고서, 변조된 근거로는 자격을 얻을 수 없습니다.
+이 결과는 현재 시점의 검사이며, 이후에도 유효한 배포 승인 토큰이 아닙니다.
+
+상태는 크기를 제한하고 소유자만 접근하는 `.skillops/`에 저장하며 Git에서 제외합니다.
+비차단 잠금과 원자적 파일 교체를 사용합니다. 로컬 경로·스킬 내용이 포함되므로 공개하지 마세요.
+레지스트리 소유자는 신뢰한다는 전제이며 원격 서명 증명이나 악의적인 로컬 소유자 방어가 아닙니다.
+등록은 대상에 스킬을 설치하지 않으며, pin 변경 명령도 아직 없습니다.
+실제 pin 전환은 후속 canary·승격·롤백 구현 범위입니다.
+PR 자동 평가 트리거와 제품 대시보드 자동 반영도 아직 구현하지 않았습니다.
+
+이번 연결은 합성 모델 응답을 사용하는 회귀 검사와 실제 오프라인 등록·거부 동작으로 확인했습니다.
+새로운 저장소 연결을 사용한 실제 모델 비교를 실행한 것은 아닙니다.
+기존 실제 실행 기록은 보존하며, 변경된 엔진으로 모델을 다시 실행하려면 새 교정이 필요합니다.
 
 ## 실행 경계와 검증
 

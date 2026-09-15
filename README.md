@@ -29,6 +29,11 @@ development feedback, and the runner can compare it with the unchanged base
 on fresh paired tasks. Generated instructions and their rationale are hypotheses,
 not proven improvements. Canary deployment, promotion and rollback are not implemented.
 
+Local project registration now binds a project, the `develop` skill and the
+`issue-management-v2` evaluation set. Bound evaluation uses the registered source
+files and an immutable initial skill pin. A read-only eligibility command verifies
+recorded evidence; it does not install or deploy a skill.
+
 Requirements: Linux, Python 3.12+, Git, an installed and authenticated GitHub
 Copilot CLI with access to the chosen model, and a running Docker daemon.
 All Python dependencies are standard-library modules.
@@ -279,6 +284,72 @@ receipts and fingerprint are preserved; the guard changes the source fingerprint
 and requires matching fresh calibration before a new live comparison.
 The guard was checked offline against the recorded decision, not by rerunning
 the models. It adds no spending cap and does not change the selection policy.
+
+## Register a project and check eligibility
+
+These commands are offline: they require neither Copilot authentication nor Docker.
+
+```bash
+python3 skillops.py register --repository sample --path sample_repo \
+  --skill develop --evaluation-set issue-management-v2
+python3 skillops.py repositories
+```
+
+Registration stores an immutable snapshot of the current engine
+`skills/develop/SKILL.md`, identified by its SHA-256. Changing that source file later
+does not change an existing pin. Duplicate IDs or paths are rejected rather than
+overwriting a registration. IDs are lowercase slugs, not GitHub URLs.
+Relative paths are relative to the SkillOps installation; absolute local paths
+can identify another project checkout.
+
+The first adapter requires `issues.py`, `labels.py` and `updates.py` directly in
+the target directory, with the existing issue-management contracts in
+`eval/tasks.json`. Each family is evaluated as a standalone Python source file.
+Registration checks input shape and availability, not correctness. It does not
+clone a remote repository, install an application's dependencies, execute its
+arbitrary test command, or support other languages automatically.
+
+For an **explicitly approved live evaluation**, use the registered ID:
+
+```bash
+python3 skillops.py calibrate --repository sample --model gpt-6-astra
+python3 skillops.py baseline --repository sample --model gpt-6-astra
+python3 skillops.py propose --baseline BOUND_BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops.py compare --repository sample --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+python3 skillops.py eligibility --repository sample --comparison COMPARISON_RUN_ID
+```
+
+The first four commands call the model; `eligibility` does not. Generation inherits
+the baseline's binding and still receives development feedback only. Calibration
+uses evaluator-owned controls, not target code relabeled as a known-bad control.
+The registered source bytes and pinned skill actually enter baseline/comparison
+execution. Other project files are not mounted into the execution container.
+Existing commands without `--repository` retain the unregistered workflow.
+
+Bound reports include repository/skill/evaluation identities and source/pin hashes
+in their fingerprint. A changed target, pin or evaluator requires current evidence,
+including matching calibration. Bound comparison records commit both candidate
+metadata and the exact consumed calibration bytes; successful finalization records
+the comparison digest in the local registry.
+
+Eligibility requires that recorded digest, unchanged inputs and snapshots, valid
+calibration, matching task/activation evidence and an identical recomputed decision.
+It returns **0: eligible_for_canary**, **1: rejected**, or **2: blocked**.
+Every outcome leaves the pin and target files unchanged. Old unbound reports,
+unrecorded imports and modified evidence cannot grant deployment eligibility.
+Eligibility is a current observation, not a durable deployment authorization.
+
+State is bounded, owner-only and ignored by Git under `.skillops/`. Updates use a
+nonblocking lock and atomic replacement. Local paths and skill contents remain
+there; do not publish that directory. The registry-owning operator is trusted:
+these checks are not remote attestation or protection against a hostile local owner.
+There is no pin-update command yet; canary, promotion and rollback own that later
+transition. PR-triggered evaluation and a live dashboard feed are also not implemented.
+
+The bound integration is covered by synthetic transport regressions and actual
+offline registration/denial checks. No new live bound-model comparison was run for
+this implementation. Historical model results remain unchanged; the changed engine
+fingerprint requires fresh calibration before future live execution.
 
 ## Execution boundary and validation
 
