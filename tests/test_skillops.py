@@ -96,6 +96,38 @@ class RuntimeTests(unittest.TestCase):
             with self.assertRaises(self.runtime.RuntimeFailure):
                 runtime.model_command("prompt", "gpt-6-astra", "unknown")
 
+    def test_generator_uses_zero_tool_command_and_rejects_tool_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = self.runtime.CopilotRuntime(Path(directory))
+            try:
+                command = runtime.model_command("prompt", "gpt-6-astra", "generator")
+            except self.runtime.RuntimeFailure:
+                self.fail("The explicit zero-tool generator role is missing.")
+            self.assertIn("--excluded-tools=skill", command)
+            fixture = Path(__file__).resolve().parent / "fixtures/cli-contract.json"
+            events = json.loads(fixture.read_text())["judge"]
+            result = self.runtime.parse_events("\n".join(map(json.dumps, events)), "gpt-6-astra", "generator")
+            self.assertFalse(result["skill_activated"])
+            events.insert(1, {"type": "tool.execution_start", "data": {
+                "toolName": "skill", "toolCallId": "unexpected", "arguments": {"skill": "develop"},
+            }})
+            with self.assertRaises(self.runtime.RuntimeFailure) as caught:
+                self.runtime.parse_events("\n".join(map(json.dumps, events)), "gpt-6-astra", "generator")
+            self.assertEqual(caught.exception.code, "tool_execution")
+
+    def test_staging_uses_explicit_immutable_skill_bytes(self):
+        import inspect
+        import skillops
+        self.assertIn("skill_bytes", inspect.signature(skillops.stage_repository).parameters)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime = self.runtime.CopilotRuntime(root)
+            work = root / "work"
+            work.mkdir()
+            expected = b"---\nname: develop\n---\nPinned instructions.\n"
+            _, staged = skillops.stage_repository(runtime, work, "pass\n", expected)
+            self.assertEqual(staged.read_bytes(), expected)
+
     def test_skill_selection_requires_exact_source_and_unique_name(self):
         expected = Path("/owned/.github/skills/develop/SKILL.md")
         rows = [
