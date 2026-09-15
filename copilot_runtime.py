@@ -142,7 +142,7 @@ def disabled_skills(rows, expected_path):
 
 
 def parse_events(text, model, role):
-    if role not in ("developer", "judge"):
+    if role not in ("developer", "judge", "generator"):
         raise RuntimeFailure("invalid_role", "Unknown CLI role.")
     events = [strict_json(line) for line in text.splitlines() if line.strip()]
     if not events or any(not isinstance(event, dict) for event in events):
@@ -207,8 +207,8 @@ def parse_events(text, model, role):
         for row in manifests
     ):
         raise RuntimeFailure("tool_exposure", "Observed CLI tools do not match the role allowlist.")
-    if role == "judge" and calls:
-        raise RuntimeFailure("tool_execution", "Judge attempted to execute a tool.")
+    if role != "developer" and calls:
+        raise RuntimeFailure("tool_execution", "A zero-tool role attempted to execute a tool.")
     activated = False
     if role == "developer":
         completed = {row.get("toolCallId"): row.get("success") for row in tool_completions}
@@ -333,11 +333,11 @@ class CopilotRuntime:
         return [self.cli, "--no-auto-update", *args]
 
     def model_command(self, prompt, model, role):
-        if role not in ("developer", "judge") or not isinstance(model, str) or not model:
+        if role not in ("developer", "judge", "generator") or not isinstance(model, str) or not model:
             raise RuntimeFailure("invalid_role", "An explicit model and supported role are required.")
         return self.command(
             "--no-custom-instructions", "--disable-builtin-mcps", "--no-ask-user", "--no-color",
-            "--available-tools=skill", *(["--excluded-tools=skill"] if role == "judge" else []),
+            "--available-tools=skill", *(["--excluded-tools=skill"] if role != "developer" else []),
             "--allow-all-tools",
             "--model", model, "--output-format", "json", "-p", prompt,
         )

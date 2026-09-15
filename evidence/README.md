@@ -1,5 +1,7 @@
 # Historical baseline evidence
 
+[English](README.md) | [Korean](README.ko.md)
+
 `baseline-v2.json` is a sanitized projection of actual **local** Copilot CLI
 runs on September 14, 2026, using `gpt-6-astra`. It is not a model run performed
 by GitHub Actions, a signed attestation, or evidence of skill improvement.
