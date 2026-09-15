@@ -18,7 +18,7 @@ FAMILIES = {
 }
 FINGERPRINT_FILES = (
     "eval/rubric.json", "eval/calibration.json", "eval/tasks.json", "eval/fixed_checks.py",
-    "evaluation.py", "copilot_runtime.py", "skillops.py",
+    "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py",
     *(spec["seed"] for spec in FAMILIES.values()),
 )
 
