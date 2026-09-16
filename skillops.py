@@ -2,11 +2,14 @@
 
 import argparse
 from datetime import datetime, timezone
+from decimal import Decimal
 from hashlib import sha256
 import json
+import math
 from pathlib import Path
 import re
 import shutil
+from statistics import fmean, pstdev
 import subprocess
 import sys
 import tempfile
@@ -19,6 +22,16 @@ from evaluation import (
     validate_judge, validate_proposal,
 )
 import repositories
+
+
+def positive_int(value):
+    try:
+        result = int(value)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError("must be a positive integer") from None
+    if str(result) != value or result <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return result
 
 
 def doctor(runtime, workdir):
@@ -148,17 +161,63 @@ def context_for(runtime, model, workdir):
     }
 
 
+def row_cost(row):
+    total = Decimal(0)
+    for role in ("developer_usage", "judge_usage"):
+        usage = row.get(role)
+        if usage is None or "nano_aiu" not in usage:
+            return None
+        metric = usage["nano_aiu"]
+        if not isinstance(metric, dict) or metric.get("unit") != "nano_aiu":
+            raise RuntimeFailure("invalid_metric", "Invalid nano-AIU metric.")
+        value = metric.get("value")
+        if value is None:
+            return None
+        try:
+            valid = type(value) in (int, float, Decimal) and math.isfinite(value) and value >= 0
+        except (OverflowError, TypeError, ValueError):
+            valid = False
+        if not valid:
+            raise RuntimeFailure("invalid_metric", "Invalid nano-AIU metric.")
+        total += Decimal(str(value))
+    return total
+
+
+def stats(values):
+    return {
+        "mean": round(float(fmean(values)), 2) if values else None,
+        "standard_deviation": round(float(pstdev(values)), 2) if values else None,
+        "denominator": len(values),
+    }
+
+
 def summarize(rows, requested):
     evaluated = [row for row in rows if row.get("status") == "completed" and "judge" in row]
     attempts = [row for row in rows if row.get("attempted", True)]
     scores = [row["judge"]["score"] for row in evaluated]
+    completed = [row for row in rows if row.get("status") == "completed"]
+    elapsed = [row["elapsed_seconds"] for row in completed if "elapsed_seconds" in row]
+    costs = [cost for row in completed if (cost := row_cost(row)) is not None]
+    trial_successes = sum(
+        row.get("status") == "completed"
+        and row.get("execution", {}).get("fixed", {}).get("all_passed") is True
+        and row.get("execution", {}).get("generated", {}).get("passed") is True
+        for row in rows
+    )
+    judge_stats = stats(scores)
     return {
         "requested": requested, "attempted": len(attempts), "evaluation_completed": len(evaluated),
         "errors": sum(row.get("status") != "completed" for row in attempts),
         "blocked": sum(not row.get("attempted", True) for row in rows),
         "correctness_successes": sum(row.get("execution", {}).get("fixed", {}).get("all_passed") is True for row in rows),
-        "mean_judge_score": round(sum(scores) / len(scores), 2) if scores else None,
+        "mean_judge_score": judge_stats["mean"],
         "judge_score_denominator": len(scores),
+        "trial_successes": trial_successes,
+        "trial_success_rate": round(trial_successes / requested, 2) if requested else None,
+        "all_trials_passed": requested > 0 and trial_successes == requested,
+        "judge_score": judge_stats,
+        "elapsed_seconds": stats(elapsed),
+        "cost_nano_aiu": stats(costs),
     }
 
 
