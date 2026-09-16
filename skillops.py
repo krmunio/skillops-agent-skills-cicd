@@ -450,8 +450,6 @@ def baseline(runtime, model, judge_work, repository=None):
         guide = skill_guide.evaluate_project(
             runtime, model, snapshot["project_root"], guide_rubric, directory / "anthropic-skill-guide",
         )
-        for row in guide["skills"]:
-            row["artifacts"] = (directory.relative_to(runtime.project) / row["artifacts"]).as_posix()
         report["anthropic_skill_guide"] = guide
         if fingerprint(runtime.project, context) != identity:
             raise RuntimeFailure("inputs_changed", "Evaluation inputs changed during baseline.")

@@ -161,10 +161,19 @@ Baseline은 평가 대상 프로젝트의 `.github/skills`, `.claude/skills`, `s
   `progressive_disclosure`와 `resource_organization`을 `not_applicable`(N/A)로 표시하고
   점수 분모에서 제외하며, 감점하지 않습니다.
 
-결과는 `report.json`의 `anthropic_skill_guide` 키와 `report.md`의
-`Anthropic skill guide` 섹션에 기록합니다. 가이드 점수와 지적 사항은 **보고 전용(report-only)**이며,
+크기가 제한된 스킬 요약은 `report.json`의 `anthropic_skill_guide` 키와 `report.md`의
+`Anthropic skill guide` 표에 기록합니다. 각 요약의 프로젝트 상대 경로 `artifact`가 가리키는
+스킬별 `result.json`에는 전체 정적 findings, 적용 여부, judge 차원·점수·근거를 저장하며,
+baseline에는 복제하지 않습니다. 큰 metadata는 원문 대신 SHA-256과 UTF-8 바이트 수로
+식별하고, 반복 참조 finding에는 횟수와 target hash를 명시합니다.
+가이드 점수와 지적 사항은 **보고 전용(report-only)**이며,
 코딩 작업 결과나 canary·승격 결정을 바꾸지 않습니다.
 이는 자동화된 가이드 평가이지 Anthropic 인증이 아니며, 사람의 교정을 대체하지 않습니다.
+
+각 result artifact는 직렬화한 UTF-8 JSON 기준 2 MiB 이하입니다. 초과하면 해당 스킬만
+`blocked` / `skill_result_limit`으로 기록하며 baseline은 차단하지 않습니다.
+병합 결과를 포함한 judge rationale은 각각 4,096 UTF-8 bytes 이하로 검증하고,
+초과 시 조용히 자르지 않고 명시적인 검증 오류를 기록합니다.
 
 ## 평가 기록 읽기
 
@@ -173,6 +182,8 @@ Baseline은 평가 대상 프로젝트의 `.github/skills`, `.claude/skills`, `s
 - `calibration.json`: 대조 사례 점수, 통과 여부와 fingerprint
 - `report.json`, `report.md`: baseline 결과와 사람이 읽는 요약
 - 작업별 폴더: 정규화된 developer/judge 호출 기록, 코드 제안과 실제 diff
+- `anthropic-skill-guide/<skill-id>/`: 전체 `result.json`, `manifest.json`,
+  개별 `judge-<batch>.json` 호출 기록
 
 Baseline의 기준 기록은 JSON입니다. 검사별 결과, 생성된 테스트 수, rubric 점수·근거,
 소스·입력 해시, 경과 시간과 실제 사용량을 포함합니다.
