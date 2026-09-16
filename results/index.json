@@ -1,8 +1,8 @@
 {
   "projects": [
     {
-      "current_run": null,
-      "history_count": 0,
+      "current_run": "35064353388-1",
+      "history_count": 11,
       "id": "sample_repo",
       "index": "sample_repo/index.json",
       "state": "active"
