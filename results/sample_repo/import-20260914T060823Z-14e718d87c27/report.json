@@ -1,0 +1,34 @@
+{
+  "created_at": "2026-09-14T06:08:23.105405+00:00",
+  "evaluator_sha256": "6cbbcc5b2c9c6b67246142df30459313ef4ae0611fc22cc1d9295d5cefcad587",
+  "execution": {
+    "decision": null,
+    "metrics": {
+      "attempted": 3,
+      "blocked": 0,
+      "correctness_successes": 3,
+      "errors": 0,
+      "evaluation_completed": 3,
+      "judge_score_denominator": 3,
+      "mean_judge_score": 100.0,
+      "requested": 3
+    },
+    "reason_code": "historical_import",
+    "status": "completed"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "historical_import",
+    "status": "not_assessed"
+  },
+  "origin": "historical_import",
+  "project_id": "sample_repo",
+  "project_tree_sha256": null,
+  "purpose": "baseline",
+  "run_id": "import-20260914T060823Z-14e718d87c27",
+  "schema_version": 1,
+  "source_commit": null,
+  "source_report_sha256": "33d414c3fb3a987e36ec8826cc85bf29a2b83f32aac8e19e815b010ce8273786",
+  "source_schema_version": 1
+}
