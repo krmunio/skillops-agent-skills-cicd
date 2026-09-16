@@ -83,6 +83,74 @@ class SkillGuideTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, "unsafe_skill_path")
 
+    def test_rejects_symlinked_skill_roots(self):
+        outside = self.write_skill("outside", "Linked skill.")
+        for name in skill_guide.SKILL_ROOTS:
+            with self.subTest(root=name):
+                project = self.root / name.replace("/", "-")
+                root = project / name
+                root.parent.mkdir(parents=True)
+                root.symlink_to(outside, target_is_directory=True)
+
+                with self.assertRaises(RuntimeFailure) as caught:
+                    skill_guide.discover(project)
+
+                self.assertEqual(caught.exception.code, "unsafe_skill_path")
+
+    def test_rejects_directory_symlinks_before_discovery(self):
+        outside = self.write_skill("outside", "Linked skill.")
+        for name in skill_guide.SKILL_ROOTS:
+            for relative in ("example", "group/example", "parent/references"):
+                with self.subTest(root=name, directory=relative):
+                    project = self.root / name.replace("/", "-") / relative.replace("/", "-")
+                    root = project / name
+                    directory = root / relative
+                    directory.parent.mkdir(parents=True)
+                    if relative == "parent/references":
+                        (directory.parent / "SKILL.md").write_text("Parent skill.")
+                    directory.symlink_to(outside, target_is_directory=True)
+
+                    with patch("skill_guide._read_relative", wraps=skill_guide._read_relative) as read:
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            skill_guide.discover(project)
+
+                    self.assertEqual(caught.exception.code, "unsafe_skill_path")
+                    read.assert_not_called()
+
+    def test_rejects_directories_replaced_during_discovery(self):
+        scandir = os.scandir
+        for relative in ("skills", "skills/example", "skills/group"):
+            for replacement in ("symlink", "missing", "file", "directory"):
+                with self.subTest(directory=relative, replacement=replacement):
+                    case = Path(relative.replace("/", "-")) / replacement
+                    project = self.root / case / "project"
+                    self.write_skill(case / "project" / relative / "child", "Original skill.")
+                    directory = project / relative
+                    outside = self.root / case / "outside"
+                    outside.mkdir()
+                    replaced = False
+
+                    def replace_before_scan(path):
+                        nonlocal replaced
+                        if Path(path) == directory and not replaced:
+                            directory.rename(outside / "original")
+                            if replacement == "symlink":
+                                directory.symlink_to(outside / "empty", target_is_directory=True)
+                                (outside / "empty").mkdir()
+                            elif replacement == "file":
+                                directory.write_text("Not a directory.")
+                            elif replacement == "directory":
+                                directory.mkdir()
+                            replaced = True
+                        return scandir(path)
+
+                    with patch("os.scandir", side_effect=replace_before_scan):
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            skill_guide.discover(project)
+
+                    self.assertTrue(replaced)
+                    self.assertEqual(caught.exception.code, "unsafe_skill_path")
+
     def test_rejects_skill_replaced_by_directory_after_discovery(self):
         folder = self.write_skill("skills/example", "Original content.")
         source = folder / "SKILL.md"
@@ -311,3 +379,47 @@ class SkillGuideTests(unittest.TestCase):
         with self.assertRaises(RuntimeFailure) as caught:
             skill_guide.discover(self.root)
         self.assertEqual(caught.exception.code, "skill_file_limit")
+
+    def test_enforces_aggregate_bundle_size_boundary(self):
+        file_limit = 2 * 1024 * 1024
+        bundle_limit = 8 * 1024 * 1024
+        for difference in (-1, 0, 1):
+            with self.subTest(bytes=bundle_limit + difference):
+                folder = self.write_skill(f"case-{difference}/skills/example", "x")
+                sizes = [file_limit] * 3 + [file_limit - 1 + difference]
+                for index, size in enumerate(sizes):
+                    with (folder / f"asset-{index}.bin").open("wb") as stream:
+                        stream.truncate(size)
+                actual_sizes = [path.stat().st_size for path in folder.iterdir()]
+                self.assertTrue(all(size <= file_limit for size in actual_sizes))
+                self.assertEqual(sum(actual_sizes), bundle_limit + difference)
+
+                if difference > 0:
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_guide.discover(folder.parent.parent)
+                    self.assertEqual(caught.exception.code, "skill_bundle_limit")
+                else:
+                    bundles = skill_guide.discover(folder.parent.parent)
+                    self.assertEqual(len(bundles), 1)
+                    self.assertEqual(bundles[0]["bytes"], bundle_limit + difference)
+                    self.assertEqual(bundles[0]["file_count"], 5)
+
+    def test_bundle_hash_is_stable_for_unchanged_content(self):
+        self.write_skill("skills/example", "Skill.", {"references/notes.md": "Notes."})
+
+        first = skill_guide.discover(self.root)[0]
+        second = skill_guide.discover(self.root)[0]
+
+        self.assertRegex(first["sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(first["sha256"], second["sha256"])
+
+    def test_bundle_hash_changes_when_one_file_content_changes(self):
+        folder = self.write_skill("skills/example", "Skill.", {"references/notes.md": "Before."})
+        first = skill_guide.discover(self.root)[0]
+
+        (folder / "references/notes.md").write_text("After..")
+        second = skill_guide.discover(self.root)[0]
+
+        self.assertEqual(first["bytes"], second["bytes"])
+        self.assertEqual(first["file_count"], second["file_count"])
+        self.assertNotEqual(first["sha256"], second["sha256"])
