@@ -1,8 +1,22 @@
 {
   "projects": [
     {
-      "current_run": "35097445673-1",
-      "history_count": 15,
+      "current_run": "35117893544-1",
+      "history_count": 1,
+      "id": "project-a",
+      "index": "project-a/index.json",
+      "state": "active"
+    },
+    {
+      "current_run": "35117893544-1",
+      "history_count": 1,
+      "id": "project-b",
+      "index": "project-b/index.json",
+      "state": "active"
+    },
+    {
+      "current_run": "35117893544-1",
+      "history_count": 16,
       "id": "sample_repo",
       "index": "sample_repo/index.json",
       "state": "active"
