@@ -1,4 +1,5 @@
 import copy
+import base64
 import importlib
 import importlib.util
 from hashlib import sha256
@@ -163,6 +164,242 @@ class ProjectResultsTests(unittest.TestCase):
         return {"schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
                 "report_sha256": sha256(m.encoded(report)).hexdigest(), "skill_id": "develop",
                 "base": {"content": text, "sha256": sha256(text.encode()).hexdigest()}, "candidate": None}
+
+    def evolution(self, report, snapshot=None, files=None):
+        import evolution_records as e
+        source = files or {"SKILL.md": snapshot["base"]["content"].encode() if snapshot else b"Historical Skill\n"}
+        scope = "complete_bundle" if files else "entrypoint_only"
+        version, retained = e.capture_version(source, capture_scope=scope,
+                                               complete_inventory=list(source) if files else None)
+        rows = e.empty_records()
+        rows.update(identities=[{"skill_key": "skillops:develop", "display_name": "Develop"}],
+                    versions=[version], skill_versions=[{"skill_key": "skillops:develop",
+                                                        "version_id": version["version_id"]}])
+        return {"schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+                "report_sha256": sha256(self.module().encoded(report)).hexdigest(), "records": rows,
+                "bindings": [{"skill_key": "skillops:develop", "base_version_id": version["version_id"],
+                              "candidate_version_id": None, "legacy_skill_id": snapshot["skill_id"] if snapshot else None}],
+                "file_contents": [{"version_id": version["version_id"], "path": path, "encoding": "base64",
+                                   "data": base64.b64encode(raw).decode()} for path, raw in retained.items()]}
+
+    def test_evolution_retains_exact_files_and_rejects_false_bindings(self):
+        m = self.module()
+        self.assertTrue(hasattr(m, "validate_evolution"), "evolution attachments are not implemented")
+        report = self.fixture()
+        snapshot = self.snapshot(report)
+        value = self.evolution(report, snapshot)
+        self.assertEqual(m.validate_evolution(value, report, snapshot), value)
+        for mutate in (
+            lambda v: v.update(private_prompt="private"),
+            lambda v: v.update(report_sha256="f" * 64),
+            lambda v: v["bindings"][0].update(legacy_skill_id="other"),
+            lambda v: v["bindings"][0].update(base_version_id="sha256:" + "f" * 64),
+            lambda v: v["file_contents"][0].update(data="Yg=="),
+            lambda v: v["file_contents"].append(dict(v["file_contents"][0])),
+            lambda v: v["file_contents"].clear(),
+            lambda v: v["records"]["identities"].append({"skill_key": "other:develop", "display_name": "Develop"}),
+            lambda v: v.update(records={key: [] for key in v["records"]}, bindings=[], file_contents=[]),
+        ):
+            changed = copy.deepcopy(value)
+            mutate(changed)
+            with self.assertRaises(m.RuntimeFailure):
+                m.validate_evolution(changed, report, snapshot)
+        files = {"SKILL.md": b"line\n" * 401, "assets/blob.bin": b"\xff\0\x80"}
+        complete = self.evolution(report, files=files)
+        m.validate_evolution(complete, report)
+        self.assertEqual({item["path"]: base64.b64decode(item["data"]) for item in complete["file_contents"]}, files)
+        oversized = self.evolution(report, files={"SKILL.md": b"a" * m.LIMIT})
+        with self.assertRaises(m.RuntimeFailure):
+            m.validate_evolution(oversized, report)
+        empty = self.evolution(report)
+        empty.update(records={key: [] for key in empty["records"]}, bindings=[], file_contents=[])
+        with self.assertRaises(m.RuntimeFailure):
+            m.validate_evolution(empty, report)
+
+    def test_evolution_store_merge_index_build_and_dual_conflicts(self):
+        m = self.module()
+        self.assertTrue(hasattr(m, "store_evolution"), "evolution persistence is not implemented")
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            incoming, target = root / "incoming", root / "target"
+            report = self.fixture()
+            report_path = m.store(incoming, report)
+            before = report_path.read_bytes()
+            snapshot = self.snapshot(report)
+            m.store_snapshots(incoming, snapshot)
+            value = self.evolution(report, snapshot)
+            path = m.store_evolution(incoming, value)
+            self.assertEqual(m.store_evolution(incoming, value), path)
+            m.merge_results(source, incoming, target)
+            history = m.read_json(target / "sample_repo/index.json")["history"]
+            self.assertEqual(history[0]["skill_id"], "develop")
+            self.assertEqual(history[0]["evolution_skills"][0]["skill_key"], "skillops:develop")
+            self.assertEqual(history[0]["skill_evolution"], "123-1/skill-evolution.json")
+            output = root / "site"
+            m.build(source, target, output)
+            self.assertEqual((output / "results/sample_repo/123-1/report.json").read_bytes(), before)
+            self.assertEqual(m.load_evolution(output / "results"), m.load_evolution(incoming))
+            changed = copy.deepcopy(value)
+            changed["records"]["identities"][0]["display_name"] = "Renamed"
+            with self.assertRaises(m.RuntimeFailure):
+                m.store_evolution(incoming, changed)
+            conflict = copy.deepcopy(snapshot)
+            conflict["base"] = {"content": "changed", "sha256": sha256(b"changed").hexdigest()}
+            with self.assertRaises(m.RuntimeFailure):
+                m.validate_evolution(value, report, conflict)
+            path.unlink()
+            path.symlink_to(target / "sample_repo/123-1/skill-evolution.json")
+            with self.assertRaises(m.RuntimeFailure):
+                m.load_evolution(incoming)
+
+    def test_lifecycle_only_index_and_invalid_merge_are_non_mutating(self):
+        m = self.module()
+        self.assertTrue(hasattr(m, "store_evolution"), "lifecycle-only selection is not implemented")
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            incoming, target = Path(temp) / "incoming", Path(temp) / "target"
+            report = self.fixture()
+            m.store(incoming, report)
+            value = self.evolution(report)
+            m.store_evolution(incoming, value)
+            m.reindex(source, incoming)
+            row = m.read_json(incoming / "sample_repo/index.json")["history"][0]
+            self.assertNotIn("skill_id", row)
+            self.assertEqual(row["evolution_skills"][0]["skill_key"], "skillops:develop")
+            # A conflicting existing snapshot must be detected before copying incoming reports.
+            m.store(target, report)
+            m.store_snapshots(target, self.snapshot(report))
+            newer = {**report, "run_id": "124-1"}
+            m.store(incoming, newer)
+            with self.assertRaises(m.RuntimeFailure):
+                m.merge_results(source, incoming, target)
+            self.assertFalse((target / "sample_repo/124-1/report.json").exists())
+
+    def archived_evolution_results(self, root):
+        from test_evolution_records import archive, BASE_RUN, CANDIDATE_RUN, COMPARISON_RUN
+        m = self.module()
+        source, results = root / "runs", root / "results"
+        source.mkdir()
+        archive(source)
+        for run, name in ((BASE_RUN, "report.json"), (CANDIDATE_RUN, "candidate.json"),
+                          (COMPARISON_RUN, "comparison.json")):
+            path = source / run / name
+            original = json.loads(path.read_text())
+            original.update(created_at="2026-09-16T00:00:00Z", fingerprint="c" * 64)
+            if name == "report.json":
+                original["aggregate"] = {}
+            path.write_text(json.dumps(original))
+        candidate_path = source / CANDIDATE_RUN / "candidate.json"
+        candidate = json.loads(candidate_path.read_text())
+        candidate["baseline_sha256"] = sha256((source / BASE_RUN / "report.json").read_bytes()).hexdigest()
+        candidate_path.write_text(json.dumps(candidate))
+        m.import_history(source, results, "sample_repo")
+        m.import_skill_snapshots(source, results, "sample_repo", CANDIDATE_RUN, "develop")
+        return source, results
+
+    def test_incremental_candidates_preserve_partial_or_complete_baseline_evidence(self):
+        from test_evolution_records import BASE_RUN, CANDIDATE_RUN
+        m = self.module()
+        for complete in (False, True):
+            with self.subTest(complete=complete), tempfile.TemporaryDirectory() as temp:
+                source, results = self.archived_evolution_results(Path(temp))
+                baseline_folder = results / "sample_repo" / ("import-" + BASE_RUN)
+                baseline_report = m.read_json(baseline_folder / "report.json")
+                if complete:
+                    snapshot = m.read_json(baseline_folder / "skill-snapshots.json")
+                    full = self.evolution(baseline_report, snapshot, {
+                        "SKILL.md": snapshot["base"]["content"].encode(),
+                        "references/original.txt": b"retained original reference\n",
+                    })
+                    m.store_evolution(results, full)
+                try:
+                    m.import_skill_evolution(source, results, "sample_repo", CANDIDATE_RUN,
+                                             "skillops:develop", "develop")
+                    before = {path: path.read_bytes() for path in results.glob("*/*/*.json")}
+                    second = "20260916T000000Z-abcdef123456"
+                    original = m.read_json(source / CANDIDATE_RUN / "candidate.json")
+                    content = (source / CANDIDATE_RUN / "SKILL.md").read_bytes() + b"Second candidate.\n"
+                    original.update(run_id=second, skill_sha256=sha256(content).hexdigest())
+                    (source / second).mkdir()
+                    (source / second / "candidate.json").write_text(json.dumps(original))
+                    (source / second / "SKILL.md").write_bytes(content)
+                    (source / second / "base-SKILL.md").write_bytes(
+                        (source / CANDIDATE_RUN / "base-SKILL.md").read_bytes())
+                    m.import_history(source, results, "sample_repo")
+                    m.import_skill_snapshots(source, results, "sample_repo", second, "develop")
+                    count = m.import_skill_evolution(source, results, "sample_repo", second,
+                                                      "skillops:develop", "develop")
+                    self.assertEqual(count, 2)
+                    self.assertTrue(all(path.read_bytes() == raw for path, raw in before.items()))
+                    baseline = m.read_json(baseline_folder / "skill-evolution.json")
+                    added = m.read_json(results / "sample_repo" / ("import-" + second) / "skill-evolution.json")
+                    self.assertEqual(added["records"]["generations"][0]["baseline_ref"]["run_id"], BASE_RUN)
+                    if complete:
+                        self.assertNotEqual(baseline["bindings"][0]["base_version_id"],
+                                            added["bindings"][0]["base_version_id"])
+                        self.assertEqual(baseline, full)
+                    retry = {path: path.read_bytes() for path in results.glob("*/*/*.json")}
+                    self.assertEqual(m.import_skill_evolution(source, results, "sample_repo", second,
+                                                               "skillops:develop", "develop"), 2)
+                    self.assertTrue(all(path.read_bytes() == raw for path, raw in retry.items()))
+                except m.RuntimeFailure as error:
+                    self.fail(f"Compatible incremental import rejected: {error.code}")
+
+    def test_baseline_reuse_rejects_conflicts_before_any_writes(self):
+        from test_evolution_records import BASE_RUN, CANDIDATE_RUN
+        m = self.module()
+        for conflict in ("skill_key", "legacy_id", "null_base", "candidate", "content"):
+            with self.subTest(conflict=conflict), tempfile.TemporaryDirectory() as temp:
+                source, results = self.archived_evolution_results(Path(temp))
+                m.import_skill_evolution(source, results, "sample_repo", CANDIDATE_RUN,
+                                         "skillops:develop", "develop")
+                folder = results / "sample_repo" / ("import-" + BASE_RUN)
+                value = m.read_json(folder / "skill-evolution.json")
+                if conflict == "skill_key":
+                    for items in value["records"].values():
+                        for item in items:
+                            if "skill_key" in item:
+                                item["skill_key"] = "other:develop"
+                    value["bindings"][0]["skill_key"] = "other:develop"
+                elif conflict == "legacy_id":
+                    value["bindings"][0]["legacy_skill_id"] = "other"
+                elif conflict == "null_base":
+                    value["bindings"][0]["base_version_id"] = None
+                elif conflict == "candidate":
+                    value["bindings"][0]["candidate_version_id"] = value["bindings"][0]["base_version_id"]
+                else:
+                    snapshot = m.read_json(folder / "skill-snapshots.json")
+                    snapshot["base"] = {"content": "other source", "sha256": sha256(b"other source").hexdigest()}
+                    value = self.evolution(m.read_json(folder / "report.json"), snapshot)
+                    (folder / "skill-snapshots.json").write_bytes(m.encoded(snapshot))
+                (folder / "skill-evolution.json").write_bytes(m.encoded(value))
+                before = {path: path.read_bytes() for path in results.glob("*/*/*.json")}
+                with self.assertRaises(m.RuntimeFailure):
+                    m.import_skill_evolution(source, results, "sample_repo", CANDIDATE_RUN,
+                                             "skillops:develop", "develop")
+                self.assertTrue(all(path.read_bytes() == raw for path, raw in before.items()))
+
+    def test_reviewed_evolution_import_keeps_per_record_time_and_raw_commitments(self):
+        m = self.module()
+        self.assertTrue(hasattr(m, "import_skill_evolution"), "historical evolution import is not implemented")
+        from test_evolution_records import BASE_RUN, CANDIDATE_RUN, COMPARISON_RUN
+        with tempfile.TemporaryDirectory() as temp:
+            source, results = self.archived_evolution_results(Path(temp))
+            before = {path: path.read_bytes() for path in results.glob("*/*/report.json")}
+            count = m.import_skill_evolution(source, results, "sample_repo", CANDIDATE_RUN,
+                                              "skillops:develop", "develop")
+            self.assertEqual(count, 3)
+            values = m.load_evolution(results)
+            baseline = values[("sample_repo", "import-" + BASE_RUN)]
+            self.assertEqual(baseline["records"]["generations"], [])
+            self.assertIsNone(baseline["bindings"][0]["candidate_version_id"])
+            comparison = values[("sample_repo", "import-" + COMPARISON_RUN)]
+            self.assertEqual(comparison["records"]["comparisons"][0]["decision"], "rejected")
+            self.assertEqual(comparison["records"]["generations"][0]["observed_failure_count"], 0)
+            self.assertEqual(comparison["records"]["adoptions"][0]["state"], "unknown")
+            self.assertNotIn("PRIVATE", json.dumps(list(values.values())))
+            self.assertTrue(all(path.read_bytes() == raw for path, raw in before.items()))
 
     def test_snapshots_are_bound_and_immutable_without_changing_reports(self):
         m = self.module()
