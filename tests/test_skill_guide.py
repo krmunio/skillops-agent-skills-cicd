@@ -1,14 +1,16 @@
 from copy import deepcopy
 import json
 from hashlib import sha256
+from itertools import repeat
 import os
 from pathlib import Path
 import stat
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, call, patch
 
-from copilot_runtime import RuntimeFailure, strict_json
+from copilot_runtime import CopilotRuntime, RuntimeFailure, strict_json
 import skill_guide
 
 
@@ -399,6 +401,158 @@ class SkillGuideTests(unittest.TestCase):
                     self.assertIsNotNone(failure, "A discovered resource must not be silently omitted.")
                     self.assertEqual(failure.code, "unsafe_skill_path")
 
+    def test_delete_recreate_resource_cannot_reuse_discovered_inode(self):
+        folder = self.write_skill(
+            "skills/example", "Original skill.", {"references/notes.md": "Original notes."},
+        )
+        source = folder / "references/notes.md"
+        original = source.stat().st_ino
+        read_relative, open_file = skill_guide._read_relative, os.open
+        descriptors, pinned = [], []
+        sentinel = "Replacement must never be returned."
+
+        def track_open(*args, **kwargs):
+            descriptor = open_file(*args, **kwargs)
+            descriptors.append(descriptor)
+            return descriptor
+
+        def replace_after_skill_read(*args, **kwargs):
+            raw = read_relative(*args, **kwargs)
+            if Path(args[1]).name == "SKILL.md":
+                for descriptor in descriptors:
+                    try:
+                        if os.fstat(descriptor).st_ino == original:
+                            pinned.append(descriptor)
+                    except OSError:
+                        pass
+                for _ in range(256):
+                    source.unlink()
+                    source.write_text(sentinel)
+                    if source.stat().st_ino == original:
+                        break
+            return raw
+
+        result, failure = [], None
+        with patch("os.open", side_effect=track_open), patch(
+            "skill_guide._read_relative", side_effect=replace_after_skill_read
+        ):
+            try:
+                result = skill_guide.discover(self.root)
+            except RuntimeFailure as error:
+                failure = error
+
+        self.assertNotIn(sentinel, json.dumps(result))
+        self.assertIsNotNone(failure, "Delete/recreate must not reuse a discovered identity.")
+        self.assertEqual(failure.code, "unsafe_skill_path")
+        self.assertTrue(pinned, "The original resource inode must stay pinned before reading.")
+
+    def test_delete_recreate_conventional_root_cannot_reuse_discovered_inode(self):
+        self.write_skill(".github/skills/example", "Original skill.")
+        self.write_skill(".claude/skills/later", "Later skill.")
+        root = self.root / ".github/skills"
+        later = self.root / ".claude/skills"
+        original = root.stat().st_ino
+        scandir, open_file = os.scandir, os.open
+        descriptors, pinned = [], []
+        sentinel = "Replacement root must never be returned."
+
+        def track_open(*args, **kwargs):
+            descriptor = open_file(*args, **kwargs)
+            descriptors.append(descriptor)
+            return descriptor
+
+        def replace_before_later_scan(path):
+            if Path(path) == later:
+                for descriptor in descriptors:
+                    try:
+                        if os.fstat(descriptor).st_ino == original:
+                            pinned.append(descriptor)
+                    except OSError:
+                        pass
+                (root / "example/SKILL.md").unlink()
+                (root / "example").rmdir()
+                root.rmdir()
+                for _ in range(256):
+                    root.mkdir()
+                    if root.stat().st_ino == original:
+                        break
+                    root.rmdir()
+                root.mkdir(exist_ok=True)
+                (root / "example").mkdir()
+                (root / "example/SKILL.md").write_text(sentinel)
+            return scandir(path)
+
+        result, failure = [], None
+        with patch("os.open", side_effect=track_open), patch(
+            "os.scandir", side_effect=replace_before_later_scan
+        ):
+            try:
+                result = skill_guide.discover(self.root)
+            except RuntimeFailure as error:
+                failure = error
+
+        self.assertNotIn(sentinel, json.dumps(result))
+        self.assertIsNotNone(failure)
+        self.assertEqual(failure.code, "unsafe_skill_path")
+        self.assertTrue(pinned, "The original conventional root must stay pinned during discovery.")
+
+    def test_snapshot_descriptors_close_on_success_and_every_failure_stage(self):
+        open_file = os.open
+        for stage in ("success", "traversal", "read", "fingerprint", "final_validation"):
+            with self.subTest(stage=stage):
+                folder = self.write_skill(
+                    f"{stage}/skills/example", "Original skill.",
+                    {"references/notes.md": "Original notes."},
+                )
+                project = folder.parent.parent
+                descriptors = []
+                regular_files = skill_guide.regular_files
+                scandir, pread = os.scandir, os.pread
+
+                def track_open(*args, **kwargs):
+                    descriptor = open_file(*args, **kwargs)
+                    descriptors.append(descriptor)
+                    return descriptor
+
+                def scan(path):
+                    if stage == "traversal" and Path(path) == folder:
+                        raise OSError("Traversal failed.")
+                    return scandir(path)
+
+                def read(*args, **kwargs):
+                    if stage in ("read", "fingerprint"):
+                        raise RuntimeFailure("invalid_skill_encoding", "Bad text.")
+                    result = regular_files(*args, **kwargs)
+                    if stage == "final_validation":
+                        source = folder / "references/notes.md"
+                        source.unlink()
+                        source.write_text("Replaced after the last read.")
+                    return result
+
+                def fingerprint(*args):
+                    if stage == "fingerprint":
+                        raise OSError("Fingerprint read failed.")
+                    self.assertLessEqual(args[1], 65536)
+                    return pread(*args)
+
+                with patch("os.open", side_effect=track_open), patch(
+                    "os.scandir", side_effect=scan
+                ), patch("skill_guide.regular_files", side_effect=read), patch(
+                    "os.pread", side_effect=fingerprint
+                ):
+                    if stage in ("success", "read"):
+                        result = skill_guide.discover(project)
+                        json.dumps(result)
+                        if stage == "read":
+                            self.assertEqual(result[0]["error"]["code"], "invalid_skill_encoding")
+                    else:
+                        with self.assertRaises(RuntimeFailure):
+                            skill_guide.discover(project)
+                self.assertTrue(descriptors)
+                for descriptor in descriptors:
+                    with self.assertRaises(OSError):
+                        os.fstat(descriptor)
+
     def test_rejects_discovered_directories_changed_before_resource_read(self):
         read_relative = skill_guide._read_relative
         open_file, fstat = os.open, os.fstat
@@ -448,7 +602,7 @@ class SkillGuideTests(unittest.TestCase):
                         with self.assertRaises(OSError):
                             fstat(descriptor)
 
-    def test_rejects_project_replaced_before_root_open(self):
+    def test_rejects_project_replaced_after_initial_descriptor_open(self):
         open_file = os.open
         for replacement in ("symlink", "directory"):
             with self.subTest(replacement=replacement):
@@ -458,6 +612,7 @@ class SkillGuideTests(unittest.TestCase):
 
                 def replace_before_open(path, flags, **kwargs):
                     nonlocal replaced
+                    descriptor = open_file(path, flags, **kwargs)
                     if Path(path) == project and not replaced:
                         moved = project.with_name("original-project")
                         project.rename(moved)
@@ -467,7 +622,7 @@ class SkillGuideTests(unittest.TestCase):
                             project.mkdir()
                             (moved / "skills").rename(project / "skills")
                         replaced = True
-                    return open_file(path, flags, **kwargs)
+                    return descriptor
 
                 with patch("os.open", side_effect=replace_before_open):
                     with self.assertRaises(RuntimeFailure) as caught:
@@ -511,15 +666,14 @@ class SkillGuideTests(unittest.TestCase):
             (folder / "README.md").relative_to(self.root),
         ])
 
-    def test_rejects_invalid_skill_encoding_before_resource_read(self):
+    def test_stops_content_evaluation_after_invalid_skill_encoding(self):
         folder = self.write_skill("skills/example", "Original content.", {"README.md": "Notes."})
         (folder / "SKILL.md").write_bytes(b"\xff")
 
         with patch("skill_guide._read_relative", wraps=skill_guide._read_relative) as read:
-            with self.assertRaises(RuntimeFailure) as caught:
-                skill_guide.discover(self.root)
+            result = skill_guide.discover(self.root)
 
-        self.assertEqual(caught.exception.code, "invalid_skill_encoding")
+        self.assertEqual(result[0]["error"]["code"], "invalid_skill_encoding")
         read.assert_called_once()
         self.assertEqual(read.call_args.args[1], (folder / "SKILL.md").relative_to(self.root))
 
@@ -681,15 +835,13 @@ class SkillGuideTests(unittest.TestCase):
             "---\nname: example\ndescription: Example.\n---\nDo work.\n",
         )
         (folder / "bad.txt").write_bytes(b"\xff")
-        with self.assertRaises(RuntimeFailure) as caught:
-            skill_guide.discover(self.root)
-        self.assertEqual(caught.exception.code, "invalid_skill_encoding")
+        result = skill_guide.discover(self.root)
+        self.assertEqual(result[0]["error"]["code"], "invalid_skill_encoding")
 
         (folder / "bad.txt").unlink()
         (folder / "large.bin").write_bytes(b"x" * (skill_guide.FILE_LIMIT + 1))
-        with self.assertRaises(RuntimeFailure) as caught:
-            skill_guide.discover(self.root)
-        self.assertEqual(caught.exception.code, "skill_file_limit")
+        result = skill_guide.discover(self.root)
+        self.assertEqual(result[0]["error"]["code"], "skill_file_limit")
 
     def test_enforces_aggregate_bundle_size_boundary(self):
         file_limit = 2 * 1024 * 1024
@@ -706,9 +858,8 @@ class SkillGuideTests(unittest.TestCase):
                 self.assertEqual(sum(actual_sizes), bundle_limit + difference)
 
                 if difference > 0:
-                    with self.assertRaises(RuntimeFailure) as caught:
-                        skill_guide.discover(folder.parent.parent)
-                    self.assertEqual(caught.exception.code, "skill_bundle_limit")
+                    bundles = skill_guide.discover(folder.parent.parent)
+                    self.assertEqual(bundles[0]["error"]["code"], "skill_bundle_limit")
                 else:
                     bundles = skill_guide.discover(folder.parent.parent)
                     self.assertEqual(len(bundles), 1)
@@ -784,6 +935,75 @@ class SkillGuideTests(unittest.TestCase):
 
         self.assertEqual(result["findings"], [])
         self.assertEqual(set(result["applicability"].values()), {"applicable"})
+
+    def test_inline_links_accept_titles_angles_and_escaped_destinations(self):
+        targets = (
+            'references/notes.md "Notes"',
+            "references/notes.md 'Notes'",
+            "references/notes.md (Notes)",
+            "<references/notes.md>",
+            '<references/notes.md> "Notes"',
+            r'references/notes.md "Notes \"quoted\""',
+            r"references/notes.md 'Notes \'quoted\''",
+            r"references/notes.md (Notes \(draft\))",
+            r"references/notes\ one.md",
+            r'references/notes\ one.md "Notes"',
+            r"references/notes\(draft\).md",
+            "references/notes(one(two(three))).md",
+            "<references/notes (draft).md> 'Notes'",
+            " \t<references/notes.md>\n 'Notes' \t",
+            r"references/notes\q.md",
+        )
+        for index, target in enumerate(targets):
+            with self.subTest(target=target):
+                self.write_skill(
+                    f"case-{index}/skills/example",
+                    "---\nname: example\ndescription: Read notes.\n---\n" + f"[notes]({target})",
+                    {name: "Notes." for name in (
+                        "references/notes.md", "references/notes one.md",
+                        "references/notes(draft).md", "references/notes(one(two(three))).md",
+                        "references/notes (draft).md", r"references/notes\q.md",
+                    )},
+                )
+                result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{index}")[0])
+                self.assertEqual(result["findings"], [])
+
+    def test_inline_links_ignore_malformed_destinations_and_titles(self):
+        malformed = (
+            '[notes](<missing.md)',
+            '[notes](<missing\n.md>)',
+            '[notes](<miss<ing.md>)',
+            '[notes](missing.md "Unclosed)',
+            '[notes](missing.md "Title" trailing)',
+            '[notes](missing.md (Nested (title)))',
+            '[notes](<missing.md>"Unseparated title")',
+            '[notes](missing.md "Blank\n\nline")',
+            '[notes](missing.md\n\n"title")',
+            '[notes](unbalanced(one.md)',
+        )
+        self.write_skill(
+            "skills/example",
+            "---\nname: example\ndescription: Work.\n---\n" + "\n".join(malformed),
+        )
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+        self.assertEqual(result["findings"], [])
+
+    def test_inline_link_forms_keep_unsafe_rejection_and_external_ignoring(self):
+        unsafe = (
+            '<../outside.md> "Notes"', "<%2e%2e/outside.md>",
+            "<%2Foutside.md> 'Notes'", '/outside.md "Notes"',
+            r"..\/outside.md (Notes)",
+        )
+        self.write_skill(
+            "skills/example",
+            "---\nname: example\ndescription: Work.\n---\n"
+            + "\n".join(f"[notes]({target})" for target in unsafe)
+            + '\n[web](<https://example.test/a(b)> "Web")'
+            + "\n[email](mailto:help@example.test 'Email')"
+            + "\n[anchor](<#notes> (Anchor))\n[empty](<> 'Empty')",
+        )
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+        self.assertEqual([row["check"] for row in result["findings"]], ["unsafe_reference"] * 5)
 
     def test_frontmatter_supports_scalar_values_and_indented_continuations(self):
         metadata, body, delimited = skill_guide.frontmatter(
@@ -1282,6 +1502,70 @@ class SkillGuideTests(unittest.TestCase):
         self.assertEqual([row["path"] for row in manifest["files"] if row["binary"]], ["assets/image.bin"])
         self.assertTrue(all(set(row) == {"path", "bytes", "sha256", "binary"} for row in manifest["files"]))
 
+    def test_final_prompts_bound_all_evidence_and_preserve_large_korean_static_text(self):
+        description = '한글 설명🙂 "조건" ' * 6000
+        self.write_skill(
+            "skills/한글",
+            f"---\nname: 한글\ndescription: {description}\n---\n"
+            + "\n".join(f"[참고](없는-문서-{index}.md)" for index in range(1800)),
+            {"references/한국어.md": '원문\\ "\n🙂' * 8000, "assets/icon.bin": b"\x00\xff"},
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        static = skill_guide.static_assessment(bundle)
+        accepted_artifact = self.root / "validator-artifact"
+        accepted_artifact.touch()
+        for rubric_padding in (0, 65000):
+            with self.subTest(rubric_padding=rubric_padding):
+                rubric = self.guide_rubric()
+                rubric["instructions"] += " " + "r" * rubric_padding
+                runtime = FakeGuideRuntime()
+                runtime.responses = repeat(json.dumps(self.judge_value(static["applicability"])))
+                invoke = runtime.invoke
+
+                def validate_and_invoke(prompt, *args, **kwargs):
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        CopilotRuntime.invoke(
+                            None, prompt, "gpt-6-astra", "judge", self.root, accepted_artifact,
+                        )
+                    self.assertEqual(caught.exception.code, "artifact_exists",
+                                     f"Complete UTF-8 prompt has {len(prompt.encode('utf-8'))} bytes.")
+                    return invoke(prompt, *args, **kwargs)
+
+                with patch.object(runtime, "invoke", side_effect=validate_and_invoke):
+                    result = skill_guide.evaluate_bundle(
+                        runtime, "gpt-6-astra", bundle, rubric,
+                        self.root / f"artifacts-{rubric_padding}",
+                    )
+
+                texts = {row["path"]: "" for row in bundle["files"] if row["text"] is not None}
+                manifest, fragments = {}, []
+                self.assertGreater(len(runtime.calls), 1)
+                for index, call_record in enumerate(runtime.calls, 1):
+                    prompt = call_record[0]
+                    self.assertLessEqual(len(prompt.encode("utf-8")), 100000)
+                    instruction, serialized = prompt.split("\nSKILL_EVIDENCE:\n", 1)
+                    self.assertEqual(json.loads(instruction.split("RUBRIC:\n", 1)[1]), rubric)
+                    evidence = json.loads(serialized)
+                    self.assertEqual((evidence["batch"], evidence["batch_count"]),
+                                     (index, len(runtime.calls)))
+                    self.assertEqual(evidence["static"]["applicability"], static["applicability"])
+                    if "json_fragment" in evidence["static"]:
+                        fragments.append(evidence["static"]["json_fragment"])
+                    for path, text in evidence["bundle"]["files"].items():
+                        texts[path] += text
+                    for row in evidence["bundle"]["manifest"]["files"]:
+                        manifest[row["path"]] = row
+                self.assertEqual(json.loads("".join(fragments)), static)
+                self.assertEqual(texts, {
+                    row["path"]: row["text"] for row in bundle["files"] if row["text"] is not None
+                })
+                self.assertEqual(manifest, {
+                    row["path"]: skill_guide.file_metadata(row) for row in bundle["files"]
+                })
+                self.assertEqual(result["static"], static)
+                self.assertEqual(result["judge"]["score"], 75.0)
+                self.assertEqual(result["judge_calls"], len(runtime.calls))
+
     def test_evaluate_bundle_status_respects_static_findings_and_judge_threshold(self):
         self.assertTrue(hasattr(skill_guide, "evaluate_bundle"), "Bundle evaluation is missing.")
         rubric = self.guide_rubric()
@@ -1439,6 +1723,96 @@ class SkillGuideTests(unittest.TestCase):
         self.assertEqual(result["skills"], [])
         self.assertEqual(runtime.calls, [])
         self.assertFalse(artifact_root.exists())
+
+    def test_discovery_and_evaluation_isolate_each_bundle_content_error(self):
+        for code in ("invalid_skill_encoding", "skill_file_limit", "skill_bundle_limit"):
+            with self.subTest(code=code):
+                bad = self.write_skill(f"{code}/skills/bad", "Bad skill.")
+                if code == "invalid_skill_encoding":
+                    (bad / "SKILL.md").write_bytes(b"\xff")
+                else:
+                    sizes = [skill_guide.FILE_LIMIT + 1] if code == "skill_file_limit" else [
+                        skill_guide.FILE_LIMIT
+                    ] * 4
+                    for index, size in enumerate(sizes):
+                        with (bad / f"asset-{index}.bin").open("wb") as stream:
+                            stream.truncate(size)
+                self.write_skill(
+                    f"{code}/skills/good",
+                    "---\nname: good\ndescription: Use for good work.\n---\nDo work.\n",
+                )
+                project = self.root / code
+                runtime = FakeGuideRuntime(json.dumps(self.judge_value({
+                    "progressive_disclosure": "not_applicable",
+                    "resource_organization": "not_applicable",
+                })))
+                try:
+                    bundles = skill_guide.discover(project)
+                    result = skill_guide.evaluate_project(
+                        runtime, "gpt-6-astra", project, self.guide_rubric(), project / "artifacts",
+                    )
+                except RuntimeFailure as error:
+                    self.fail(f"Individual {error.code} blocked the whole project.")
+
+                self.assertEqual([bundle["path"] for bundle in bundles], ["skills/bad", "skills/good"])
+                self.assertEqual(bundles[0]["error"]["code"], code)
+                self.assertIsNone(bundles[0]["sha256"], "Unread bundles must not claim a content hash.")
+                self.assertEqual(result["summary"], {"skills": 2, "pass": 1, "review": 0, "blocked": 1})
+                self.assertTrue(result["report_only"])
+                self.assertEqual([row["status"] for row in result["skills"]], ["blocked", "pass"])
+                self.assertEqual(result["skills"][0]["error"]["code"], code)
+                self.assertEqual(result["skills"][0]["judge_calls"], 0)
+                self.assertEqual(len(runtime.calls), 1)
+
+    def test_bad_bundle_content_change_still_blocks_the_project(self):
+        fstat = os.fstat
+
+        def coarse_timestamps(descriptor):
+            info = fstat(descriptor)
+            return SimpleNamespace(
+                st_dev=info.st_dev, st_ino=info.st_ino, st_mode=info.st_mode, st_size=info.st_size,
+                st_mtime_ns=0, st_ctime_ns=0,
+            )
+
+        for changed in ("SKILL.md", "unread.bin", "oversized.bin"):
+            with self.subTest(changed=changed):
+                bad = self.write_skill(
+                    f"{changed}/skills/bad", "Invalid text.", {"unread.bin": b"before"},
+                )
+                if changed == "oversized.bin":
+                    with (bad / changed).open("wb") as stream:
+                        stream.truncate(skill_guide.FILE_LIMIT + 1)
+                else:
+                    (bad / "SKILL.md").write_bytes(b"\xff")
+                self.write_skill(
+                    f"{changed}/skills/good", "---\nname: good\ndescription: Good work.\n---\nDo work.\n",
+                )
+                project = self.root / changed
+                runtime = FakeGuideRuntime(json.dumps(self.judge_value({
+                    "progressive_disclosure": "not_applicable",
+                    "resource_organization": "not_applicable",
+                })))
+                invoke = runtime.invoke
+
+                def change_bad(*args, **kwargs):
+                    result = invoke(*args, **kwargs)
+                    if changed == "oversized.bin":
+                        with (bad / changed).open("r+b") as stream:
+                            stream.seek(skill_guide.FILE_LIMIT)
+                            stream.write(b"x")
+                    else:
+                        (bad / changed).write_bytes(b"\xfe" if changed == "SKILL.md" else b"after!")
+                    return result
+
+                with patch.object(runtime, "invoke", side_effect=change_bad), patch(
+                    "os.fstat", side_effect=coarse_timestamps
+                ):
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_guide.evaluate_project(
+                            runtime, "gpt-6-astra", project, self.guide_rubric(), project / "artifacts",
+                        )
+                self.assertEqual(caught.exception.code, "skill_inputs_changed")
+                self.assertEqual(len(runtime.calls), 1)
 
     def test_evaluate_project_raises_if_skill_paths_or_hashes_change_even_after_timeout(self):
         self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
