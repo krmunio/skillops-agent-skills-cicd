@@ -248,11 +248,121 @@ def load_reports(results):
     return rows
 
 
+def validate_snapshots(data, report):
+    validate(report)
+    require(isinstance(data, dict) and set(data) == {
+        "schema_version", "project_id", "run_id", "report_sha256", "skill_id", "base", "candidate",
+    }, "invalid_skill_snapshots")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1)
+    require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"])
+    require(data["report_sha256"] == sha256(encoded(report)).hexdigest(), "snapshot_report_mismatch")
+    require(matches(ID, data["skill_id"]))
+    for arm in ("base", "candidate"):
+        snapshot = data[arm]
+        if arm == "candidate" and snapshot is None:
+            continue
+        require(isinstance(snapshot, dict) and set(snapshot) == {"content", "sha256"})
+        text = snapshot["content"]
+        require(isinstance(text, str) and 0 < len(text.encode("utf-8")) <= 32768
+                and len(text.split("\n")) <= 400, "snapshot_size_limit")
+        require(sha256(text.encode("utf-8")).hexdigest() == snapshot["sha256"], "snapshot_hash_mismatch")
+    return data
+
+
+def store_snapshots(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = Path(results) / data["project_id"] / data["run_id"]
+    validate_snapshots(data, read_json(folder / "report.json"))
+    path = folder / "skill-snapshots.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_snapshots(results, rows=None):
+    results = safe_path(results)
+    reports = {(row["project_id"], row["run_id"]): row
+               for row in (load_reports(results) if rows is None else rows)}
+    snapshots = {}
+    for path in sorted(results.glob("*/*/skill-snapshots.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_skill_snapshots")
+        snapshots[key] = validate_snapshots(read_json(path), reports[key])
+    return snapshots
+
+
+def merge_results(root, incoming, results):
+    rows = load_reports(incoming)
+    snapshots = load_snapshots(incoming, rows)
+    for row in rows:
+        store(results, row)
+    for data in snapshots.values():
+        store_snapshots(results, data)
+    return reindex(root, results)
+
+
+def import_skill_snapshots(source, results, project, candidate_run, skill_id):
+    require(matches(ID, project) and matches(ID, skill_id))
+    require(matches(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}", candidate_run))
+    source = safe_path(source)
+    candidate = read_json(source / candidate_run / "candidate.json")
+    require(candidate.get("run_id") == candidate_run and candidate.get("purpose") == "candidate"
+            and candidate.get("status") == "completed", "invalid_candidate")
+    bundle = {}
+    for arm, name, key in (("base", "base-SKILL.md", "base_skill_sha256"),
+                           ("candidate", "SKILL.md", "skill_sha256")):
+        raw = read_bytes(source / candidate_run / name, 32768)
+        require(sha256(raw).hexdigest() == candidate.get(key), "snapshot_hash_mismatch")
+        text = raw.decode("utf-8")
+        frontmatter = text.split("---", 2)
+        require(len(frontmatter) == 3 and not frontmatter[0].strip()
+                and re.search(r"(?m)^name:\s*" + re.escape(skill_id) + r"\s*$", frontmatter[1]),
+                "snapshot_skill_mismatch")
+        bundle[arm] = {"content": text, "sha256": sha256(raw).hexdigest()}
+    pending = []
+    for row in load_reports(results):
+        if row["project_id"] != project or row["origin"] != "historical_import":
+            continue
+        name = {"baseline": "report.json", "candidate": "candidate.json",
+                "comparison": "comparison.json"}.get(row["purpose"])
+        if name is None:
+            continue
+        original_id = row["run_id"].removeprefix("import-")
+        require(matches(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}", original_id))
+        raw = read_bytes(source / original_id / name)
+        require(sha256(raw).hexdigest() == row["source_report_sha256"], "source_report_mismatch")
+        original = strict_json(raw.decode("utf-8"))
+        require(original.get("run_id") == original_id and original.get("purpose") == row["purpose"])
+        if row["purpose"] == "baseline":
+            if original.get("skill_sha256") != bundle["base"]["sha256"]:
+                continue
+            to_be = None
+        elif row["purpose"] == "candidate":
+            if original_id != candidate_run:
+                continue
+            to_be = bundle["candidate"]
+        else:
+            if original.get("candidate_run") != candidate_run:
+                continue
+            require(original.get("skill_sha256") == {arm: value["sha256"] for arm, value in bundle.items()},
+                    "comparison_skill_mismatch")
+            to_be = bundle["candidate"]
+        data = {"schema_version": 1, "project_id": project, "run_id": row["run_id"],
+                "report_sha256": sha256(encoded(row)).hexdigest(), "skill_id": skill_id,
+                "base": bundle["base"], "candidate": to_be}
+        pending.append(validate_snapshots(data, row))
+    require(pending, "no_matching_skill_records")
+    for data in pending:
+        store_snapshots(results, data)
+    return len(pending)
+
+
 def reindex(root, results):
     current = {row["id"]: row for row in catalog(root)}
     fingerprint = evaluator_hash(root)
     grouped = {}
-    for row in load_reports(results):
+    all_rows = load_reports(results)
+    snapshots = load_snapshots(results, all_rows)
+    for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
     for identifier in sorted(set(current) | set(grouped)):
@@ -272,6 +382,13 @@ def reindex(root, results):
             "purpose": row["purpose"], "guide_status": row["guide"]["status"],
             "execution_status": row["execution"]["status"], "report": f"{row['run_id']}/report.json",
         } for row in rows]
+        for summary in summaries:
+            snapshot = snapshots.get((identifier, summary["run_id"]))
+            if snapshot is not None:
+                summary.update(skill_id=snapshot["skill_id"],
+                               skill_snapshots=f"{summary['run_id']}/skill-snapshots.json",
+                               base_skill_sha256=snapshot["base"]["sha256"],
+                               candidate_skill_sha256=snapshot["candidate"]["sha256"] if snapshot["candidate"] else None)
         atomic_json(Path(results) / identifier / "index.json", {"schema_version": 1, "project": entry, "history": summaries})
         entries.append(entry)
     index = {"schema_version": 1, "projects": entries}
@@ -340,12 +457,15 @@ def build(root, results, output):
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
     rows = load_reports(results)
+    snapshots = load_snapshots(results, rows)
     output.mkdir(parents=True)
     for name in ("index.html", "styles.css", "app.js", "views.js", "sample-data.json", "staticwebapp.config.json"):
         raw = read_bytes(root / "dashboard" / name)
         (output / name).write_bytes(raw)
     for row in rows:
         store(output / "results", row)
+    for data in snapshots.values():
+        store_snapshots(output / "results", data)
     return reindex(root, output / "results")
 
 
@@ -365,6 +485,14 @@ def main():
     legacy.add_argument("--source", type=Path, required=True)
     legacy.add_argument("--results", type=Path, default=Path("results"))
     legacy.add_argument("--project", required=True)
+    skills = sub.add_parser("import-skill-snapshots")
+    skills.add_argument("--source", type=Path, required=True)
+    skills.add_argument("--results", type=Path, required=True)
+    skills.add_argument("--project", required=True)
+    skills.add_argument("--candidate-run", required=True)
+    skills.add_argument("--skill-id", required=True)
+    skills.add_argument("--reviewed", action="store_true", required=True,
+                        help="Confirm the exact archived Skill texts were reviewed for public disclosure.")
     site = sub.add_parser("build")
     site.add_argument("--results", type=Path, default=Path("results"))
     site.add_argument("--output", type=Path, required=True)
@@ -374,14 +502,16 @@ def main():
             value = catalog(args.root)
         elif args.command == "validate":
             value = {"validated": len(load_reports(args.results))}
+            load_snapshots(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)
         elif args.command == "merge":
-            rows = load_reports(args.incoming)
-            for row in rows:
-                store(args.results, row)
-            value = reindex(args.root, args.results)
+            value = merge_results(args.root, args.incoming, args.results)
+        elif args.command == "import-skill-snapshots":
+            value = {"attached": import_skill_snapshots(
+                args.source, args.results, args.project, args.candidate_run, args.skill_id)}
+            reindex(args.root, args.results)
         elif args.command == "build":
             value = build(args.root, args.results, args.output)
         else:
