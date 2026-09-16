@@ -202,10 +202,13 @@ Before enabling live evaluation, configure repository settings deliberately:
 - Secret `SKILLOPS_SWA_DEPLOYMENT_TOKEN`: the intended Static Web App's deployment credential.
 - An existing writable `evaluation-results` branch for the validated data writer.
 
-On September 16, 2026, PR #7 added 11 reviewed reports to main, but the inspected
-remote no longer advertised `evaluation-results`. An already reachable dashboard
-does not prove the next automatic persistence/deployment will succeed. Restoring
-that data branch is an owner-coordinated activation action, not part of sample import.
+On September 16, 2026, PR #7 added 11 reviewed reports to main. A later read-only
+check confirmed the existing `evaluation-results` branch and the owner's PR #8
+workflow run `35070021220`: its contracts, persistence and deployment succeeded,
+while evaluation recorded `live_disabled`. These production steps were performed
+by the owner's workflow, not this sample task. A deployed blocked report is not
+successful model evaluation. Sample contract checks do not create or write the
+data branch, modify activation settings, or deploy to Azure.
 
 No values are supplied or live evaluation enabled by this skeleton. Missing
 settings create explicit blocked records without model invocation.
