@@ -1,0 +1,21 @@
+{
+  "history": [
+    {
+      "created_at": "2026-09-16T08:14:03.664875+00:00",
+      "execution_status": "configuration_required",
+      "guide_status": "blocked",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35072620142-1/report.json",
+      "run_id": "35072620142-1"
+    }
+  ],
+  "project": {
+    "current_run": "35072620142-1",
+    "history_count": 1,
+    "id": "project-b",
+    "index": "project-b/index.json",
+    "state": "active"
+  },
+  "schema_version": 1
+}
