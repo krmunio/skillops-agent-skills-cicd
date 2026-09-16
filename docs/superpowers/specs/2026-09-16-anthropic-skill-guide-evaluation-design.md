@@ -48,8 +48,14 @@ snapshot의 descriptor는 최종 검증까지 유지하므로 delete→recreate�
 아래의 별도 제한을 적용한다. 그 결과도 prompt에 들어가지 않으면 순서 있는
 `static.json_fragment` 배치로 분할하며, applicability map만 각 배치에 유지한다.
 작은 static은 그대로 전달하고, rubric이 큰 경우 파일 배치 크기도 줄인다.
-`SKILL.md` 원문은 metadata hash와 별개로 파일 배치에 빠짐없이 전달하므로 큰 description도
+`SKILL.md`는 아래 보안 정제 후 metadata hash와 별개로 파일 배치에 빠짐없이 전달하므로 큰 description도
 rubric 평가에서 제외되지 않는다.
+
+모델 입력 전 source 문자열 전체와 static evidence에 `copilot_runtime.redact(text, runtime.env)`를
+적용하고, 절대 Unix/Windows 로컬 경로는 `[REDACTED_PATH]`로 정제한다. 일반 `/develop` 명령과
+상대 경로는 유지한다. 정제는 배치 분할 전에 수행하며, result 저장 전 metadata·finding·오류·judge
+rationale에도 적용한다. 경로 표시는 상대 경로만 사용하고, 정제가 필요한 파일명은 원래 경로의
+SHA-256 식별자로 바꿔 파일끼리 합쳐지지 않게 한다. 원본 bundle/file snapshot hash와 크기는 유지한다.
 
 ## 정적 검사
 
@@ -83,7 +89,7 @@ scalar `name`/`description`과 들여쓴 continuation만 읽으며 전체 YAML p
 안에 있어야 한다.
 
 보고용 `metadata.name`과 `metadata.description`은 각각 1,024 UTF-8 bytes 이하면
-기존 문자열을 유지하고, 초과하면 `{"sha256": "...", "bytes": N}`으로 기록한다.
+보안 정제한 문자열을 유지하고, 초과하면 `{"sha256": "...", "bytes": N}`으로 기록한다.
 빈 값·누락 여부 검사는 원래 scalar 값으로 수행한다. 이는 source 원문 복제 방지이며
 평가 입력을 자르는 것이 아니다.
 
@@ -135,6 +141,11 @@ baseline JSON과 Markdown의 `anthropic_skill_guide`는 **baseline summary**이�
   artifact 소유 프로젝트 기준 POSIX 상대 경로다. 등록된 외부 프로젝트를 평가해도
   source 프로젝트 기준이나 절대 경로로 바꾸지 않는다.
 - 같은 skill 디렉터리의 `manifest.json`과 `judge-<batch>.json` 호출 기록은 유지한다.
+
+Artifact ID는 정제된 slug 최대 80자와 원래 경로의 전체 SHA-256으로 구성한다.
+실행 내 ID 중복은 `artifact_collision`으로 전체 차단하며, 기존 artifact 디렉터리나
+result는 `artifact_exists`로 거부한다. 오류 결과도 exclusive create로 기록하므로
+다른 skill의 결과를 덮어쓰지 않는다.
 
 각 `result.json`은 indent·JSON escaping·마지막 newline까지 포함한 실제 UTF-8 payload를
 쓰기 전에 검사하여 기존 2 MiB file limit을 지킨다. 초과한 payload는 쓰지 않고 해당
