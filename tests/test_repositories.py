@@ -109,6 +109,8 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(len(self.r.list_repositories(self.root)), 1)
         self.assertEqual(snap["binding"]["repository_id"], "a")
         self.assertEqual(snap["binding"]["evaluation_set"], "issue-management-v2")
+        self.assertEqual(snap["project_root"], str(self.target))
+        self.assertEqual(self.r.resolve(self.root)["project_root"], str(self.root))
 
     def test_invalid_duplicate_and_unsupported_registration_preserves_state(self):
         self.register()
