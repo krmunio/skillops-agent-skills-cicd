@@ -1014,6 +1014,57 @@ class SkillGuideTests(unittest.TestCase):
                 result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{index}")[0])
                 self.assertEqual(result["findings"], [])
 
+    def test_inline_links_decode_entities_after_destination_parsing_before_fragments_and_percent_escapes(self):
+        targets = (
+            "references/a&#32;b.md",
+            "references/a&amp;b.md",
+            '<references/a&#x20;b.md> "Notes"',
+            "references/a&amp;b.md 'Notes'",
+            "references/a&amp;b.md&#35;section",
+            r"references/a&amp;b.md\#section",
+            "references/a&#37;23b.md",
+            "references/a&lt;b.md",
+            "&#35;section",
+            'https&#58;//example.com/a&amp;b "Web"',
+        )
+        for index, target in enumerate(targets):
+            with self.subTest(target=target):
+                self.write_skill(
+                    f"case-{index}/skills/example",
+                    "---\nname: example\ndescription: Read notes.\n---\n" + f"[notes]({target})",
+                    {name: "Notes." for name in (
+                        "references/a b.md", "references/a&b.md",
+                        "references/a#b.md", "references/a<b.md",
+                    )},
+                )
+
+                result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{index}")[0])
+
+                self.assertEqual(result["findings"], [])
+
+    def test_inline_entity_links_still_reject_decoded_unsafe_paths(self):
+        unsafe = (
+            "&#46;&#46;/outside.md",
+            "&period;&period;/outside.md",
+            "<&#x2e;&#x2e;/outside.md> 'Notes'",
+            "&sol;outside.md",
+            "&#47;outside.md&#35;section",
+            '<&#x2f;outside.md> "Notes"',
+            "&#37;2e&#37;2e/outside.md",
+            "&#37;2foutside.md",
+        )
+        self.write_skill(
+            "skills/example",
+            "---\nname: example\ndescription: Work.\n---\n"
+            + "\n".join(f"[notes]({target})" for target in unsafe),
+        )
+
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+
+        self.assertEqual([row["check"] for row in result["findings"]], ["unsafe_reference"])
+        self.assertEqual(result["findings"][0]["occurrences"], len(unsafe))
+        self.assertEqual(result["findings"][0]["severity"], "error")
+
     def test_inline_links_ignore_malformed_destinations_and_titles(self):
         malformed = (
             '[notes](<missing.md)',
@@ -1596,6 +1647,108 @@ class SkillGuideTests(unittest.TestCase):
                     self.assertEqual(result["error"]["message"], expected)
         self.assertEqual(skill_guide.discover(self.root)[0], original)
 
+    def test_absolute_paths_after_delimiters_and_file_uris_are_redacted_everywhere(self):
+        sensitive = (
+            "Source:/home/user/private/file",
+            "Source:/Users/user/private/file",
+            "path=/tmp/private/file",
+            "(/etc/private/file)",
+            r"Source:C:\Users\user\private\file",
+            r"path=C:\Users\user\private\file",
+            "(C:/Users/user/private/file)",
+            "file:///home/user/private/file",
+            "file:///C:/Users/user/private/file",
+            r"file://C:\Users\user\private\file",
+            "file://localhost/home/user/private/file",
+            "FILE:///home/user/private/file",
+            "Source:/home",
+            "path=/Users",
+            "(/tmp)",
+            " /etc",
+        )
+        expected_parts = (
+            "Source:[REDACTED_PATH]", "Source:[REDACTED_PATH]",
+            "path=[REDACTED_PATH]", "([REDACTED_PATH])",
+            "Source:[REDACTED_PATH]", "path=[REDACTED_PATH]", "([REDACTED_PATH])",
+            *(["[REDACTED_PATH]"] * 5),
+            "Source:[REDACTED_PATH]", "path=[REDACTED_PATH]",
+            "([REDACTED_PATH])", " [REDACTED_PATH]",
+        )
+        ordinary = "/develop references/guide.md ./notes.md ../notes.md https://example.com/x"
+        source = " | ".join(sensitive) + " | " + ordinary
+        expected = " | ".join(expected_parts) + " | " + ordinary
+        self.write_skill(
+            "skills/example",
+            f"---\nname: example\ndescription: {source}\n---\n"
+            f"{source}\n[missing](<missing {source}>)\n",
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        applicability = skill_guide.static_assessment(bundle)["applicability"]
+        for outcome in ("completed", "timeout"):
+            with self.subTest(outcome=outcome):
+                response = (
+                    json.dumps(self.judge_value(applicability, rationale=source))
+                    if outcome == "completed" else RuntimeFailure("timeout", source)
+                )
+                runtime = FakeGuideRuntime(response)
+                report = skill_guide.evaluate_project(
+                    runtime, "gpt-6-astra", self.root, self.guide_rubric(),
+                    self.root / "artifacts" / outcome,
+                )
+
+                raw = (self.root / report["skills"][0]["artifact"]).read_bytes()
+                stored = json.loads(raw)
+                prompt = runtime.calls[0][0]
+                evidence = json.loads(prompt.split("\nSKILL_EVIDENCE:\n", 1)[1])
+                for context in (stored["static"], evidence["static"]):
+                    self.assertEqual(context["metadata"]["description"], expected)
+                    self.assertEqual(
+                        context["findings"][0]["message"], "Referenced file is missing: missing " + expected,
+                    )
+                self.assertIn(expected, evidence["bundle"]["files"]["SKILL.md"])
+                for sentinel in sensitive:
+                    self.assertNotIn(sentinel, prompt)
+                    self.assertNotIn(json.dumps(sentinel)[1:-1], prompt)
+                    self.assertNotIn(sentinel.encode(), raw)
+                    self.assertNotIn(json.dumps(sentinel)[1:-1].encode(), raw)
+                if outcome == "completed":
+                    self.assertTrue(all(
+                        row["rationale"] == expected for row in stored["judge"]["dimensions"].values()
+                    ))
+                else:
+                    self.assertEqual(stored["error"]["message"], expected)
+
+    def test_explicit_runtime_roots_are_redacted_before_generic_paths_without_touching_urls(self):
+        for project, private in (
+            ("/workspace", "/vault"),
+            ("/project with spaces/root", "/private with spaces/root"),
+            ("/project/root with spaces", "/private/root with spaces"),
+        ):
+            with self.subTest(project=project, private=private):
+                runtime = SimpleNamespace(project=Path(project), private=Path(private), env={})
+                source = f"Source:{project} private={private} ({project}) /develop"
+                ordinary = f"https://example.com{project.replace(' ', '%20')} https://example.com/x"
+
+                self.assertEqual(
+                    skill_guide.redact_evidence(source + " " + ordinary, runtime),
+                    "Source:[REDACTED_PATH] private=[REDACTED_PATH] ([REDACTED_PATH]) /develop " + ordinary,
+                )
+
+    def test_path_redaction_preserves_uri_boundaries_and_redacts_drive_roots(self):
+        runtime = SimpleNamespace(project=Path("/workspace"), private=Path("/vault"), env={})
+        cases = (
+            ("file:///workspace", "[REDACTED_PATH]"),
+            ("file://localhost/vault", "[REDACTED_PATH]"),
+            ("Source:C:\\", "Source:[REDACTED_PATH]"),
+            (
+                "[web](https://example.com/x):/home/user/private/file",
+                "[web](https://example.com/x):[REDACTED_PATH]",
+            ),
+        )
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(skill_guide.redact_evidence(source, runtime), expected)
+
     def test_source_redaction_precedes_chunking_and_preserves_snapshot_identity(self):
         token = "opaque-runtime-SENTINEL-" + "x" * (skill_guide.BATCH_BYTES + 1100)
         source = (
@@ -1666,6 +1819,84 @@ class SkillGuideTests(unittest.TestCase):
             self.assertEqual(sha256(files[row["path"]].encode()).hexdigest(), row["sha256"])
         for token in tokens:
             self.assertNotIn(token, runtime.calls[0][0])
+
+    def test_evaluate_bundle_rejects_sanitized_file_path_collisions(self):
+        sensitive = "ghp_SYNTHETIC_COLLISION_SENTINEL.md"
+        collision = "redacted-" + sha256(sensitive.encode()).hexdigest()
+        self.write_skill(
+            "skills/bad",
+            "---\nname: bad\ndescription: Work.\n---\nWork.",
+            {sensitive: "Sensitive-named resource.", collision: "Ordinary-named resource."},
+        )
+        original = skill_guide.discover(self.root)[0]
+        for ordinary_text in (None, "Ordinary-named resource."):
+            with self.subTest(ordinary_text=ordinary_text):
+                bundle = deepcopy(original)
+                if ordinary_text is not None:
+                    next(row for row in bundle["files"] if row["path"] == collision)["text"] = ordinary_text
+                    bundle.update(text_files=3, binary_files=0)
+                before = deepcopy(bundle)
+                runtime = FakeGuideRuntime(json.dumps(self.judge_value({})))
+                folder = self.root / "artifacts" / str(ordinary_text is not None)
+
+                with self.assertRaises(RuntimeFailure) as caught:
+                    skill_guide.evaluate_bundle(
+                        runtime, "gpt-6-astra", bundle, self.guide_rubric(), folder,
+                    )
+
+                self.assertEqual(caught.exception.code, "sanitized_path_collision")
+                self.assertEqual(runtime.calls, [])
+                self.assertEqual(list(folder.iterdir()), [], "Conflicting evidence must never be written.")
+                self.assertEqual(bundle, before)
+
+    def test_sanitized_path_collision_blocks_only_bad_skill_without_overwriting_artifacts(self):
+        sensitive = "ghp_SYNTHETIC_COLLISION_SENTINEL.md"
+        collision = "redacted-" + sha256(sensitive.encode()).hexdigest()
+        for name in ("a-first", "bad", "z-good"):
+            self.write_skill(
+                f"skills/{name}",
+                f"---\nname: {name}\ndescription: Work.\n---\nWork on {name}.",
+                {sensitive: "First resource.", collision: "Second resource."}
+                if name == "bad" else {"references/notes.md": f"Notes for {name}."},
+            )
+        original = skill_guide.discover(self.root)
+        runtime = FakeGuideRuntime()
+        runtime.responses = repeat(json.dumps(self.judge_value({})))
+        artifact_root = self.root / "artifacts"
+        prior = artifact_root / "unrelated" / "result.json"
+        prior.parent.mkdir(parents=True)
+        prior.write_bytes(b'{"prior": "DO_NOT_OVERWRITE"}\n')
+        prior_bytes = prior.read_bytes()
+
+        report = skill_guide.evaluate_project(
+            runtime, "gpt-6-astra", self.root, self.guide_rubric(), artifact_root,
+        )
+
+        self.assertEqual(report["summary"], {"skills": 3, "pass": 2, "review": 0, "blocked": 1})
+        self.assertEqual(len(runtime.calls), 2)
+        self.assertEqual(len({row["artifact"] for row in report["skills"]}), 3)
+        for bundle, summary in zip(original, report["skills"]):
+            stored_path = self.root / summary["artifact"]
+            stored = json.loads(stored_path.read_bytes())
+            self.assertEqual(stored["path"], bundle["path"])
+            self.assertEqual(stored["bundle_sha256"], bundle["sha256"])
+            self.assertEqual(stored["file_count"], len(bundle["files"]))
+            if bundle["path"] == "skills/bad":
+                self.assertEqual(stored["status"], "blocked")
+                self.assertEqual(stored["error"]["code"], "sanitized_path_collision")
+                self.assertEqual(stored["judge_calls"], 0)
+                self.assertEqual({path.name for path in stored_path.parent.iterdir()}, {"result.json"})
+            else:
+                self.assertEqual(stored["status"], "pass")
+                manifest = json.loads((stored_path.parent / "manifest.json").read_bytes())
+                self.assertEqual(manifest["file_count"], len(manifest["files"]))
+                receipt = json.loads((stored_path.parent / "judge-1.json").read_bytes())
+                evidence = json.loads(receipt["prompt"].split("\nSKILL_EVIDENCE:\n", 1)[1])
+                self.assertEqual(evidence["bundle"]["files"], {
+                    row["path"]: row["text"] for row in bundle["files"]
+                })
+        self.assertEqual(prior.read_bytes(), prior_bytes)
+        self.assertEqual(skill_guide.discover(self.root), original)
 
     def test_evaluate_bundle_merges_every_batch_and_preserves_receipts(self):
         self.assertTrue(hasattr(skill_guide, "evaluate_bundle"), "Bundle evaluation is missing.")

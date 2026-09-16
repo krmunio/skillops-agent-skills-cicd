@@ -2,6 +2,7 @@
 
 from contextlib import ExitStack
 from hashlib import sha256
+import html
 import json
 import os
 from pathlib import Path
@@ -25,9 +26,12 @@ LINK = re.compile(r"\[(?:\\.|[^\]\\])*\]\(")
 LINK_SPACE = re.compile(r"[ \t]*(?:(?:\r\n?|\n)[ \t]*)?")
 LINK_TITLE = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^()\\])*\)''')
 ABSOLUTE_PATH = re.compile(
-    r"""(?<![\w./\\:-])(?:[A-Za-z]:[\\/][^\s<>"'`()\[\]{},;|]+"""
+    r"""(?<![\w./\\-])(?:file://[^\s<>"'`()\[\]{},;|]+"""
+    r"""|[A-Za-z]:[\\/][^\s<>"'`()\[\]{},;|]*"""
     r"""|\\\\[^\s\\/<>:"'`()\[\]{},;|]+[\\/][^\s<>"'`()\[\]{},;|]+"""
-    r"""|/(?:[^/\s<>:"'`()\[\]{},;|]+/)+[^/\s<>:"'`()\[\]{},;|]*)"""
+    r"""|/(?:[^/\s<>:"'`()\[\]{},;|]+/)+[^/\s<>:"'`()\[\]{},;|]*"""
+    r"""|/(?:home|Users|tmp|etc)(?![\w./\\-]))""",
+    re.IGNORECASE,
 )
 
 
@@ -348,13 +352,18 @@ def redact_evidence(value, runtime=None):
     if not isinstance(value, str):
         return value
     value = redact(value, getattr(runtime, "env", None))
-    value = ABSOLUTE_PATH.sub("[REDACTED_PATH]", value)
-    # Known roots can be single-component paths, unlike ordinary slash commands.
-    for name in ("project", "private", "home", "config"):
-        path = str(getattr(runtime, name, ""))
-        if path and Path(path).is_absolute() and path != "/":
-            value = re.sub(re.escape(path) + r"(?![\w./\\-])", "[REDACTED_PATH]", value)
-    return value
+    roots = {str(getattr(runtime, name, "")) for name in ("project", "private", "home", "config")}
+    # Match known roots before generic paths can consume only part of a spaced name.
+    paths = [
+        re.escape(path) + r"(?![\w./\\-])"
+        for path in sorted(roots, key=len, reverse=True)
+        if path and Path(path).is_absolute() and path != "/"
+    ]
+    return re.sub(
+        r"""(?P<url>https?://[^\s<>"'`)]+)|""" + "|".join([*paths, ABSOLUTE_PATH.pattern]),
+        lambda match: match.group("url") or "[REDACTED_PATH]",
+        value, flags=re.IGNORECASE,
+    )
 
 
 def inline_destinations(text):
@@ -425,6 +434,7 @@ def static_assessment(bundle):
     paths = {row["path"] for row in bundle["files"]}
     references = {}
     for target in inline_destinations(body):
+        target = html.unescape(target)
         if re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", target):
             continue
         target = unquote(target.split("#", 1)[0])
@@ -641,6 +651,8 @@ def evaluate_bundle(runtime, model, bundle, rubric, artifact_dir):
         fail(bundle["error"]["code"], bundle["error"]["message"])
     static = redact_evidence(static_assessment(bundle), runtime)
     bundle = redact_evidence(bundle, runtime)
+    if len({row["path"] for row in bundle["files"]}) != len(bundle["files"]):
+        fail("sanitized_path_collision", "Skill file paths must remain unique after redaction.")
     applicability = static["applicability"]
     work = judge_batches(rubric, static, bundle)
     manifest = {
