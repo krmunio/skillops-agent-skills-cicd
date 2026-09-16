@@ -1,0 +1,80 @@
+{
+  "bindings": [
+    {
+      "base_version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4",
+      "candidate_version_id": null,
+      "legacy_skill_id": "develop",
+      "skill_key": "skillops:develop"
+    }
+  ],
+  "file_contents": [
+    {
+      "data": "LS0tCm5hbWU6IGRldmVsb3AKZGVzY3JpcHRpb246IEZpeCBhIHNtYWxsIFB5dGhvbiBhcHBsaWNhdGlvbiwgYWRkIHJlZ3Jlc3Npb24gdGVzdHMsIGFuZCByZXZpZXcgdGhlIHJlc3VsdGluZyBjaGFuZ2UgYWdhaW5zdCB0aGUgc3VwcGxpZWQgcmVxdWlyZW1lbnRzLgotLS0KClJlYWQgdGhlIHJlcXVlc3QsIHB1YmxpYyBBUEkgY29udHJhY3QgYW5kIHN1cHBsaWVkIHNvdXJjZSBiZWZvcmUgY2hhbmdpbmcgY29kZS4KSWRlbnRpZnkgdGhlIHJvb3QgY2F1c2UgYW5kIG1ha2UgdGhlIHNtYWxsZXN0IGNvbXBsZXRlIGNvcnJlY3Rpb24uClZhbGlkYXRlIGlucHV0IGF0IHRoZSBkb2N1bWVudGVkIGJvdW5kYXJ5IHdpdGhvdXQgY2hhbmdpbmcgdW5yZWxhdGVkIGJlaGF2aW9yLgpBZGQgZXhlY3V0YWJsZSBzdGFuZGFyZC1saWJyYXJ5IHVuaXR0ZXN0IHRlc3RzIGZvciB0aGUgcmVncmVzc2lvbiBhbmQgcmVsZXZhbnQKYm91bmRhcnkgY29uZGl0aW9ucy4gS2VlcCBpbnB1dCBkYXRhIHVuY2hhbmdlZCB3aGVuIHRoZSBjb250cmFjdCByZXF1aXJlcyBpdC4KUmV2aWV3IHRoZSBwcm9wb3NlZCBkaWZmIGZvciBjb3JyZWN0bmVzcywgbWlzc2luZyBjYXNlcyBhbmQgdW5pbnRlbmRlZCBjaGFuZ2VzLgpEaXN0aW5ndWlzaCBvYnNlcnZlZCBiZWhhdmlvciBmcm9tIGFzc3VtcHRpb25zOyBuZXZlciBjbGFpbSB0ZXN0cyByYW4gd2hlbiB0aGV5IGRpZCBub3QuCgpXaGVuIHRoZSBjYWxsZXIgc3VwcGxpZXMgc291cmNlIGluIHRoZSBwcm9tcHQgYW5kIHJlcXVlc3RzIHN0cnVjdHVyZWQgb3V0cHV0LAp1c2UgdGhhdCBzb3VyY2UgZGlyZWN0bHkgYW5kIHJldHVybiBleGFjdGx5IHRoZSByZXF1ZXN0ZWQgSlNPTiBjb250YWluaW5nIHRoZQpjb21wbGV0ZSBzb3VyY2UsIGNvbXBsZXRlIHRlc3RzIGFuZCBhIGNvbmNpc2UgcmV2aWV3LiBVc2Ugb25seSBhdmFpbGFibGUgdG9vbHMuClRoZSBjYWxsZXIgYXBwbGllcyB0aGUgZmlsZXMgYW5kIGV4ZWN1dGVzIHRlc3RzOyBkbyBub3QgaW52ZW50IGV4ZWN1dGlvbiByZXN1bHRzLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4"
+    }
+  ],
+  "project_id": "sample_repo",
+  "records": {
+    "adoptions": [
+      {
+        "entrypoint_sha256": null,
+        "evidence_kind": "none",
+        "observed_at": null,
+        "project_id": "sample_repo",
+        "registry_sha256": null,
+        "skill_key": "skillops:develop",
+        "state": "unknown",
+        "version_id": null
+      }
+    ],
+    "comparisons": [],
+    "generations": [],
+    "identities": [
+      {
+        "display_name": "develop",
+        "skill_key": "skillops:develop"
+      }
+    ],
+    "skill_versions": [
+      {
+        "skill_key": "skillops:develop",
+        "version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4"
+      }
+    ],
+    "sources": [
+      {
+        "evidence_ref": {
+          "artifact_sha256": "c7a5cc066be57b3206cff5babaa8902693ec1d0976ae21f7114ad60536624740",
+          "availability": "verified",
+          "kind": "baseline",
+          "run_id": "20260914T054441Z-154dde840ca8"
+        },
+        "kind": "run_archive",
+        "observed_at": null,
+        "path": "runs/20260915T005404Z-611d681b8bf7",
+        "project_id": "sample_repo",
+        "scope": "unknown",
+        "skill_key": "skillops:develop"
+      }
+    ],
+    "versions": [
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 1028,
+            "path": "SKILL.md",
+            "sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac"
+          }
+        ],
+        "version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4"
+      }
+    ]
+  },
+  "report_sha256": "d65c4e4ea5bd1d8d1c7e86c542a69accaab681b77ae86faf9d9398027eb9e1b6",
+  "run_id": "import-20260914T054441Z-154dde840ca8",
+  "schema_version": 1
+}

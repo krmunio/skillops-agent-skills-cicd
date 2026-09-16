@@ -1,0 +1,12 @@
+{
+  "base": {
+    "content": "---\nname: develop\ndescription: Fix a small Python application, add regression tests, and review the resulting change against the supplied requirements.\n---\n\nRead the request, public API contract and supplied source before changing code.\nIdentify the root cause and make the smallest complete correction.\nValidate input at the documented boundary without changing unrelated behavior.\nAdd executable standard-library unittest tests for the regression and relevant\nboundary conditions. Keep input data unchanged when the contract requires it.\nReview the proposed diff for correctness, missing cases and unintended changes.\nDistinguish observed behavior from assumptions; never claim tests ran when they did not.\n\nWhen the caller supplies source in the prompt and requests structured output,\nuse that source directly and return exactly the requested JSON containing the\ncomplete source, complete tests and a concise review. Use only available tools.\nThe caller applies the files and executes tests; do not invent execution results.\n",
+    "sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac"
+  },
+  "candidate": null,
+  "project_id": "sample_repo",
+  "report_sha256": "76277308224758079ccd8223c043037a741f46f3b46bd0da2417d07ba62024b0",
+  "run_id": "import-20260914T072451Z-50354146d951",
+  "schema_version": 1,
+  "skill_id": "develop"
+}
