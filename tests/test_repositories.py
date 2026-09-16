@@ -29,7 +29,7 @@ class RepositoryTests(unittest.TestCase):
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(self.original / name, dest)
         self.target = self.root / "project-a"
-        shutil.copytree(self.root / "sample_repo", self.target)
+        shutil.copytree(self.root / "projects/sample_repo", self.target)
         self.enterContext(patch("copilot_runtime.shutil.which", return_value="/test-only/copilot"))
         self.base = (self.root / "skills/develop/SKILL.md").read_bytes()
         self.catalog = skillops.load_tasks(self.root)
@@ -139,7 +139,7 @@ class RepositoryTests(unittest.TestCase):
         store.write_bytes(before)
         source = self.target / "issues.py"
         source.unlink()
-        source.symlink_to(self.root / "sample_repo/issues.py")
+        source.symlink_to(self.root / "projects/sample_repo/issues.py")
         with self.assertRaises(RuntimeFailure):
             self.r.resolve(self.root, "a")
         store.unlink()

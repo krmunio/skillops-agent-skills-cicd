@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "projects": {
+    "sample_repo": {"adapter": "issue-management-v2"}
+  }
+}

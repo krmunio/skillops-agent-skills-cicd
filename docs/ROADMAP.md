@@ -55,6 +55,35 @@ contract but does not need to wait for the complete PR/rollout dashboard.
 
 ## Delivery work
 
+### Multi-project evaluation foundation
+
+The next architecture places reviewed project source snapshots under `projects/`,
+including `projects/sample_repo/`. GitHub Actions will assess changed projects and
+retain per-project histories under the sibling `results/` directory. The dashboard
+will read those results rather than hardcoded examples or a separate Blob archive.
+
+```text
+projects/<project>/
+results/<project>/<evaluation-run>/report.json
+results/<project>/index.json
+results/index.json
+dashboard/
+```
+
+Common skill-authoring assessment applies where a project contains skills.
+Execution-based evaluation requires a configured, supported adapter; a missing
+adapter means **Configuration required**, not a successful evaluation.
+Keep these two assessment results separate. The initial execution adapter still
+targets the Python issue-management sample, not arbitrary project test commands.
+
+Plan automatic evaluation for trusted `main` changes and offline validation for
+PRs. Persist only public-safe results, retain source/evaluator identity, and chain
+dashboard deployment after result publication without a result-triggered loop.
+Git-tracked results in this public repository are public, not private storage.
+The catalog, sample migration, result writer, gated workflow, viewer and hosting
+template are implemented as foundations. Shared guide integration, live authentication/budgets
+and the complete model-backed Actions-to-dashboard path still require activation and verification.
+
 | Capability | Deliverable and acceptance evidence | Dependencies |
 |---|---|---|
 | Project fitness and evaluation data | Versioned project criteria; development/validation/final-heldout roles; missing required evidence blocks adoption | Existing evaluator and repository binding |

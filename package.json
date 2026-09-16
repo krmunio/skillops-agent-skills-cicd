@@ -1,0 +1,14 @@
+{
+  "name": "skillops-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "test:dashboard": "playwright test tests/dashboard.spec.js --workers=1",
+    "deploy:dashboard": "swa deploy"
+  },
+  "devDependencies": {
+    "@azure/static-web-apps-cli": "2.0.10",
+    "@playwright/test": "1.63.0",
+    "@github/copilot": "1.0.85"
+  }
+}
