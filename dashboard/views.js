@@ -265,24 +265,31 @@ function diffLines(before, after) {
   return lines;
 }
 
-function renderSkill(detail) {
+function renderSkill(detail, synthetic) {
   const container = $('skill-changes');
   if (!detail?.base) {
     empty(container, 'Skill 원문이 공개 기록에 없습니다.',
       '평가 당시 버전의 공개가 검토된 원문·해시·변경 비교가 필요합니다. 현재 파일로 과거 원문을 대체하지 않습니다.');
     return;
   }
+  const version = snapshot => snapshot.version || snapshot.sha256?.slice(0, 12) || '버전 미기록';
   const meta = node('div', undefined, 'skill-meta');
   meta.append(node('strong', detail.skill_id),
-    node('span', detail.candidate ? `${detail.base.version} → ${detail.candidate.version}` : detail.base.version, 'badge'),
-    node('span', detail.candidate ? '자가 생성 후보 · 미채택 · 합성 예시' : '기존 Skill · 합성 예시', 'muted'));
+    node('span', detail.candidate ? `${version(detail.base)} → ${version(detail.candidate)}` : version(detail.base), 'badge'),
+    node('span', synthetic ? '합성 예시 · 실제 평가 아님' : '평가 당시 원문 · 기록된 SHA-256과 일치', 'muted'));
   container.replaceChildren(meta);
-  for (const [key, label] of [['base', '기존 Skill 원문'], ['candidate', '후보 Skill 원문']]) {
+  const columns = node('div', undefined, 'skill-compare-grid');
+  for (const [key, label] of [['base', 'As-Is · 기존 Skill 원문'], ['candidate', 'To-Be · 후보 Skill 원문']]) {
     if (!detail[key]) continue;
     const source = node('details', undefined, 'source-panel');
-    source.append(node('summary', label), node('pre', detail[key].content));
-    container.append(source);
+    source.open = true;
+    source.append(node('summary', label));
+    if (detail[key].sha256) source.append(node('p', `SHA-256 ${detail[key].sha256}`, 'source-hash'));
+    if (key === 'candidate') source.append(node('p', '비교 대상 후보이며 채택·배포 승인을 의미하지 않습니다.', 'source-hash'));
+    source.append(node('pre', detail[key].content));
+    columns.append(source);
   }
+  container.append(columns);
   if (!detail.candidate) {
     container.append(node('p', '이 기록에는 후보 Skill이 없습니다.', 'reason'));
     return;
@@ -305,7 +312,7 @@ function renderSkill(detail) {
   container.append(toolbar, diff);
 }
 
-export function renderReport(report, project, detail = null) {
+export function renderReport(report, project, detail = null, snapshots = null) {
   for (const axis of [report.guide, report.execution]) {
     if (!axis || !labels[axis.status] || !reasons[axis.reason_code]) throw new Error('Invalid assessment');
   }
@@ -321,7 +328,7 @@ export function renderReport(report, project, detail = null) {
   renderQuality(report, detail);
   renderEvidence(detail);
   renderExecution(report, detail);
-  renderSkill(detail);
+  renderSkill(snapshots || detail, Boolean(detail));
   $('provenance').replaceChildren();
   for (const [key, label] of [['run_id', '실행 ID'], ['source_commit', '평가 대상 커밋'],
     ['project_tree_sha256', '프로젝트 내용 SHA-256'], ['evaluator_sha256', '평가기 SHA-256'],

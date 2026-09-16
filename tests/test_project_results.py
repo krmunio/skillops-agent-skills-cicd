@@ -1,6 +1,7 @@
 import copy
 import importlib
 import importlib.util
+from hashlib import sha256
 import json
 from pathlib import Path
 import tempfile
@@ -155,6 +156,101 @@ class ProjectResultsTests(unittest.TestCase):
             self.assertNotIn(sample["project_id"], [
                 item["id"] for item in json.loads((output / "results/index.json").read_text())["projects"]
             ])
+
+    def snapshot(self, report):
+        m = self.module()
+        text = "---\nname: develop\n---\nRead the supplied requirements.\n"
+        return {"schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+                "report_sha256": sha256(m.encoded(report)).hexdigest(), "skill_id": "develop",
+                "base": {"content": text, "sha256": sha256(text.encode()).hexdigest()}, "candidate": None}
+
+    def test_snapshots_are_bound_and_immutable_without_changing_reports(self):
+        m = self.module()
+        self.assertTrue(hasattr(m, "store_snapshots"), "public Skill snapshots are not implemented")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            report = self.fixture()
+            path = m.store(root, report)
+            before = path.read_bytes()
+            snapshot = self.snapshot(report)
+            target = m.store_snapshots(root, snapshot)
+            self.assertEqual(m.store_snapshots(root, snapshot), target)
+            self.assertEqual(path.read_bytes(), before)
+            for key, value in (("report_sha256", "0" * 64), ("raw_prompt", "not allowed")):
+                with self.subTest(key=key), self.assertRaises(m.RuntimeFailure):
+                    m.validate_snapshots({**snapshot, key: value}, report)
+            bad = copy.deepcopy(snapshot)
+            bad["base"]["content"] += "tampered"
+            with self.assertRaises(m.RuntimeFailure):
+                m.validate_snapshots(bad, report)
+            changed = copy.deepcopy(snapshot)
+            changed["skill_id"] = "another"
+            with self.assertRaises(m.RuntimeFailure):
+                m.store_snapshots(root, changed)
+
+    def test_snapshot_index_build_and_merge_preserve_optional_skill_evidence(self):
+        m = self.module()
+        self.assertTrue(hasattr(m, "store_snapshots"), "public Skill snapshots are not implemented")
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            incoming, durable, output = (Path(temp) / name for name in ("incoming", "durable", "site"))
+            report = self.fixture()
+            m.store(incoming, report)
+            m.store_snapshots(incoming, self.snapshot(report))
+            m.merge_results(root, incoming, durable)
+            index = m.read_json(durable / "sample_repo/index.json")
+            self.assertEqual(index["history"][0]["skill_id"], "develop")
+            self.assertEqual(index["history"][0]["skill_snapshots"], "123-1/skill-snapshots.json")
+            m.build(root, durable, output)
+            self.assertEqual(m.load_snapshots(durable), m.load_snapshots(output / "results"))
+            self.assertEqual(m.load_reports(durable), m.load_reports(output / "results"))
+
+    def test_archived_import_checks_source_and_skill_hashes_and_excludes_rationale(self):
+        m = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            source, target = root / "runs", root / "results"
+            identifier = "20260915T005404Z-611d681b8bf7"
+            base = "---\nname: develop\n---\nRead requirements.\n"
+            candidate = base + "Check boundaries.\n"
+            original = {"schema_version": 2, "run_id": identifier, "purpose": "candidate",
+                        "status": "completed", "created_at": "2026-09-15T00:54:04+00:00",
+                        "base_skill_sha256": sha256(base.encode()).hexdigest(),
+                        "skill_sha256": sha256(candidate.encode()).hexdigest(),
+                        "rationale": "DO_NOT_PUBLISH"}
+            folder = source / identifier
+            folder.mkdir(parents=True)
+            raw = m.encoded(original)
+            (folder / "candidate.json").write_bytes(raw)
+            (folder / "base-SKILL.md").write_text(base)
+            (folder / "SKILL.md").write_text(candidate)
+            public = m.export_legacy(original, "sample_repo", sha256(raw).hexdigest())
+            report_path = m.store(target, public)
+            before = report_path.read_bytes()
+            self.assertEqual(m.import_skill_snapshots(source, target, "sample_repo", identifier, "develop"), 1)
+            data = m.load_snapshots(target)[("sample_repo", public["run_id"])]
+            self.assertNotIn("DO_NOT_PUBLISH", json.dumps(data))
+            self.assertEqual(data["candidate"]["content"], candidate)
+            self.assertEqual(report_path.read_bytes(), before)
+            (folder / "SKILL.md").write_text(candidate + "tampered")
+            with self.assertRaises(m.RuntimeFailure):
+                m.import_skill_snapshots(source, target, "sample_repo", identifier, "develop")
+
+    def test_orphan_and_symlinked_snapshots_block_publication(self):
+        m = self.module()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            folder = root / "sample_repo/123-1"
+            folder.mkdir(parents=True)
+            path = folder / "skill-snapshots.json"
+            path.write_text("{}")
+            with self.assertRaises(m.RuntimeFailure):
+                m.load_snapshots(root)
+            m.store(root, self.fixture())
+            path.unlink()
+            path.symlink_to(folder / "report.json")
+            with self.assertRaises(m.RuntimeFailure):
+                m.load_snapshots(root)
 
 
 if __name__ == "__main__":
