@@ -18,6 +18,7 @@ from uuid import uuid4
 
 
 TOKEN_KEYS = ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
+PROMPT_LIMIT = 100000
 
 
 class RuntimeFailure(Exception):
@@ -385,7 +386,7 @@ class CopilotRuntime:
         }
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180):
-        if len(prompt.encode()) > 100000:
+        if len(prompt.encode("utf-8")) > PROMPT_LIMIT:
             raise RuntimeFailure("prompt_limit", "Prompt exceeds the bounded CLI input size.")
         artifact = Path(artifact)
         try:

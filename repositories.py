@@ -141,8 +141,9 @@ def _write(folder, data):
 
 
 def _snapshot(root, identifier, row, skill):
-    base = Path(row["path"]) if row else Path(root) / "projects/sample_repo"
-    seeds = {family: text(read_file(base / Path(spec["seed"]).name, 128 * 1024))
+    """Use one normalized project root for seed reads and snapshot identity."""
+    base = Path(os.path.abspath(row["path"] if row else root))
+    seeds = {family: text(read_file(base / (Path(spec["seed"]).name if row else spec["seed"]), 128 * 1024))
              for family, spec in FAMILIES.items()}
     binding = None
     if row:
@@ -154,7 +155,12 @@ def _snapshot(root, identifier, row, skill):
             }).encode()).hexdigest(),
             "source_sha256": {family: sha256(seed.encode()).hexdigest() for family, seed in seeds.items()},
         }
-    return {"binding": binding, "skill": skill, "seeds": seeds}
+    return {
+        "binding": binding,
+        "skill": skill,
+        "seeds": seeds,
+        "project_root": str(base),
+    }
 
 
 def register(root, identifier, path, skill="develop", evaluation_set=EVALUATION_SET):
