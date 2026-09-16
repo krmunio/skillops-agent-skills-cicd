@@ -9,6 +9,7 @@ __pycache__/
 .env
 .env.*
 ci-artifacts/
+.worktrees/
 node_modules/
 .dashboard-public/
 .results-worktree/

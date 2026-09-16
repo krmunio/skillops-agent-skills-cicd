@@ -244,14 +244,47 @@ Selecting a project shows four sections in order:
 2. Project execution. Existing/candidate correctness, Judge, cost and time are
    shown from the selected report. Policy and task details remain unavailable
    when not present in the public record; no thresholds or reasons are invented.
-3. Skill changes. Evaluation-time instructions and a line diff are shown only
-   where supplied. Current source files never substitute for historical snapshots.
-4. History. Selecting a run changes the whole detail view, not just its metrics.
+3. Skill changes. As-Is and To-Be are expanded side by side (stacked on mobile).
+   Current source files never substitute for historical snapshots. To-Be is a
+   candidate, not evidence of adoption or deployment.
+4. History. The **Skill 이력** tab lists the project's recorded Skills, unique
+   version counts and linked records. Selecting a Skill or its record updates
+   the whole detail view. **실행 이력** retains all records, including runs without
+   a recorded Skill identity.
 
-Existing public v1 records remain unchanged. They do not contain full quality
-findings, improvement traces, task-level checks or Skill snapshots. The actual
-history view explicitly reports these fields as unrecorded. A future reviewed
-public-detail contract and producer integration are still required.
+Existing public v1 reports remain unchanged. Full quality findings, improvement
+traces and task-level checks still require a reviewed producer contract; the
+viewer reports missing fields explicitly. Reviewed Skill text can now be attached
+through the optional immutable sidecar described below, without inventing these
+other fields.
+
+### Reviewed archived Skill snapshots
+
+`results/<project>/<run>/skill-snapshots.json` contains exactly schema version,
+project/run identity, the canonical public report SHA-256, Skill ID, and base/
+optional candidate objects with UTF-8 content and SHA-256. Each text is bounded
+to 32 KiB and 400 lines. Extra fields, wrong hashes, wrong report bindings,
+orphans and changed same-path retries are rejected. Indices expose Skill metadata
+only for validated attachments. Build and merge preserve attachments.
+
+This is an explicit exception for **reviewed Skill instructions**, not permission
+to publish raw prompts, logs, generator rationales or arbitrary repository files.
+Review the exact archived texts for secrets and private information first:
+
+```bash
+python3 project_results.py import-skill-snapshots \
+  --source runs --results .dashboard-public/reviewed-results \
+  --project sample_repo --candidate-run 20260915T005404Z-611d681b8bf7 \
+  --skill-id develop --reviewed
+```
+
+This example requires the original local `runs/` archive and matching public
+historical reports; a clean public checkout does not contain that private archive.
+The opt-in importer verifies the archived candidate's saved instructions and
+each original report against recorded hashes. Only compatible baseline,
+candidate and comparison records receive attachments. No current-file fallback
+or rewriting of original report.json is allowed. Guide and calibration records
+without appropriate Skill evidence remain unlinked.
 
 The **샘플 화면 보기** control opens `dashboard/sample-data.json`, a bundled,
 invented layout example with two Skills and three records. Its banner, labels,
@@ -271,6 +304,83 @@ approved Standard tier. It creates no VM, Storage account or anonymous write API
 Compile, validate, review what-if and confirm the target before provisioning.
 An infrastructure resource is not proof that dashboard content or live evaluation
 has been deployed. Verify the actual HTTPS endpoint separately.
+
+## Skill evolution evidence
+
+`skill-evolution.json` is an optional immutable attachment next to each `report.json`.
+It does not change report v1 or snapshot v1. Its exact fields are `schema_version`,
+`project_id`, `run_id`, `report_sha256`, `records`, `bindings`, and `file_contents`.
+The report digest commits to the canonical public report, not the private artifact.
+
+Explicit namespaced keys such as `skillops:develop` identify Skills independently
+of display names or source paths. Equal names do not establish common identity.
+Versions hash a domain-separated, scope-aware manifest of relative file paths,
+SHA-256 and byte lengths. Parent/candidate relationships are separate records:
+reverting content can reuse a version ID. `entrypoint_only` is not a whole bundle.
+`complete_bundle` requires an explicit full inventory and every original byte,
+including scripts, references and binary assets. The pure capture helper does not
+discover files or scan home directories.
+
+Private capture bounds are 256 files, 2 MiB/file and 8 MiB total. Public attachments
+remain limited to **1 MiB JSON**, including base64 content. Oversize publication
+fails; files are never silently dropped or scope relabeled. Loading, indexing,
+merging and building verify complete manifest membership and all content hashes.
+Review every retained byte for disclosure before using these publishing helpers.
+Schema validation is not a secret detector or a disclosure approval.
+
+Each explicit per-run binding names a key and its captured base/candidate versions.
+Dual attachments must also explicitly bind the old `skill_id` and agree on both
+entrypoint hashes, including candidate absence. Indices add `skill_evolution`
+and `evolution_skills`; old snapshot fields remain unchanged. Lifecycle-only runs
+need no legacy snapshot. Legacy-only names remain visibly unregistered.
+
+After the reviewed snapshot import, attach saved evolution evidence:
+
+```bash
+python3 project_results.py import-skill-evolution \
+  --source runs --results .dashboard-public/reviewed-results \
+  --project sample_repo --candidate-run 20260915T005404Z-611d681b8bf7 \
+  --skill-key skillops:develop --legacy-skill-id develop --reviewed
+```
+
+This importer uses saved candidate/baseline/comparison artifacts only. It verifies
+original public provenance, source bytes and lineage joins, preserving the recorded
+decision instead of rerunning current policy. Legacy comparisons missing a candidate
+metadata commitment retain a `referenced_only` reference; a present bad commitment
+fails. No private rationale is exposed or converted into an invented hypothesis.
+Zero observed failures is zero, not proof of improvement.
+
+Baseline attachments show only the evaluated base, not a future candidate. Archive
+storage is labeled separately from an unknown historical definition path. No pin is
+inferred from an evaluated base, candidate generation or canary recommendation.
+The optional raw-registry observer validates explicitly supplied bytes without
+filesystem-writing registry helpers. It proves only a configured **entrypoint pin**
+at the recorded observation time, not actual loading or complete-bundle deployment.
+Live generation, adoption changes, canary, promotion and rollback are not activated.
+
+Incremental imports reuse a validated baseline attachment only when its explicit
+SkillKey/legacy binding and base entrypoint agree. Original paths, display metadata,
+capture scope and bytes are not rewritten for a later candidate. A retained complete
+baseline and a later entrypoint-only generation may have different version IDs:
+their shared entrypoint does not establish full-bundle equivalence. Conflicting
+identity/content or malformed existing evidence fails before attachment writes.
+
+The dashboard groups registered Skills by stable key, distinguishes definition
+paths from archive locations, and exposes capture scope, version IDs, file selection,
+generation/baseline/comparison links and timestamped adoption observations. Evidence
+links resolve only to existing project history; unavailable public records stay labeled.
+Content is inert text. Binary files show metadata; text beyond 400 lines or 50,000
+characters shows a display-limit notice without discarding retained bytes or hiding
+the evaluation. Diffs retain the 400-line/100,000-combined-character bound.
+Served lifecycle files are checked against the report, index and retained file hashes
+using Web Crypto, so production needs HTTPS (loopback preview also supports this).
+Historical paths, hypotheses, full-bundle capture and current adoption are not invented.
+Selecting an uncaptured identity clears other Skills' source content. File views
+distinguish captured bytes, absence proved by a complete inventory, and unrecorded
+content. Unrecorded content is never compared as an empty file or counted as an
+addition/deletion. Served generation/comparison references, version/hash joins and
+the selected run's original-artifact commitment and decision are validated before
+rendering; a historical baseline reference does not assert full-version equivalence.
 
 ## Validation
 
