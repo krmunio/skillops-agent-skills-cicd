@@ -166,6 +166,10 @@ Baseline은 평가 대상 프로젝트의 `.github/skills`, `.claude/skills`, `s
 스킬별 `result.json`에는 전체 정적 findings, 적용 여부, judge 차원·점수·근거를 저장하며,
 baseline에는 복제하지 않습니다. 큰 metadata는 원문 대신 SHA-256과 UTF-8 바이트 수로
 식별하고, 반복 참조 finding에는 횟수와 target hash를 명시합니다.
+Source evidence는 배치 분할과 결과 저장 전에 GitHub/runtime token 및 절대 로컬 경로를
+정제하며, 저장하는 judge rationale도 정제합니다. 상대 파일 identity와 원본 snapshot hash는
+유지합니다. Artifact ID에는 전체 경로 SHA-256을 사용하며, 충돌이나 기존 artifact
+디렉터리·결과가 있으면 덮어쓰지 않고 명시적으로 차단합니다.
 가이드 점수와 지적 사항은 **보고 전용(report-only)**이며,
 코딩 작업 결과나 canary·승격 결정을 바꾸지 않습니다.
 이는 자동화된 가이드 평가이지 Anthropic 인증이 아니며, 사람의 교정을 대체하지 않습니다.

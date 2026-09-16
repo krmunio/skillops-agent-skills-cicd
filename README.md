@@ -177,7 +177,12 @@ project-relative `artifact` points to a per-skill `result.json` containing full
 static findings, applicability and judge dimensions/scores/rationales; these are
 not duplicated in the baseline. Large metadata fields are identified by SHA-256
 and UTF-8 byte length instead of copying source text. Repeated reference findings
-carry explicit counts and target hashes. Guide scores and findings are
+carry explicit counts and target hashes. Source evidence is redacted before
+batching and result storage: GitHub/runtime tokens and absolute local paths are
+removed; stored judge rationales are also redacted. Relative file identities and
+original snapshot hashes are retained. Artifact IDs use the full path SHA-256;
+collisions and existing artifact directories/results fail without overwriting.
+Guide scores and findings are
 **report-only**: they do not change coding-task outcomes or canary/promotion
 decisions. This is automated guidance, not Anthropic certification or a
 replacement for human calibration.

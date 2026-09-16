@@ -29,6 +29,7 @@ class FakeGuideRuntime:
     def __init__(self, *responses):
         self.responses = iter(responses)
         self.calls = []
+        self.env = {}
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None):
         self.calls.append((prompt, model, role, workdir, artifact, expected_skill))
@@ -1531,6 +1532,141 @@ class SkillGuideTests(unittest.TestCase):
         } for row in bundle["files"]])
         self.assertEqual(strict_json((artifact_dir / "judge-1.json").read_text())["content"], json.dumps(value))
 
+    def test_source_and_judge_secrets_are_redacted_in_prompts_and_results(self):
+        sentinels = (
+            "ghp_SYNTHETIC_SOURCE_SENTINEL",
+            "github_pat_SYNTHETIC_SOURCE_SENTINEL",
+            "opaque-runtime-token-SENTINEL",
+            "/home/user/private/file",
+            r"C:\Users\x\file",
+            str(self.root),
+            str(self.root / ".skillops-private/home"),
+        )
+        sensitive = " ".join(sentinels)
+        expected = " ".join(["[REDACTED]"] * 3 + ["[REDACTED_PATH]"] * 4)
+        ordinary = "/develop references/guide.md https://example.invalid/guide/page"
+        self.write_skill(
+            "skills/example",
+            f"---\nname: example\ndescription: {sensitive}\n---\n"
+            f"{sensitive}\n{ordinary}\n[missing](<missing {sensitive}>)\n",
+        )
+        original = skill_guide.discover(self.root)[0]
+        applicability = skill_guide.static_assessment(original)["applicability"]
+        for outcome in ("completed", "timeout"):
+            with self.subTest(outcome=outcome):
+                response = (
+                    json.dumps(self.judge_value(applicability, rationale=sensitive))
+                    if outcome == "completed" else RuntimeFailure("timeout", sensitive)
+                )
+                runtime = FakeGuideRuntime(response)
+                runtime.project = self.root
+                runtime.private = self.root / ".skillops-private"
+                runtime.env["GH_TOKEN"] = sentinels[2]
+
+                report = skill_guide.evaluate_project(
+                    runtime, "gpt-6-astra", self.root, self.guide_rubric(),
+                    self.root / "artifacts" / outcome,
+                )
+
+                raw = (self.root / report["skills"][0]["artifact"]).read_bytes()
+                result = json.loads(raw)
+                prompt = runtime.calls[0][0]
+                for sentinel in sentinels:
+                    with self.subTest(sentinel=sentinel):
+                        self.assertNotIn(sentinel, prompt)
+                        self.assertNotIn(json.dumps(sentinel)[1:-1], prompt)
+                        self.assertNotIn(sentinel.encode(), raw)
+                        self.assertNotIn(json.dumps(sentinel)[1:-1].encode(), raw)
+                        self.assertNotIn(sentinel, json.dumps(report))
+                self.assertIn(b"[REDACTED]", raw)
+                self.assertIn(b"[REDACTED_PATH]", raw)
+                self.assertEqual(result["bundle_sha256"], original["sha256"])
+                self.assertEqual(result["static"]["metadata"]["description"], expected)
+                self.assertEqual(
+                    result["static"]["findings"][0]["message"],
+                    "Referenced file is missing: missing " + expected,
+                )
+                evidence = json.loads(prompt.split("\nSKILL_EVIDENCE:\n", 1)[1])
+                self.assertEqual(evidence["static"], result["static"])
+                self.assertIn(ordinary, evidence["bundle"]["files"]["SKILL.md"])
+                if outcome == "completed":
+                    for row in result["judge"]["dimensions"].values():
+                        self.assertEqual(row["rationale"], expected)
+                else:
+                    self.assertEqual(result["error"]["message"], expected)
+        self.assertEqual(skill_guide.discover(self.root)[0], original)
+
+    def test_source_redaction_precedes_chunking_and_preserves_snapshot_identity(self):
+        token = "opaque-runtime-SENTINEL-" + "x" * (skill_guide.BATCH_BYTES + 1100)
+        source = (
+            "---\nname: large\ndescription: Large work.\n---\n"
+            + "a" * (skill_guide.BATCH_BYTES + 950)
+            + f" {token} ghp_SYNTHETIC_SENTINEL /home/user/private/file\n"
+        )
+        reference = r"C:\Users\x\file github_pat_SYNTHETIC_SENTINEL /develop"
+        self.write_skill("skills/large", source, {"references/guide.md": reference})
+        bundle = skill_guide.discover(self.root)[0]
+        original = deepcopy(bundle)
+        runtime = FakeGuideRuntime()
+        runtime.env["COPILOT_GITHUB_TOKEN"] = token
+        runtime.responses = repeat(json.dumps(self.judge_value({})))
+        folder = self.root / "artifacts"
+        expected = {
+            "SKILL.md": source.replace(token, "[REDACTED]").replace(
+                "ghp_SYNTHETIC_SENTINEL", "[REDACTED]"
+            ).replace("/home/user/private/file", "[REDACTED_PATH]"),
+            "references/guide.md": "[REDACTED_PATH] [REDACTED] /develop",
+        }
+
+        result = skill_guide.evaluate_bundle(
+            runtime, "gpt-6-astra", bundle, self.guide_rubric(), folder,
+        )
+
+        reconstructed = dict.fromkeys(expected, "")
+        for call_record in runtime.calls:
+            evidence = json.loads(call_record[0].split("\nSKILL_EVIDENCE:\n", 1)[1])
+            for path, piece in evidence["bundle"]["files"].items():
+                reconstructed[path] += piece
+        self.assertGreater(len(runtime.calls), 1)
+        self.assertEqual(reconstructed, expected)
+        self.assertEqual(bundle, original)
+        self.assertEqual(result["bundle_sha256"], original["sha256"])
+        self.assertEqual(json.loads((folder / "manifest.json").read_bytes())["files"], [
+            skill_guide.file_metadata(row) for row in original["files"]
+        ])
+
+    def test_redacted_source_paths_keep_distinct_files_and_safe_artifact_links(self):
+        tokens = ("ghp_SYNTHETIC_FOLDER_SENTINEL", "opaque-filename-SENTINEL")
+        self.write_skill(
+            "skills/" + tokens[0],
+            "---\nname: example\ndescription: Work.\n---\nWork.",
+            {
+                f"references/{tokens[0]}.md": "First resource.",
+                f"references/{tokens[1]}.md": "Second resource.",
+            },
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        runtime = FakeGuideRuntime(json.dumps(self.judge_value({})))
+        runtime.env["GITHUB_TOKEN"] = tokens[1]
+
+        report = skill_guide.evaluate_project(
+            runtime, "gpt-6-astra", self.root, self.guide_rubric(), self.root / "artifacts",
+        )
+
+        with self.subTest(boundary="artifact-link"):
+            self.assertTrue((self.root / report["skills"][0]["artifact"]).is_file())
+            for token in tokens:
+                self.assertNotIn(token, json.dumps(report))
+        evidence = json.loads(runtime.calls[0][0].split("\nSKILL_EVIDENCE:\n", 1)[1])
+        files = evidence["bundle"]["files"]
+        self.assertEqual(len(files), 3, "Redacted names must not overwrite each other's source text.")
+        self.assertEqual(set(files.values()), {row["text"] for row in bundle["files"]})
+        for row in evidence["bundle"]["manifest"]["files"]:
+            self.assertFalse(Path(row["path"]).is_absolute())
+            self.assertEqual(sha256(files[row["path"]].encode()).hexdigest(), row["sha256"])
+        for token in tokens:
+            self.assertNotIn(token, runtime.calls[0][0])
+
     def test_evaluate_bundle_merges_every_batch_and_preserves_receipts(self):
         self.assertTrue(hasattr(skill_guide, "evaluate_bundle"), "Bundle evaluation is missing.")
         self.write_skill(
@@ -1744,10 +1880,158 @@ class SkillGuideTests(unittest.TestCase):
         self.assertEqual(identifiers[0].rsplit("-", 1)[0], identifiers[1].rsplit("-", 1)[0])
         for path, identifier in zip(paths, identifiers):
             with self.subTest(path=path):
-                self.assertRegex(identifier, r"^[A-Za-z0-9_-]+-[0-9a-f]{8}$")
-                self.assertTrue(identifier.endswith("-" + sha256(path.encode()).hexdigest()[:8]))
-                self.assertLessEqual(len(identifier), 255)
+                self.assertRegex(identifier, r"^[A-Za-z0-9_-]+-[0-9a-f]{64}$")
+                self.assertTrue(identifier.endswith("-" + sha256(path.encode()).hexdigest()))
+                self.assertLessEqual(len(identifier), 80 + 1 + 64)
                 self.assertEqual(skill_guide.artifact_id(path), identifier)
+
+    def test_known_32_bit_collision_paths_have_separate_results(self):
+        prefix = "skills/" + "a" * 80 + "/"
+        paths = [prefix + "16800", prefix + "217633"]
+        self.assertEqual([sha256(path.encode()).hexdigest()[:8] for path in paths], ["d85816c2"] * 2)
+        for index, path in enumerate(paths):
+            self.write_skill(path, f"---\nname: skill-{index}\ndescription: Work.\n---\nWork.")
+        runtime = FakeGuideRuntime()
+        runtime.responses = repeat(json.dumps(self.judge_value({
+            "progressive_disclosure": "not_applicable",
+            "resource_organization": "not_applicable",
+        })))
+        try:
+            report = skill_guide.evaluate_project(
+                runtime, "gpt-6-astra", self.root, self.guide_rubric(), self.root / "artifacts",
+            )
+        except (RuntimeFailure, OSError) as error:
+            self.fail(f"Distinct skills must not collide: {type(error).__name__}: {error}")
+
+        self.assertEqual(len({row["artifact"] for row in report["skills"]}), 2)
+        self.assertEqual(len(runtime.calls), 2)
+        for path, summary in zip(paths, report["skills"]):
+            stored = json.loads((self.root / summary["artifact"]).read_bytes())
+            self.assertEqual((stored["path"], stored["status"]), (path, "pass"))
+        self.assertNotEqual(*(skill_guide.artifact_id(path) for path in paths))
+
+    def test_forced_artifact_hash_collision_preserves_first_result_and_blocks(self):
+        prefix = "skills/" + "a" * 80 + "/"
+        paths = [prefix + "first", prefix + "second"]
+        for second_error in (False, True):
+            with self.subTest(second_error=second_error):
+                project = self.root / str(second_error)
+                for path in paths:
+                    folder = self.write_skill(
+                        Path(str(second_error)) / path,
+                        "---\nname: example\ndescription: Work.\n---\nWork.",
+                    )
+                if second_error:
+                    (folder / "SKILL.md").write_bytes(b"\xff")
+                first = skill_guide.discover(project)[0]
+                value = self.judge_value(skill_guide.static_assessment(first)["applicability"])
+                runtime = FakeGuideRuntime(json.dumps(value), json.dumps(value))
+                artifact_root = project / "artifacts"
+                path_bytes = {path.encode() for path in paths}
+                first_payload = None
+
+                def collide_path_hash(raw=b""):
+                    nonlocal first_payload
+                    if raw == paths[1].encode() and artifact_root.exists():
+                        first_payload = next(artifact_root.glob("*/result.json")).read_bytes()
+                    return SimpleNamespace(hexdigest=lambda: "a" * 64) if raw in path_bytes else sha256(raw)
+
+                failure = None
+                with patch("skill_guide.sha256", side_effect=collide_path_hash):
+                    identifier = skill_guide.artifact_id(paths[0])
+                    self.assertEqual(identifier, skill_guide.artifact_id(paths[1]))
+                    try:
+                        skill_guide.evaluate_project(
+                            runtime, "gpt-6-astra", project, self.guide_rubric(), artifact_root,
+                        )
+                    except (RuntimeFailure, OSError) as error:
+                        failure = error
+
+                payload = (artifact_root / identifier / "result.json").read_bytes()
+                self.assertIsNotNone(first_payload)
+                self.assertEqual(payload, first_payload, "The first result bytes must remain unchanged.")
+                stored = json.loads(payload)
+                self.assertEqual(stored["path"], paths[0], "The first skill result was overwritten.")
+                self.assertEqual(stored["bundle_sha256"], first["sha256"])
+                self.assertEqual(stored["status"], "pass")
+                self.assertEqual(stored["judge"]["dimensions"], value)
+                self.assertEqual(len(runtime.calls), 1)
+                self.assertIsInstance(failure, RuntimeFailure, "Collision must be an explicit runtime failure.")
+                self.assertEqual(failure.code, "artifact_collision")
+
+    def test_existing_artifact_directory_is_not_reused_even_for_error_results(self):
+        folder = self.write_skill("skills/example", "---\nname: e\ndescription: Work.\n---\nWork.")
+        for outcome in ("valid", "invalid_encoding"):
+            if outcome == "invalid_encoding":
+                (folder / "SKILL.md").write_bytes(b"\xff")
+            bundle = skill_guide.discover(self.root)[0]
+            for kind in ("directory", "file", "symlink", "dangling_symlink"):
+                for evaluator in ("bundle", "project"):
+                    if outcome == "invalid_encoding" and evaluator == "bundle":
+                        continue
+                    with self.subTest(outcome=outcome, kind=kind, evaluator=evaluator):
+                        artifact_root = self.root / "artifacts" / outcome / kind / evaluator
+                        artifact_root.mkdir(parents=True)
+                        destination = artifact_root / skill_guide.artifact_id(bundle["path"])
+                        prior = b'{"prior": "DO_NOT_OVERWRITE"}\n'
+                        target = artifact_root / "prior"
+                        if kind in ("directory", "symlink"):
+                            target.mkdir()
+                            (target / "result.json").write_bytes(prior)
+                            (target / "manifest.json").write_bytes(prior)
+                        if kind == "directory":
+                            target.rename(destination)
+                            target = destination
+                        elif kind == "file":
+                            destination.write_bytes(prior)
+                        else:
+                            destination.symlink_to(target, target_is_directory=True)
+                        runtime = FakeGuideRuntime(json.dumps(self.judge_value({
+                            "progressive_disclosure": "not_applicable",
+                            "resource_organization": "not_applicable",
+                        })))
+                        failure = None
+                        try:
+                            if evaluator == "bundle":
+                                skill_guide.evaluate_bundle(
+                                    runtime, "gpt-6-astra", bundle, self.guide_rubric(), destination,
+                                )
+                            else:
+                                skill_guide.evaluate_project(
+                                    runtime, "gpt-6-astra", self.root, self.guide_rubric(), artifact_root,
+                                )
+                        except (RuntimeFailure, OSError) as error:
+                            failure = error
+                        if kind in ("directory", "symlink"):
+                            self.assertEqual((target / "result.json").read_bytes(), prior)
+                            self.assertEqual((target / "manifest.json").read_bytes(), prior)
+                            self.assertEqual({path.name for path in target.iterdir()}, {"result.json", "manifest.json"})
+                        elif kind == "file":
+                            self.assertEqual(destination.read_bytes(), prior)
+                        else:
+                            self.assertFalse(target.exists())
+                        self.assertEqual(runtime.calls, [])
+                        self.assertIsInstance(failure, RuntimeFailure)
+                        self.assertIn(failure.code, ("artifact_exists", "unsafe_artifact_path"))
+
+    def test_write_result_refuses_existing_results_including_symlinks(self):
+        prior = self.root / "prior.json"
+        prior.write_bytes(b'{"prior": "DO_NOT_OVERWRITE"}\n')
+        for symlink in (False, True):
+            with self.subTest(symlink=symlink):
+                folder = self.root / str(symlink)
+                folder.mkdir()
+                result = folder / "result.json"
+                if symlink:
+                    result.symlink_to(prior)
+                else:
+                    result.write_bytes(prior.read_bytes())
+                before = prior.read_bytes()
+                with self.assertRaises(RuntimeFailure) as caught:
+                    skill_guide.write_result(folder, {"new": "must not overwrite"})
+                self.assertEqual(caught.exception.code, "artifact_exists")
+                self.assertEqual(result.read_bytes(), before)
+                self.assertEqual(prior.read_bytes(), before)
 
     def test_evaluate_project_continues_after_timeout_and_reports_relative_artifacts(self):
         self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")

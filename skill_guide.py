@@ -10,7 +10,7 @@ import stat
 from string import punctuation
 from urllib.parse import unquote
 
-from copilot_runtime import PROMPT_LIMIT, RuntimeFailure, strict_json
+from copilot_runtime import PROMPT_LIMIT, RuntimeFailure, redact, strict_json
 
 
 SKILL_ROOTS = (".github/skills", ".claude/skills", "skills")
@@ -24,6 +24,11 @@ TEXT_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml", ".py", ".js", ".ts", "
 LINK = re.compile(r"\[(?:\\.|[^\]\\])*\]\(")
 LINK_SPACE = re.compile(r"[ \t]*(?:(?:\r\n?|\n)[ \t]*)?")
 LINK_TITLE = re.compile(r'''"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\((?:\\.|[^()\\])*\)''')
+ABSOLUTE_PATH = re.compile(
+    r"""(?<![\w./\\:-])(?:[A-Za-z]:[\\/][^\s<>"'`()\[\]{},;|]+"""
+    r"""|\\\\[^\s\\/<>:"'`()\[\]{},;|]+[\\/][^\s<>"'`()\[\]{},;|]+"""
+    r"""|/(?:[^/\s<>:"'`()\[\]{},;|]+/)+[^/\s<>:"'`()\[\]{},;|]*)"""
+)
 
 
 def fail(code, message):
@@ -326,6 +331,32 @@ def bounded_error(error):
     return {"code": bounded_text(error.code, 128), "message": bounded_text(str(error))}
 
 
+def redact_evidence(value, runtime=None):
+    """Sanitize before splitting/serializing, retaining original snapshot identities."""
+    if isinstance(value, dict):
+        result = {
+            redact_evidence(key, runtime): item
+            if key in {"sha256", "bundle_sha256", "targets_sha256", "input_fingerprint"}
+            else redact_evidence(item, runtime)
+            for key, item in value.items()
+        }
+        if "path" in value and result["path"] != value["path"]:
+            result["path"] = "redacted-" + sha256(value["path"].encode("utf-8")).hexdigest()
+        return result
+    if isinstance(value, list):
+        return [redact_evidence(item, runtime) for item in value]
+    if not isinstance(value, str):
+        return value
+    value = redact(value, getattr(runtime, "env", None))
+    value = ABSOLUTE_PATH.sub("[REDACTED_PATH]", value)
+    # Known roots can be single-component paths, unlike ordinary slash commands.
+    for name in ("project", "private", "home", "config"):
+        path = str(getattr(runtime, name, ""))
+        if path and Path(path).is_absolute() and path != "/":
+            value = re.sub(re.escape(path) + r"(?![\w./\\-])", "[REDACTED_PATH]", value)
+    return value
+
+
 def inline_destinations(text):
     """Parse only inline destinations/titles, not Markdown blocks or reference links."""
     for match in LINK.finditer(text):
@@ -599,11 +630,19 @@ def judge_batches(rubric, static, bundle):
 
 
 def evaluate_bundle(runtime, model, bundle, rubric, artifact_dir):
-    static = static_assessment(bundle)
+    artifact_dir = Path(artifact_dir)
+    try:
+        artifact_dir.mkdir(parents=True)
+    except FileExistsError as error:
+        raise RuntimeFailure("artifact_exists", "Refusing to reuse a skill artifact directory.") from error
+    except OSError as error:
+        raise RuntimeFailure("unsafe_artifact_path", "Cannot safely create skill artifacts.") from error
+    if "error" in bundle:
+        fail(bundle["error"]["code"], bundle["error"]["message"])
+    static = redact_evidence(static_assessment(bundle), runtime)
+    bundle = redact_evidence(bundle, runtime)
     applicability = static["applicability"]
     work = judge_batches(rubric, static, bundle)
-    artifact_dir = Path(artifact_dir)
-    artifact_dir.mkdir(parents=True)
     manifest = {
         key: bundle[key] for key in ("path", "file_count", "text_files", "binary_files", "bytes", "sha256")
     }
@@ -618,7 +657,9 @@ def evaluate_bundle(runtime, model, bundle, rubric, artifact_dir):
             prompt,
             model, "judge", artifact_dir, artifact_dir / f"judge-{index}.json",
         )
-        judged.append(validate_judge(strict_json(call["content"]), rubric, applicability))
+        judged.append(redact_evidence(
+            validate_judge(strict_json(call["content"]), rubric, applicability), runtime,
+        ))
     judge = merge_judges(judged, rubric, applicability)
     structural = any(row["severity"] == "error" for row in static["findings"])
     review = bool(static["findings"]) or any(
@@ -635,15 +676,22 @@ def evaluate_bundle(runtime, model, bundle, rubric, artifact_dir):
         "static": static,
         "judge": judge,
     }
-    write_result(artifact_dir, result)
-    return result
+    return write_result(artifact_dir, result, runtime)
 
 
-def write_result(folder, result):
+def write_result(folder, result, runtime=None):
+    result = redact_evidence(result, runtime)
     payload = (json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
     if len(payload) > FILE_LIMIT:
         fail("skill_result_limit", "Full skill result exceeds the 2 MiB artifact limit; see manifest and judge receipts.")
-    (folder / "result.json").write_bytes(payload)
+    try:
+        with (folder / "result.json").open("xb") as stream:
+            stream.write(payload)
+    except FileExistsError as error:
+        raise RuntimeFailure("artifact_exists", "Refusing to overwrite a skill result.") from error
+    except OSError as error:
+        raise RuntimeFailure("unsafe_artifact_path", "Cannot safely write a skill result.") from error
+    return result
 
 
 def result_summary(result, artifact):
@@ -662,9 +710,9 @@ def result_summary(result, artifact):
     return summary
 
 
-def artifact_id(path):
-    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", path).strip("-")[:80] or "skill"
-    return f"{slug}-{sha256(path.encode()).hexdigest()[:8]}"
+def artifact_id(path, runtime=None):
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", redact_evidence(path, runtime)).strip("-")[:80] or "skill"
+    return f"{slug}-{sha256(path.encode()).hexdigest()}"
 
 
 def evaluate_project(runtime, model, project, rubric, artifact_root):
@@ -674,28 +722,34 @@ def evaluate_project(runtime, model, project, rubric, artifact_root):
     artifact_root = Path(os.path.abspath(artifact_root))
     owner = Path(os.path.abspath(getattr(runtime, "project", project)))
     skills = []
+    artifact_ids = set()
     for bundle in bundles:
-        folder = artifact_root / artifact_id(bundle["path"])
+        identifier = artifact_id(bundle["path"], runtime)
+        if identifier in artifact_ids:
+            fail("artifact_collision", "Multiple skills have the same artifact identity.")
+        artifact_ids.add(identifier)
+        folder = artifact_root / identifier
         try:
-            if "error" in bundle:
-                fail(bundle["error"]["code"], bundle["error"]["message"])
             result = evaluate_bundle(runtime, model, bundle, rubric, folder)
         except RuntimeFailure as error:
+            if error.code in ("artifact_exists", "unsafe_artifact_path"):
+                raise
             result = {
                 "path": bundle["path"], "bundle_sha256": bundle["sha256"],
                 "file_count": bundle["file_count"], "bytes": bundle["bytes"],
                 "judge_calls": len(list(folder.glob("judge-*.json"))),
                 "status": "blocked", "error": bounded_error(error),
             }
-            folder.mkdir(parents=True, exist_ok=True)
             try:
                 if "files" in bundle and error.code != "skill_result_limit":
                     result["static"] = static_assessment(bundle)
-                write_result(folder, result)
+                result = write_result(folder, result, runtime)
             except RuntimeFailure as limit:
+                if limit.code != "skill_result_limit":
+                    raise
                 result.pop("static", None)
                 result["error"] = bounded_error(limit)
-                write_result(folder, result)
+                result = write_result(folder, result, runtime)
         skills.append(result_summary(result, (folder / "result.json").relative_to(owner).as_posix()))
     after = {
         bundle["path"]: bundle.get("input_fingerprint", bundle["sha256"])
