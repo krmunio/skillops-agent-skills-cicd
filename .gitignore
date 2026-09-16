@@ -1,4 +1,5 @@
 .skillops-private/
+.skillops/
 runs/
 __pycache__/
 *.py[cod]
