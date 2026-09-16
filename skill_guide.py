@@ -110,16 +110,21 @@ def discover(project):
             root = project / name
             relative = Path(name)
             if any((project / Path(*relative.parts[:index])).is_symlink()
-                   for index in range(1, len(relative.parts) + 1)):
+                   for index in range(1, len(relative.parts))):
                 fail("unsafe_skill_path", "Skill roots cannot be symbolic links.")
-            if not root.is_dir():
+            try:
+                root_info = os.stat(root, follow_symlinks=False)
+            except FileNotFoundError:
                 continue
-            directories = {root: root.stat(follow_symlinks=False)}
+            if not stat.S_ISDIR(root_info.st_mode):
+                fail("unsafe_skill_path", "Skill roots must be directories.")
+            directories = {root: root_info}
             pending = [root]
             while pending:
                 directory = pending.pop()
-                if not stat.S_ISDIR(directory.stat(follow_symlinks=False).st_mode):
-                    fail("unsafe_skill_path", "Skill paths must remain directories.")
+                info = os.stat(directory, follow_symlinks=False)
+                if not stat.S_ISDIR(info.st_mode) or not os.path.samestat(directories[directory], info):
+                    fail("unsafe_skill_path", "Skill directories changed during discovery.")
                 with os.scandir(directory) as entries:
                     for entry in entries:
                         path = Path(entry.path)
