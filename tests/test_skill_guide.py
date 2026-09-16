@@ -97,6 +97,26 @@ class SkillGuideTests(unittest.TestCase):
 
                 self.assertEqual(caught.exception.code, "unsafe_skill_path")
 
+    def test_rejects_project_replaced_by_external_symlink_before_discovery(self):
+        self.write_skill("project/skills/example", "Original skill.")
+        sentinel = "OUTSIDE SENTINEL: never include this content."
+        self.write_skill("outside/skills/example", sentinel)
+        project = self.root / "project"
+        project.rename(self.root / "original-project")
+        project.symlink_to(self.root / "outside", target_is_directory=True)
+
+        result, failure = [], None
+        with patch("skill_guide._read_relative", wraps=skill_guide._read_relative) as read:
+            try:
+                result = skill_guide.discover(project)
+            except RuntimeFailure as error:
+                failure = error
+
+        self.assertNotIn(sentinel, json.dumps(result))
+        self.assertIsNotNone(failure, "The project symlink must be rejected before reading.")
+        self.assertEqual(failure.code, "unsafe_skill_path")
+        read.assert_not_called()
+
     def test_skips_initially_missing_skill_roots_after_one_no_follow_stat(self):
         with patch("os.stat", wraps=os.stat) as checked:
             self.assertEqual(skill_guide.discover(self.root), [])
@@ -300,20 +320,155 @@ class SkillGuideTests(unittest.TestCase):
         read.assert_called_once()
         self.assertEqual(read.call_args.args[1], source.relative_to(self.root))
 
-    def test_reads_skill_once_before_bundle_enumeration(self):
+    def test_rejects_discovered_resources_changed_before_read(self):
+        sentinel = "REPLACEMENT SENTINEL: never include this content."
+        read_relative = skill_guide._read_relative
+        for relative in ("notes.md", "references/notes.md"):
+            for replacement in ("missing", "renamed", "directory", "file", "symlink"):
+                with self.subTest(resource=relative, replacement=replacement):
+                    case = Path(relative.replace("/", "-")) / replacement
+                    folder = self.write_skill(
+                        case / "project/skills/example", "Original skill.",
+                        {relative: "Original notes."},
+                    )
+                    project = folder.parent.parent
+                    source = folder / relative
+                    replaced = False
+
+                    def replace_after_skill_read(*args, **kwargs):
+                        nonlocal replaced
+                        raw = read_relative(*args, **kwargs)
+                        if Path(args[1]).name == "SKILL.md" and not replaced:
+                            if replacement == "missing":
+                                source.unlink()
+                            elif replacement == "renamed":
+                                source.rename(source.with_name("renamed.md"))
+                            else:
+                                source.rename(self.root / case / "original-notes.md")
+                                if replacement == "directory":
+                                    source.mkdir()
+                                elif replacement == "file":
+                                    source.write_text(sentinel)
+                                else:
+                                    outside = self.root / case / "outside.md"
+                                    outside.write_text(sentinel)
+                                    source.symlink_to(outside)
+                            replaced = True
+                        return raw
+
+                    result, failure = [], None
+                    with patch("skill_guide._read_relative", side_effect=replace_after_skill_read):
+                        try:
+                            result = skill_guide.discover(project)
+                        except RuntimeFailure as error:
+                            failure = error
+
+                    self.assertTrue(replaced)
+                    self.assertNotIn(sentinel, json.dumps(result))
+                    self.assertIsNotNone(failure, "A discovered resource must not be silently omitted.")
+                    self.assertEqual(failure.code, "unsafe_skill_path")
+
+    def test_rejects_discovered_directories_changed_before_resource_read(self):
+        read_relative = skill_guide._read_relative
+        open_file, fstat = os.open, os.fstat
+        for relative in (".github", ".github/skills", ".github/skills/example",
+                         ".github/skills/example/references"):
+            for replacement in ("renamed", "file", "directory"):
+                with self.subTest(directory=relative, replacement=replacement):
+                    case = Path(relative.replace("/", "-")) / replacement
+                    self.write_skill(
+                        case / "project/.github/skills/example", "Original skill.",
+                        {"references/notes.md": "Original notes."},
+                    )
+                    project = self.root / case / "project"
+                    directory = project / relative
+                    replaced = False
+                    descriptors = []
+
+                    def replace_after_skill_read(*args, **kwargs):
+                        nonlocal replaced
+                        raw = read_relative(*args, **kwargs)
+                        if Path(args[1]).name == "SKILL.md" and not replaced:
+                            moved = self.root / case / "original-directory"
+                            directory.rename(moved)
+                            if replacement == "file":
+                                directory.write_text("Not a directory.")
+                            elif replacement == "directory":
+                                directory.mkdir()
+                                for child in moved.iterdir():
+                                    child.rename(directory / child.name)
+                            replaced = True
+                        return raw
+
+                    def track_open(*args, **kwargs):
+                        descriptor = open_file(*args, **kwargs)
+                        descriptors.append(descriptor)
+                        return descriptor
+
+                    with patch("skill_guide._read_relative", side_effect=replace_after_skill_read), patch(
+                        "os.open", side_effect=track_open
+                    ):
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            skill_guide.discover(project)
+
+                    self.assertTrue(replaced)
+                    self.assertEqual(caught.exception.code, "unsafe_skill_path")
+                    for descriptor in descriptors:
+                        with self.assertRaises(OSError):
+                            fstat(descriptor)
+
+    def test_rejects_project_replaced_before_root_open(self):
+        open_file = os.open
+        for replacement in ("symlink", "directory"):
+            with self.subTest(replacement=replacement):
+                project = self.root / replacement / "project"
+                self.write_skill(Path(replacement) / "project/skills/example", "Original skill.")
+                replaced = False
+
+                def replace_before_open(path, flags, **kwargs):
+                    nonlocal replaced
+                    if Path(path) == project and not replaced:
+                        moved = project.with_name("original-project")
+                        project.rename(moved)
+                        if replacement == "symlink":
+                            project.symlink_to(moved, target_is_directory=True)
+                        else:
+                            project.mkdir()
+                            (moved / "skills").rename(project / "skills")
+                        replaced = True
+                    return open_file(path, flags, **kwargs)
+
+                with patch("os.open", side_effect=replace_before_open):
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_guide.discover(project)
+
+                self.assertTrue(replaced)
+                self.assertEqual(caught.exception.code, "unsafe_skill_path")
+
+    def test_defers_new_files_added_after_skill_read_until_next_discovery(self):
+        folder = self.write_skill("skills/example", "Original skill.")
+        read_relative = skill_guide._read_relative
+
+        def add_after_skill_read(*args, **kwargs):
+            raw = read_relative(*args, **kwargs)
+            if Path(args[1]).name == "SKILL.md":
+                (folder / "late.md").write_text("Added after traversal.")
+            return raw
+
+        with patch("skill_guide._read_relative", side_effect=add_after_skill_read):
+            first = skill_guide.discover(self.root)
+        second = skill_guide.discover(self.root)
+
+        self.assertEqual([file["path"] for file in first[0]["files"]], ["SKILL.md"])
+        self.assertEqual([file["path"] for file in second[0]["files"]], ["SKILL.md", "late.md"])
+
+    def test_reads_skill_once_without_reenumerating_bundle(self):
         body = "Original skill: 원본."
         folder = self.write_skill("skills/example", body, {"README.md": "Notes."})
         source = folder / "SKILL.md"
-        rglob = Path.rglob
-
-        def enumerate_paths(path, pattern):
-            if path == folder and pattern == "*":
-                read.assert_called_once()
-                self.assertEqual(read.call_args.args[1], source.relative_to(self.root))
-            return rglob(path, pattern)
 
         with patch("skill_guide._read_relative", wraps=skill_guide._read_relative) as read, patch(
-            "pathlib.Path.rglob", autospec=True, side_effect=enumerate_paths
+            "pathlib.Path.rglob", side_effect=AssertionError("Discovery candidates must not be reenumerated.")
         ):
             bundles = skill_guide.discover(self.root)
 
@@ -325,21 +480,17 @@ class SkillGuideTests(unittest.TestCase):
             (folder / "README.md").relative_to(self.root),
         ])
 
-    def test_rejects_invalid_skill_encoding_before_bundle_enumeration(self):
-        folder = self.write_skill("skills/example", "Original content.")
+    def test_rejects_invalid_skill_encoding_before_resource_read(self):
+        folder = self.write_skill("skills/example", "Original content.", {"README.md": "Notes."})
         (folder / "SKILL.md").write_bytes(b"\xff")
-        rglob = Path.rglob
 
-        def enumerate_paths(path, pattern):
-            self.assertFalse(path == folder and pattern == "*",
-                             "SKILL.md must be validated before bundle enumeration.")
-            return rglob(path, pattern)
-
-        with patch("pathlib.Path.rglob", autospec=True, side_effect=enumerate_paths):
+        with patch("skill_guide._read_relative", wraps=skill_guide._read_relative) as read:
             with self.assertRaises(RuntimeFailure) as caught:
                 skill_guide.discover(self.root)
 
         self.assertEqual(caught.exception.code, "invalid_skill_encoding")
+        read.assert_called_once()
+        self.assertEqual(read.call_args.args[1], (folder / "SKILL.md").relative_to(self.root))
 
     def test_rejects_directories_replaced_by_external_symlinks_before_open(self):
         sentinel = "OUTSIDE SENTINEL: never include this content."
@@ -402,7 +553,7 @@ class SkillGuideTests(unittest.TestCase):
 
         with patch("os.open", side_effect=replace_before_open), patch("os.fdopen") as stream:
             with self.assertRaises(RuntimeFailure) as caught:
-                skill_guide.regular_files(folder, [folder])
+                skill_guide.regular_files(folder, [Path("SKILL.md")])
 
         self.assertEqual(caught.exception.code, "unsafe_skill_path")
         stream.assert_not_called()
@@ -430,7 +581,7 @@ class SkillGuideTests(unittest.TestCase):
 
                 with patch("os.open", side_effect=replace_before_open):
                     with self.assertRaises(RuntimeFailure) as caught:
-                        skill_guide.regular_files(folder, [folder])
+                        skill_guide.regular_files(folder, [Path("SKILL.md")])
                 self.assertEqual(caught.exception.code, "unsafe_skill_path")
 
     def test_reads_checked_descriptor_when_path_is_replaced(self):
@@ -457,7 +608,7 @@ class SkillGuideTests(unittest.TestCase):
         with patch("os.open", wraps=os.open) as opened, patch(
             "os.fstat", side_effect=replace_after_fstat
         ) as checked, patch("os.fdopen", side_effect=track_stream):
-            files, total = skill_guide.regular_files(folder, [folder])
+            files, total = skill_guide.regular_files(folder, [Path("SKILL.md")])
 
         flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
         root_fd, file_fd = (entry.args[0] for entry in checked.call_args_list)
@@ -490,7 +641,7 @@ class SkillGuideTests(unittest.TestCase):
 
         with patch("os.fstat", side_effect=grow_after_fstat):
             with self.assertRaises(RuntimeFailure) as caught:
-                skill_guide.regular_files(folder, [folder])
+                skill_guide.regular_files(folder, [Path("SKILL.md")])
         self.assertEqual(caught.exception.code, "skill_file_limit")
 
     def test_rejects_invalid_text_encoding_and_size_limits(self):
