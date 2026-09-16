@@ -902,6 +902,51 @@ class SkillGuideTests(unittest.TestCase):
             "findings": [],
         })
 
+    def test_static_metadata_hashes_large_utf8_fields_without_copying_source(self):
+        value = "가" * 400000
+        for key in ("name", "description"):
+            with self.subTest(key=key):
+                fields = {"name": "small", "description": "Use for work.", key: value}
+                self.write_skill(
+                    f"{key}/skills/small",
+                    f"---\nname: {fields['name']}\ndescription: {fields['description']}\n---\nWork.",
+                )
+                bundle = skill_guide.discover(self.root / key)[0]
+                static = skill_guide.static_assessment(bundle)
+                self.assertLess(len(json.dumps(static).encode("utf-8")), 4096)
+                self.assertEqual(static["metadata"][key], {
+                    "sha256": sha256(value.encode("utf-8")).hexdigest(), "bytes": 1200000,
+                })
+                self.assertEqual(static["findings"], [])
+                self.assertIn(value, skill_guide.skill_text(bundle))
+
+    def test_static_reference_findings_are_bounded_per_source_with_explicit_counts(self):
+        target = "가" * 2000
+        self.write_skill(
+            "skills/links",
+            "---\nname: links\ndescription: Check links.\n---\n"
+            + f"[long]({target})\n"
+            + "\n".join(f"[missing](missing-{index}.md) [unsafe](../outside.md)" for index in range(1800)),
+            {"references/long.md": "line\n" * 301},
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        result = skill_guide.static_assessment(bundle)
+        self.assertLessEqual(len(result["findings"]), 7 * bundle["file_count"])
+        by_check = {row["check"]: row for row in result["findings"]}
+        self.assertEqual(by_check["missing_reference"]["occurrences"], 1801)
+        self.assertEqual(by_check["unsafe_reference"]["occurrences"], 1800)
+        self.assertIn(sha256(target.encode("utf-8")).hexdigest(), by_check["missing_reference"]["message"])
+        for row in result["findings"]:
+            self.assertLessEqual(len(row["message"].encode("utf-8")), 4096)
+        self.assertLess(len(json.dumps(result).encode("utf-8")), 8192)
+
+    def test_finding_rejects_oversized_utf8_message_instead_of_truncating(self):
+        message = "가" * 1365 + "a"
+        self.assertEqual(skill_guide.finding("check", "error", message)["message"], message)
+        with self.assertRaises(RuntimeFailure) as caught:
+            skill_guide.finding("check", "error", message + "a")
+        self.assertEqual(caught.exception.code, "skill_result_limit")
+
     def test_static_assessment_accepts_local_references_and_long_resource_tocs(self):
         self.write_skill(
             "skills/good",
@@ -1003,7 +1048,8 @@ class SkillGuideTests(unittest.TestCase):
             + "\n[anchor](<#notes> (Anchor))\n[empty](<> 'Empty')",
         )
         result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
-        self.assertEqual([row["check"] for row in result["findings"]], ["unsafe_reference"] * 5)
+        self.assertEqual([row["check"] for row in result["findings"]], ["unsafe_reference"])
+        self.assertEqual(result["findings"][0]["occurrences"], len(unsafe))
 
     def test_frontmatter_supports_scalar_values_and_indented_continuations(self):
         metadata, body, delimited = skill_guide.frontmatter(
@@ -1115,8 +1161,9 @@ class SkillGuideTests(unittest.TestCase):
 
         self.assertEqual(
             [(row["check"], row["severity"], row["path"]) for row in result["findings"]],
-            [("unsafe_reference", "error", "SKILL.md")] * len(targets),
+            [("unsafe_reference", "error", "SKILL.md")],
         )
+        self.assertEqual(result["findings"][0]["occurrences"], len(targets))
 
     def test_static_assessment_ignores_external_urls_and_anchors(self):
         self.write_skill(
@@ -1347,6 +1394,29 @@ class SkillGuideTests(unittest.TestCase):
                 skill_guide.validate_judge(value, rubric, applicability)
             self.assertEqual(caught.exception.code, "invalid_skill_judge")
 
+    def test_judge_rationale_limit_counts_utf8_bytes_and_never_truncates(self):
+        rubric = self.guide_rubric()
+        value = self.judge_value({}, rationale="가" * 1365 + "a")
+        self.assertEqual(len(value["trigger_description"]["rationale"].encode("utf-8")), 4096)
+        self.assertEqual(skill_guide.validate_judge(value, rubric, {})["dimensions"], value)
+        value["trigger_description"]["rationale"] += "a"
+        with self.assertRaises(RuntimeFailure) as caught:
+            skill_guide.validate_judge(value, rubric, {})
+        self.assertEqual(caught.exception.code, "invalid_skill_judge")
+        self.assertEqual(len(value["trigger_description"]["rationale"].encode("utf-8")), 4097)
+
+    def test_merge_rejects_oversized_combined_rationale_without_truncation(self):
+        rubric = self.guide_rubric()
+        results = [
+            skill_guide.validate_judge(self.judge_value({}, rationale=char * 2100), rubric, {})
+            for char in ("a", "b")
+        ]
+        original = deepcopy(results)
+        with self.assertRaises(RuntimeFailure) as caught:
+            skill_guide.merge_judges(results, rubric, {})
+        self.assertEqual(caught.exception.code, "invalid_skill_judge")
+        self.assertEqual(results, original)
+
     def test_merge_keeps_worst_score_any_review_and_deduplicated_rationales(self):
         self.assertTrue(hasattr(skill_guide, "merge_judges"), "Skill judge merging is missing.")
         rubric = self.guide_rubric()
@@ -1436,15 +1506,18 @@ class SkillGuideTests(unittest.TestCase):
             "file_count": bundle["file_count"], "bytes": bundle["bytes"],
             "judge_calls": 1, "status": "pass", "static": static,
             "judge": {"dimensions": value, "score": 75.0, "score_denominator": 5},
-            "artifacts": str(artifact_dir),
         })
+        self.assertTrue((artifact_dir / "result.json").is_file())
+        self.assertEqual(json.loads((artifact_dir / "result.json").read_text(encoding="utf-8")), result)
         self.assertEqual(len(runtime.calls), 1)
         prompt, model, role, workdir, artifact, expected_skill = runtime.calls[0]
         self.assertEqual((model, role, workdir, artifact, expected_skill), (
             "gpt-6-astra", "judge", artifact_dir, artifact_dir / "judge-1.json", None,
         ))
         self.assertIn("PRIVATE_FULL_TEXT", prompt)
-        self.assertEqual({path.name for path in artifact_dir.iterdir()}, {"manifest.json", "judge-1.json"})
+        self.assertEqual({path.name for path in artifact_dir.iterdir()}, {
+            "manifest.json", "judge-1.json", "result.json",
+        })
         manifest_text = (artifact_dir / "manifest.json").read_text()
         self.assertNotIn("PRIVATE_FULL_TEXT", manifest_text)
         self.assertNotIn(bundle["root"], manifest_text)
@@ -1497,7 +1570,7 @@ class SkillGuideTests(unittest.TestCase):
             self.assertEqual((evidence["batch"], evidence["batch_count"], evidence["bundle"]),
                              (index, len(work), work[index - 1]))
             self.assertEqual(strict_json(artifact.read_text())["content"], json.dumps(values[index - 1]))
-        self.assertEqual(len(list(artifact_dir.iterdir())), len(work) + 1)
+        self.assertEqual(len(list(artifact_dir.iterdir())), len(work) + 2)
         manifest = strict_json((artifact_dir / "manifest.json").read_text())
         self.assertEqual([row["path"] for row in manifest["files"] if row["binary"]], ["assets/image.bin"])
         self.assertTrue(all(set(row) == {"path", "bytes", "sha256", "binary"} for row in manifest["files"]))
@@ -1555,7 +1628,13 @@ class SkillGuideTests(unittest.TestCase):
                         texts[path] += text
                     for row in evidence["bundle"]["manifest"]["files"]:
                         manifest[row["path"]] = row
-                self.assertEqual(json.loads("".join(fragments)), static)
+                if fragments:
+                    self.assertEqual(json.loads("".join(fragments)), static)
+                else:
+                    self.assertTrue(all(
+                        json.loads(call_record[0].split("\nSKILL_EVIDENCE:\n", 1)[1])["static"] == static
+                        for call_record in runtime.calls
+                    ))
                 self.assertEqual(texts, {
                     row["path"]: row["text"] for row in bundle["files"] if row["text"] is not None
                 })
@@ -1702,12 +1781,88 @@ class SkillGuideTests(unittest.TestCase):
                 (row["path"], row["bundle_sha256"], row["file_count"], row["bytes"], row["judge_calls"]),
                 (bundle["path"], bundle["sha256"], bundle["file_count"], bundle["bytes"], 1),
             )
-            self.assertEqual(row["artifacts"], "anthropic-skill-guide/" + skill_guide.artifact_id(bundle["path"]))
-            folder = artifact_root.parent / row["artifacts"]
+            self.assertEqual(row["artifact"], (
+                artifact_root.relative_to(self.root) / skill_guide.artifact_id(bundle["path"]) / "result.json"
+            ).as_posix())
+            folder = (self.root / row["artifact"]).parent
             self.assertTrue((folder / "manifest.json").is_file())
             self.assertTrue((folder / "judge-1.json").is_file())
+            self.assertEqual(json.loads((folder / "result.json").read_text())["status"], row["status"])
         self.assertNotIn(str(self.root), json.dumps(result))
         self.assertNotIn("PRIVATE_SKILL_CONTENT", json.dumps(result))
+
+    def test_project_summaries_keep_full_results_only_in_skill_artifacts(self):
+        self.write_skill(
+            "skills/example",
+            "---\nname: example\ndescription: Display metadata.\n---\n[missing](nope.md)\n",
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        static = skill_guide.static_assessment(bundle)
+        value = self.judge_value(static["applicability"], rationale="근거: missing reference.")
+        runtime = FakeGuideRuntime(json.dumps(value))
+        result = skill_guide.evaluate_project(
+            runtime, "gpt-6-astra", self.root, self.guide_rubric(),
+            self.root / "runs/example/anthropic-skill-guide",
+        )
+        row = result["skills"][0]
+        self.assertEqual(set(row), {
+            "path", "bundle_sha256", "file_count", "bytes", "judge_calls", "status", "artifact",
+            "static_error_count", "static_warning_count", "guide_score", "guide_score_denominator",
+        })
+        self.assertEqual((row["static_error_count"], row["static_warning_count"]), (1, 0))
+        self.assertEqual((row["guide_score"], row["guide_score_denominator"]), (75.0, 5))
+        self.assertEqual(row["status"], "blocked")
+        raw = (self.root / row["artifact"]).read_bytes()
+        self.assertIn("근거".encode("utf-8"), raw)
+        full = json.loads(raw.decode("utf-8"))
+        self.assertEqual(full["static"], static)
+        self.assertEqual(full["judge"]["dimensions"], value)
+        self.assertNotIn(str(self.root), raw.decode("utf-8"))
+        self.assertNotIn("Display metadata.", json.dumps(row))
+        self.assertNotIn("missing reference.", json.dumps(row))
+
+    def test_project_bounds_failure_code_and_message_with_explicit_hash(self):
+        self.write_skill("skills/example", "---\nname: e\ndescription: Work.\n---\nWork.")
+        error = RuntimeFailure("가" * 1000, "나" * 400000)
+        result = skill_guide.evaluate_project(
+            FakeGuideRuntime(error), "gpt-6-astra", self.root, self.guide_rubric(),
+            self.root / "runs/example/anthropic-skill-guide",
+        )
+        row = result["skills"][0]
+        self.assertLessEqual(len(row["error"]["code"].encode("utf-8")), 128)
+        self.assertLessEqual(len(row["error"]["message"].encode("utf-8")), 1024)
+        self.assertIn(sha256(str(error).encode("utf-8")).hexdigest(), row["error"]["message"])
+        self.assertIn("omitted", row["error"]["message"])
+        self.assertEqual(json.loads((self.root / row["artifact"]).read_bytes())["error"], row["error"])
+
+    def test_result_file_limit_uses_actual_utf8_serialization_including_newline(self):
+        self.write_skill("skills/example", "---\nname: e\ndescription: Work.\n---\nWork.")
+        bundle = skill_guide.discover(self.root)[0]
+        static = skill_guide.static_assessment(bundle)
+        value = self.judge_value(static["applicability"], rationale='근거: "\n' * 20)
+        expected = {
+            "path": bundle["path"], "bundle_sha256": bundle["sha256"],
+            "file_count": bundle["file_count"], "bytes": bundle["bytes"],
+            "judge_calls": 1, "status": "pass", "static": static,
+            "judge": skill_guide.validate_judge(value, self.guide_rubric(), static["applicability"]),
+        }
+        payload = (json.dumps(expected, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode("utf-8")
+        for limit in (len(payload), len(payload) - 1):
+            with self.subTest(limit=limit), patch.object(skill_guide, "FILE_LIMIT", limit):
+                folder = self.root / f"artifacts-{limit}"
+                if limit == len(payload):
+                    skill_guide.evaluate_bundle(
+                        FakeGuideRuntime(json.dumps(value)), "gpt-6-astra", bundle, self.guide_rubric(), folder,
+                    )
+                    self.assertTrue((folder / "result.json").is_file())
+                    self.assertEqual((folder / "result.json").read_bytes(), payload)
+                else:
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_guide.evaluate_bundle(
+                            FakeGuideRuntime(json.dumps(value)), "gpt-6-astra", bundle, self.guide_rubric(), folder,
+                        )
+                    self.assertEqual(caught.exception.code, "skill_result_limit")
+                    self.assertFalse((folder / "result.json").exists())
 
     def test_evaluate_project_with_zero_skills_does_not_invoke_runtime(self):
         self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
@@ -1824,6 +1979,7 @@ class SkillGuideTests(unittest.TestCase):
                 )
                 project = self.root / change
                 runtime = FakeGuideRuntime(RuntimeFailure("timeout", "Synthetic guide timeout."))
+                runtime.project = self.root
                 invoke = runtime.invoke
 
                 def change_after_invoke(*args, **kwargs):

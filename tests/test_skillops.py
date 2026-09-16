@@ -1,6 +1,7 @@
 import importlib
 import importlib.util
 from copy import deepcopy
+from hashlib import sha256
 import json
 import os
 import shutil
@@ -737,7 +738,9 @@ class EvaluationTests(unittest.TestCase):
                 "path": "skills/example", "bundle_sha256": "a" * 64,
                 "status": "blocked", "file_count": 1, "bytes": 123, "judge_calls": 1,
                 "error": {"code": "timeout", "message": "Synthetic guide timeout."},
-                "artifacts": "anthropic-skill-guide/skills-example-12345678",
+                "static_error_count": 0, "static_warning_count": 0,
+                "guide_score": None, "guide_score_denominator": 0,
+                "artifact": "runs/example/anthropic-skill-guide/skills-example-12345678/result.json",
             }],
         }
 
@@ -765,9 +768,6 @@ class EvaluationTests(unittest.TestCase):
         self.assertIn("anthropic_skill_guide", report)
         evaluate.assert_called_once()
         expected = deepcopy(guide)
-        expected["skills"][0]["artifacts"] = (
-            report_path.parent.relative_to(runtime.project) / guide["skills"][0]["artifacts"]
-        ).as_posix()
         self.assertEqual(report["anthropic_skill_guide"], expected)
         self.assertTrue(all(row["status"] == "completed" for row in report["tasks"]))
         self.assertEqual((result["errors"], result["blocked"]), (0, 0))
@@ -780,6 +780,150 @@ class EvaluationTests(unittest.TestCase):
         self.assertIn("Skills: 1; pass: 0; review: 0; blocked: 1.", markdown)
         self.assertIn("| Skill | Status | Files | Bytes | Judge calls |", markdown)
         self.assertIn("| skills/example | blocked | 1 | 123 | 1 |", markdown)
+
+    def test_large_utf8_skill_keeps_baseline_readable_and_proposable(self):
+        import candidates
+        import skill_guide
+        import skillops
+        from itertools import repeat
+        from tests.test_candidates import observation
+        from tests.test_skill_guide import FakeGuideRuntime, GUIDE_DIMENSIONS
+
+        runtime, tasks = self.baseline_runtime()
+        folder = runtime.project / ".claude/skills/large"
+        folder.mkdir(parents=True)
+        description = "가" * 400000
+        source = folder / "SKILL.md"
+        source.write_text(f"---\nname: large\ndescription: {description}\n---\nDo work.", encoding="utf-8")
+        self.assertGreater(source.stat().st_size, 1200000)
+        self.assertLess(source.stat().st_size, 2 * 1024 * 1024)
+        tasks.side_effect = lambda runtime, model, task, *args: {**task, **observation()}
+        value = {
+            name: {
+                "status": "not_applicable" if name in (
+                    "progressive_disclosure", "resource_organization"
+                ) else "pass",
+                "score": None if name in (
+                    "progressive_disclosure", "resource_organization"
+                ) else 4,
+                "rationale": "근거: synthetic guide assessment.",
+            } for name in GUIDE_DIMENSIONS
+        }
+        fake = FakeGuideRuntime()
+        fake.responses = repeat(json.dumps(value))
+        write_json = skillops.write_json
+        sizes = []
+
+        def checked_write(path, report):
+            if Path(path).name == "report.json":
+                size = len((json.dumps(report, indent=2, allow_nan=False) + "\n").encode("utf-8"))
+                self.assertLess(size, 2 * 1024 * 1024, "Baseline must be bounded before serialization.")
+                result = write_json(path, report)
+                self.assertEqual(Path(path).stat().st_size, size)
+                sizes.append(size)
+                return result
+            return write_json(path, report)
+
+        with patch.object(runtime, "invoke", side_effect=fake.invoke), patch.object(
+            skillops, "write_json", side_effect=checked_write
+        ):
+            result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project)
+
+        self.assertEqual((code, result["status"]), (0, "completed"))
+        self.assertGreater(len(sizes), 1)
+        report_path = (runtime.project / result["report"]).with_suffix(".json")
+        raw = candidates.read_artifact(runtime.project, report_path.parent.name, "report.json")
+        self.assertEqual(len(raw), sizes[-1])
+        report = candidates.artifact_json(raw)
+        guide = report["anthropic_skill_guide"]
+        self.assertTrue(guide["report_only"])
+        self.assertEqual(guide["summary"], {"skills": 2, "pass": 2, "review": 0, "blocked": 0})
+        for row in guide["skills"]:
+            self.assertNotIn("static", row)
+            self.assertNotIn("judge", row)
+            self.assertFalse(Path(row["artifact"]).is_absolute())
+            full_raw = (runtime.project / row["artifact"]).read_bytes()
+            self.assertLess(len(full_raw), 2 * 1024 * 1024)
+            full = json.loads(full_raw.decode("utf-8"))
+            self.assertEqual(full["judge"]["dimensions"], value)
+            self.assertNotIn(str(runtime.project), full_raw.decode("utf-8"))
+        large = json.loads((runtime.project / guide["skills"][0]["artifact"]).read_bytes())
+        self.assertEqual(large["static"]["metadata"]["description"], {
+            "sha256": sha256(description.encode("utf-8")).hexdigest(), "bytes": 1200000,
+        })
+        generated = {
+            "instructions": "Read the contract, fix the cause, verify boundaries, and report observed results.",
+            "rationale": "A concise reusable workflow is an untested efficiency hypothesis.",
+        }
+        with patch.object(runtime, "invoke", return_value={
+            "content": json.dumps(generated), "usage": {},
+        }) as generator:
+            proposed, propose_code = candidates.propose(runtime, "gpt-6-astra", report_path.parent.name)
+        self.assertEqual((propose_code, proposed["status"]), (0, "completed"))
+        generator.assert_called_once()
+        self.assertEqual(generator.call_args.args[2], "generator")
+        self.assertNotIn(description, generator.call_args.args[0])
+
+    def test_oversized_skill_result_is_blocked_without_blocking_baseline(self):
+        import skill_guide
+        import skillops
+        from itertools import repeat
+        from tests.test_skill_guide import FakeGuideRuntime, GUIDE_DIMENSIONS
+
+        runtime, tasks = self.baseline_runtime()
+        static_assessment = skill_guide.static_assessment
+        folder = runtime.project / ".claude/skills/large"
+        folder.mkdir(parents=True)
+        (folder / "SKILL.md").write_text("---\nname: large\ndescription: Work.\n---\nWork.")
+        for index in range(520):
+            (folder / f"{index}.txt").touch()
+
+        def large_findings(bundle):
+            static = static_assessment(bundle)
+            if bundle["path"] == ".claude/skills/large":
+                static["findings"] = [
+                    {"check": "synthetic", "severity": "warning", "path": row["path"], "message": "가" * 1365}
+                    for row in bundle["files"]
+                ]
+                self.assertEqual(len(static["findings"]), bundle["file_count"])
+                self.assertGreater(len(json.dumps(static, ensure_ascii=False).encode("utf-8")), 2 * 1024 * 1024)
+            return static
+
+        fake = FakeGuideRuntime()
+
+        def judge(prompt, *args):
+            evidence = json.loads(prompt.split("\nSKILL_EVIDENCE:\n", 1)[1])
+            applicability = evidence["static"]["applicability"]
+            fake.responses = repeat(json.dumps({
+                name: {
+                    "status": "not_applicable" if applicability.get(name) == "not_applicable" else "pass",
+                    "score": None if applicability.get(name) == "not_applicable" else 4,
+                    "rationale": "Synthetic result-size boundary.",
+                } for name in GUIDE_DIMENSIONS
+            }))
+            return fake.invoke(prompt, *args)
+
+        with patch.object(skill_guide, "static_assessment", side_effect=large_findings), patch.object(
+            runtime, "invoke", side_effect=judge
+        ):
+            result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project)
+
+        self.assertEqual((code, result["status"]), (0, "completed"))
+        report_path = (runtime.project / result["report"]).with_suffix(".json")
+        self.assertLess(report_path.stat().st_size, 2 * 1024 * 1024)
+        guide = json.loads(report_path.read_bytes())["anthropic_skill_guide"]
+        self.assertTrue(guide["report_only"])
+        self.assertEqual(guide["summary"], {"skills": 2, "pass": 1, "review": 0, "blocked": 1})
+        row = guide["skills"][0]
+        self.assertEqual(row["error"]["code"], "skill_result_limit")
+        artifact = runtime.project / row["artifact"]
+        self.assertLessEqual(artifact.stat().st_size, 2 * 1024 * 1024)
+        full = json.loads(artifact.read_bytes())
+        self.assertEqual(full["error"]["code"], "skill_result_limit")
+        self.assertEqual(full["status"], "blocked")
+        self.assertTrue((artifact.parent / "manifest.json").is_file())
+        self.assertEqual(len(list(artifact.parent.glob("judge-*.json"))), row["judge_calls"])
+        self.assertEqual(tasks.call_count, result["requested"])
 
     def test_baseline_blocks_if_skill_inputs_change_during_guide_evaluation(self):
         import skill_guide

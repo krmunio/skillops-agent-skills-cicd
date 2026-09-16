@@ -171,11 +171,21 @@ excluded from the parent bundle.
   resources, `progressive_disclosure` and `resource_organization` are
   `not_applicable` (N/A) and excluded from the score denominator, not penalized.
 
-Results appear under the `anthropic_skill_guide` key in `report.json` and the
-`Anthropic skill guide` section in `report.md`. Guide scores and findings are
+Bounded skill summaries appear under the `anthropic_skill_guide` key in
+`report.json` and the `Anthropic skill guide` table in `report.md`. Each summary's
+project-relative `artifact` points to a per-skill `result.json` containing full
+static findings, applicability and judge dimensions/scores/rationales; these are
+not duplicated in the baseline. Large metadata fields are identified by SHA-256
+and UTF-8 byte length instead of copying source text. Repeated reference findings
+carry explicit counts and target hashes. Guide scores and findings are
 **report-only**: they do not change coding-task outcomes or canary/promotion
 decisions. This is automated guidance, not Anthropic certification or a
 replacement for human calibration.
+
+Each result artifact is limited to 2 MiB of serialized UTF-8 JSON. Overflow
+records only that skill as `blocked` with `skill_result_limit`, without blocking
+the baseline. Judge rationales, including merged rationales, are limited to 4,096
+UTF-8 bytes; overflow is an explicit validation failure, never silent truncation.
 
 ## Read the evidence
 
@@ -184,6 +194,8 @@ Commands print their run-specific artifact paths. Under `runs/<unique-id>/`:
 - `calibration.json`: observed control scores, pass/fail gate and fingerprint.
 - `report.json` and `report.md`: baseline results and readable summary.
 - Per-task folders: normalized developer/judge calls, proposal and actual diff.
+- `anthropic-skill-guide/<skill-id>/`: full `result.json`, `manifest.json` and
+  individual `judge-<batch>.json` receipts.
 
 Baseline JSON is the report source of truth. It includes per-check outcomes,
 generated-test counts, rubric scores/rationales, source/input hashes, elapsed

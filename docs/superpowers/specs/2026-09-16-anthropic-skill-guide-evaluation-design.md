@@ -44,9 +44,12 @@ snapshot의 descriptor는 최종 검증까지 유지하므로 delete→recreate�
 가지며, 파일 내용이 바뀌면 번들 hash도 바뀐다.
 실제 judge prompt 전체(rubric, static, manifest, batch, 배치 번호)의 UTF-8 크기는
 `CopilotRuntime`과 공유하는 100,000-byte 한도 이하다. 48 KiB 파일 배치만으로 판단하지 않고
-직렬화된 전체 prompt 크기로 여유를 계산한다. 큰 static metadata/findings는 잘라 버리지 않고
-순서 있는 `static.json_fragment` 배치로 분할하며, applicability map만 각 배치에 유지한다.
+직렬화된 전체 prompt 크기로 여유를 계산한다. 보고용 static metadata와 findings에는
+아래의 별도 제한을 적용한다. 그 결과도 prompt에 들어가지 않으면 순서 있는
+`static.json_fragment` 배치로 분할하며, applicability map만 각 배치에 유지한다.
 작은 static은 그대로 전달하고, rubric이 큰 경우 파일 배치 크기도 줄인다.
+`SKILL.md` 원문은 metadata hash와 별개로 파일 배치에 빠짐없이 전달하므로 큰 description도
+rubric 평가에서 제외되지 않는다.
 
 ## 정적 검사
 
@@ -79,6 +82,20 @@ scalar `name`/`description`과 들여쓴 continuation만 읽으며 전체 YAML p
 링크로 취급하지 않는다. 300줄 초과 Markdown resource의 목차 heading은 첫 80줄
 안에 있어야 한다.
 
+보고용 `metadata.name`과 `metadata.description`은 각각 1,024 UTF-8 bytes 이하면
+기존 문자열을 유지하고, 초과하면 `{"sha256": "...", "bytes": N}`으로 기록한다.
+빈 값·누락 여부 검사는 원래 scalar 값으로 수행한다. 이는 source 원문 복제 방지이며
+평가 입력을 자르는 것이 아니다.
+
+로컬 참조 finding은 입력 `SKILL.md`의 check별로 집계한다. 같은 check가 반복되면
+`occurrences`와 `targets_sha256`을 추가하고 메시지에 집계를 명시한다. digest는 URL
+디코딩된 target을 source 순서대로 UTF-8 JSON 문자열과 newline으로 직렬화한 SHA-256이다.
+누락 참조의 메시지는 첫 target을 표시하되 1,024 bytes를 넘는 target은 원문 대신
+생략 표시·SHA-256·바이트 수로 식별한다. 전체 target 목록은 source에 남는다.
+이렇게 `SKILL.md`당 최대 7개, Markdown resource당 최대 1개의 finding을 반환하므로
+전체 finding 수는 bundle file count에 의해 제한된다. 각 finding의 메시지와 입력 경로는
+각각 4,096 UTF-8 bytes 이하이며 초과는 `skill_result_limit`으로 명시적으로 차단한다.
+
 ## LLM rubric
 
 도구 없는 독립 judge가 Anthropic 가이드에 근거해 적용 가능한 항목만 평가한다.
@@ -93,13 +110,39 @@ scalar `name`/`description`과 들여쓴 continuation만 읽으며 전체 YAML p
 
 리소스가 없는 작은 skill에는 progressive disclosure와 리소스 구성 항목을 `not_applicable`로 기록하고 분모에서 제외한다. judge 결과는 정적 검사를 덮어쓰지 않으며, 사람 검토로 교정되지 않은 정성 평가라는 제한을 보고서에 명시한다.
 
+judge validator는 각 rationale이 비어 있지 않은 유효 UTF-8이고 4,096 bytes 이하인지
+검증한다. 배치 병합 시 중복 제거한 rationale을 연결한 결과에도 같은 제한을 적용한다.
+초과는 `invalid_skill_judge`이며 조용히 자르지 않는다. 원래 호출 결과는 judge receipt에
+유지되며 해당 skill만 차단된다.
+
 ## 보고서
 
-baseline JSON과 Markdown에 `anthropic_skill_guide` 섹션을 추가한다.
+baseline JSON과 Markdown의 `anthropic_skill_guide`는 **baseline summary**이고,
+**per-skill result artifact**가 전체 findings/rubric 결과를 보관한다.
 
 - 프로젝트 요약: 발견한 skill 수와 `pass`, `review`, `blocked` 개수
-- skill별 결과: 경로, bundle hash, 파일 수·바이트, 적용 항목, 정적 findings, rubric 점수·근거, judge 호출 수
-- 파일/배치별 artifact: judge 입력에 사용한 manifest와 정규화된 호출 기록
+- baseline의 `skills` 항목: `path`, `bundle_sha256`, `file_count`, `bytes`, `judge_calls`,
+  `status`, `artifact`, `static_error_count`, `static_warning_count`, `guide_score`,
+  `guide_score_denominator`만 포함한다. 오류가 있으면 bounded `error.code`/`error.message`를
+  추가한다. static counts는 집계된 finding 개수이며, 평가 불가 시 `null`이다.
+  judge 결과가 없으면 점수는 `null`, 분모는 `0`이다. 전체 metadata/findings/rationales는
+  baseline에 복제하지 않는다. Markdown 표도 이 summary fields만 사용한다.
+- skill별 `result.json`: `evaluate_bundle`의 전체 결과, 보고용 bounded/hashed static
+  metadata, applicability, 전체 집계 findings, 모든 judge dimensions·점수·근거를 UTF-8
+  JSON으로 저장한다. 여기서 “전체 결과”는 findings와 judge 결과를 뜻하며 source 원문
+  복제가 아니다. 실패한 skill도 가능한 정적 결과와 bounded 오류를 기록한다.
+- `artifact`는 `runs/<run-id>/anthropic-skill-guide/<skill-id>/result.json` 형태의
+  artifact 소유 프로젝트 기준 POSIX 상대 경로다. 등록된 외부 프로젝트를 평가해도
+  source 프로젝트 기준이나 절대 경로로 바꾸지 않는다.
+- 같은 skill 디렉터리의 `manifest.json`과 `judge-<batch>.json` 호출 기록은 유지한다.
+
+각 `result.json`은 indent·JSON escaping·마지막 newline까지 포함한 실제 UTF-8 payload를
+쓰기 전에 검사하여 기존 2 MiB file limit을 지킨다. 초과한 payload는 쓰지 않고 해당
+skill에 `blocked` / `skill_result_limit`의 작은 결과 artifact를 기록한다.
+이 경우 전체 findings/rubric은 저장할 수 없음을 명시하고 manifest와 judge receipts를
+유지하며, 다른 skill 평가와 baseline의 report-only 동작은 계속한다.
+오류 code는 128 bytes, message는 1,024 bytes 이내로 유지하며 큰 원문은 생략 표시와
+SHA-256·바이트 수로 식별한다. 전역 artifact read limit은 변경하지 않는다.
 
 프로젝트 전체 평균 점수는 만들지 않는다. 각 skill은 독립적으로 표시해 큰 skill이나 다수의 작은 skill이 다른 결과를 가리지 않게 한다. 이 섹션은 보고 전용이며 기존 `eligible_for_canary`, `rejected`, `blocked` 판정에 영향을 주지 않는다.
 
@@ -117,7 +160,12 @@ root 탐색 등 bundle 경로조차 안전하게 식별할 수 없는 구조적 
 
 ## 검증
 
-작은 단일 파일 skill, reference가 있는 중간 skill, 500줄·300줄 경계를 넘는 큰 skill, 중첩 skill, 깨진 참조, symlink, binary asset fixture를 사용한다. 테스트는 자동 발견, 번들 경계, 조건부 항목, 배치 수 증가, 부분 실패 지속, 보고 전용 판정 불변을 확인한다. 마지막에 전체 오프라인 unittest를 실행한다.
+작은 단일 파일 skill, reference가 있는 중간 skill, 500줄·300줄 경계를 넘는 큰 skill, 중첩 skill, 깨진 참조, symlink, binary asset fixture를 사용한다. 테스트는 자동 발견, 번들 경계, 조건부 항목, 배치 수 증가, 부분 실패 지속, 보고 전용 판정 불변을 확인한다.
+`description='가'*400000` fixture는 baseline 쓰기 전 serialization 크기와 쓴 후 실제
+파일 크기가 모두 2 MiB 미만이고 exit 0인지 검사한다. 실제 `candidates.read_artifact`와
+mock generator를 사용하는 `propose` 성공도 확인한다. finding/rationale UTF-8 경계,
+result payload의 정확한 바이트 경계, 2 MiB 초과 result의 skill-only 차단을 검증한다.
+마지막에 전체 오프라인 unittest를 실행하며 공개 evidence snapshot은 수정하지 않는다.
 
 ## 문서
 

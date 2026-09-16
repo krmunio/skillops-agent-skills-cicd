@@ -257,6 +257,11 @@ git commit -m "feat: discover project skill bundles" \
 
 ### Task 2: Add Static Anthropic Guide Checks
 
+> Follow-up contract: metadata scalars over 1,024 UTF-8 bytes use `{sha256, bytes}` in
+> report results; source text still reaches the judge in file batches. Repeated local
+> reference findings are grouped per input path/check with occurrence counts and
+> target hashes. The current design and tests supersede the unbounded examples below.
+
 **Files:**
 - Modify: `skill_guide.py`
 - Modify: `tests/test_skill_guide.py`
@@ -709,6 +714,12 @@ git commit -m "feat: evaluate Anthropic skill guidance" \
 ```
 
 ### Task 4: Integrate Report-Only Results Into Baseline
+
+> Follow-up contract: baseline JSON/Markdown consume bounded per-skill summaries
+> only. Full findings/rubric results live in each skill's UTF-8 `result.json`
+> (2 MiB maximum), addressed by a project-relative POSIX `artifact` path. Overflow
+> blocks that skill with `skill_result_limit`, not the baseline. The current design
+> supersedes the inline full-result aggregation and artifact paths below.
 
 **Files:**
 - Modify: `skill_guide.py`
