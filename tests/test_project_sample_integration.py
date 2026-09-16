@@ -209,6 +209,44 @@ class ProjectSampleReportTests(unittest.TestCase):
                     with self.assertRaises(AssertionError):
                         self.assert_indices(output, "101-1", counts)
 
+    def assert_additional_project_report(self, skill_bytes, adapter):
+        runtime = Mock(side_effect=AssertionError("Model runtime must not initialize"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            identifier = "additional-project"
+            skill = root / "projects" / identifier / "skills/custom/SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_bytes(skill_bytes)
+            self.results.atomic_json(root / "project_profiles.json", {
+                "schema_version": 1, "projects": {identifier: {"adapter": adapter}},
+            })
+            project = self.results.catalog(root)[0]
+            self.catalog = {identifier: project}
+            report = self.evaluation.assess(root, project, "104-1", "a" * 40, {}, runtime_factory=runtime)
+            self.assertEqual(report["guide"], self.results.axis("blocked", "guide_integration_pending"))
+            expected = ("blocked", "live_disabled") if adapter else ("configuration_required", "no_adapter")
+            self.assertEqual(report["execution"], self.results.axis(*expected))
+            with patch(f"{__name__}.ROOT", root):
+                self.assert_sample_report(report, "104-1", "a" * 40)
+                for field, value in (("source_commit", "b" * 40), ("project_tree_sha256", "b" * 64),
+                                     ("evaluator_sha256", "b" * 64), ("run_id", "other-run")):
+                    with self.subTest(field=field):
+                        changed = copy.deepcopy(report)
+                        changed[field] = value
+                        with self.assertRaises(AssertionError):
+                            self.assert_sample_report(changed, "104-1", "a" * 40)
+            self.assertEqual(skill.read_bytes(), skill_bytes)
+        runtime.assert_not_called()
+
+    def test_report_assertions_allow_additional_supported_projects(self):
+        self.assert_additional_project_report((ROOT / "skills/develop/SKILL.md").read_bytes(),
+                                              "issue-management-v2")
+
+    def test_report_assertions_preserve_malformed_additional_skills(self):
+        for skill_bytes in (b"\xffmalformed", b"", b"blocked"):
+            with self.subTest(skill=skill_bytes):
+                self.assert_additional_project_report(skill_bytes, None)
+
     def test_prepared_samples_use_existing_read_only_report_pipeline(self):
         runtime = Mock(side_effect=AssertionError("Model runtime must not initialize"))
         with tempfile.TemporaryDirectory() as temporary, patch(
