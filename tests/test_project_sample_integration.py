@@ -1,3 +1,4 @@
+import base64
 import copy
 from collections import Counter
 from hashlib import sha256
@@ -40,6 +41,12 @@ def string_values(value):
     elif isinstance(value, list):
         for item in value:
             yield from string_values(item)
+
+
+def public_history_bytes(output):
+    return {path.relative_to(output): path.read_bytes()
+            for filename in ("report.json", "skill-snapshots.json", "skill-evolution.json")
+            for path in output.glob(f"*/*/{filename}")}
 
 
 class ProjectSampleFixtureTests(unittest.TestCase):
@@ -125,6 +132,8 @@ class ProjectSampleFixtureTests(unittest.TestCase):
         self.assertIn('test "$assessment_status" -eq 2', contracts)
         self.assertIn("SKILLOPS_SAMPLE_REPORTS_DIR=ci-sample-results", contracts)
         self.assertIn("name: sample-onboarding-results", contracts)
+        for filename in ("skill-snapshots.json", "skill-evolution.json"):
+            self.assertIn(f"ci-sample-results/*/*/{filename}", contracts)
         self.assertNotIn("sample-onboarding-results", privileged)
         self.assertEqual(privileged.count("github.ref == 'refs/heads/main'"), 3)
         self.assertNotIn("pull_request_target", workflow)
@@ -173,6 +182,8 @@ class ProjectSampleReportTests(unittest.TestCase):
         self.assertEqual({entry["id"] for entry in index["projects"]}, identifiers)
         self.assertEqual(len(index["projects"]), len(identifiers))
         reports = self.results.load_reports(output)
+        snapshots = self.results.load_snapshots(output, reports)
+        lifecycles = self.results.load_evolution(output, reports, snapshots)
         for entry in index["projects"]:
             active = entry["id"] in self.catalog
             self.assertEqual(entry, {
@@ -189,7 +200,89 @@ class ProjectSampleReportTests(unittest.TestCase):
                 "purpose": report["purpose"], "guide_status": report["guide"]["status"],
                 "execution_status": report["execution"]["status"], "report": f"{report['run_id']}/report.json",
             } for report in matching]
+            for summary in history:
+                key = (entry["id"], summary["run_id"])
+                snapshot = snapshots.get(key)
+                if snapshot is not None:
+                    summary.update(
+                        skill_id=snapshot["skill_id"], skill_snapshots=f"{summary['run_id']}/skill-snapshots.json",
+                        base_skill_sha256=snapshot["base"]["sha256"],
+                        candidate_skill_sha256=snapshot["candidate"]["sha256"] if snapshot["candidate"] else None,
+                    )
+                lifecycle = lifecycles.get(key)
+                if lifecycle is not None:
+                    names = {item["skill_key"]: item["display_name"] for item in lifecycle["records"]["identities"]}
+                    summary.update(
+                        skill_evolution=f"{summary['run_id']}/skill-evolution.json",
+                        evolution_skills=[{
+                            "skill_key": binding["skill_key"], "display_name": names[binding["skill_key"]],
+                            "base_version_id": binding["base_version_id"],
+                            "candidate_version_id": binding["candidate_version_id"],
+                        } for binding in lifecycle["bindings"]],
+                    )
             self.assertEqual(project_index, {"schema_version": 1, "project": entry, "history": history})
+
+    def store_skill_history(self, output, report, include_snapshots=True, include_evolution=True):
+        import evolution_records
+        content = "Synthetic skill history for contract tests.\n"
+        snapshot = {
+            "schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+            "report_sha256": sha256(self.results.encoded(report)).hexdigest(), "skill_id": "test-skill",
+            "base": {"content": content, "sha256": sha256(content.encode()).hexdigest()}, "candidate": None,
+        }
+        if include_snapshots:
+            self.results.store_snapshots(output, snapshot)
+        if include_evolution:
+            version, retained = evolution_records.capture_version(
+                {"SKILL.md": content.encode()}, capture_scope="entrypoint_only")
+            records = evolution_records.empty_records()
+            records.update(
+                identities=[{"skill_key": "contract:test-skill", "display_name": "Synthetic contract skill"}],
+                versions=[version],
+                skill_versions=[{"skill_key": "contract:test-skill", "version_id": version["version_id"]}],
+            )
+            self.results.store_evolution(output, {
+                "schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+                "report_sha256": snapshot["report_sha256"], "records": records,
+                "bindings": [{"skill_key": "contract:test-skill", "base_version_id": version["version_id"],
+                              "candidate_version_id": None,
+                              "legacy_skill_id": snapshot["skill_id"] if include_snapshots else None}],
+                "file_contents": [{"version_id": version["version_id"], "path": relative, "encoding": "base64",
+                                   "data": base64.b64encode(raw).decode()} for relative, raw in retained.items()],
+            })
+
+    def test_index_checks_support_optional_skill_history_without_accepting_false_links(self):
+        for include_snapshots, include_evolution in ((True, False), (False, True), (True, True)):
+            with (
+                self.subTest(snapshots=include_snapshots, evolution=include_evolution),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                output = Path(temporary) / "results"
+                for project in self.catalog.values():
+                    report = self.evaluation.assess(ROOT, project, "106-1", "a" * 40, {})
+                    self.results.store(output, report)
+                    if project["id"] == "project-a":
+                        self.store_skill_history(output, report, include_snapshots, include_evolution)
+                self.results.reindex(ROOT, output)
+                counts = {identifier: 1 for identifier in self.catalog}
+                self.assert_indices(output, "106-1", counts)
+                path = output / "project-a/index.json"
+                original = self.results.read_json(path)
+                mutations = []
+                if include_snapshots:
+                    mutations.extend((
+                        ("skill_id", "unrelated-skill"), ("skill_snapshots", "other/skill-snapshots.json"),
+                        ("base_skill_sha256", "b" * 64), ("candidate_skill_sha256", "b" * 64),
+                    ))
+                if include_evolution:
+                    mutations.extend((("skill_evolution", "other/skill-evolution.json"), ("evolution_skills", [])))
+                for field, value in mutations:
+                    with self.subTest(field=field):
+                        changed = copy.deepcopy(original)
+                        changed["history"][0][field] = value
+                        self.results.atomic_json(path, changed)
+                        with self.assertRaises(AssertionError):
+                            self.assert_indices(output, "106-1", counts)
 
     def test_index_checks_reject_false_statuses_and_unmatched_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -279,13 +372,21 @@ class ProjectSampleReportTests(unittest.TestCase):
 
     def test_new_assessment_preserves_published_history_bytes_and_indices(self):
         published = ROOT / "results"
-        originals = {path.relative_to(published): path.read_bytes() for path in published.glob("*/*/report.json")}
+        originals = public_history_bytes(published)
         self.assertTrue(originals, "The owner's published history must be retained")
         counts = Counter(report["project_id"] for report in self.results.load_reports(published))
         runtime = Mock(side_effect=AssertionError("Model runtime must not initialize"))
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary) / "results"
             shutil.copytree(published, output, symlinks=True)
+            self.assertEqual(public_history_bytes(output), originals)
+            historical = self.evaluation.assess(ROOT, self.catalog["project-a"], "100-1", "b" * 40, {},
+                                                runtime_factory=runtime)
+            historical["evaluator_sha256"] = "b" * 64
+            self.results.store(output, historical)
+            self.store_skill_history(output, historical)
+            counts["project-a"] += 1
+            originals.update(public_history_bytes(output))
             for project in self.catalog.values():
                 report = self.evaluation.assess(ROOT, project, "103-1", "a" * 40, {}, runtime_factory=runtime)
                 self.assert_sample_report(report, "103-1", "a" * 40)
@@ -314,8 +415,8 @@ class ProjectSampleReportTests(unittest.TestCase):
         self.assertEqual({(report["project_id"], report["run_id"]) for report in reports}, expected)
         for report in current:
             self.assert_sample_report(report, run_id, commit)
-        for path in published.glob("*/*/report.json"):
-            self.assertEqual((output / path.relative_to(published)).read_bytes(), path.read_bytes())
+        for relative, original in public_history_bytes(published).items():
+            self.assertEqual((output / relative).read_bytes(), original)
         counts = Counter(report["project_id"] for report in previous)
         counts.update(self.catalog.keys())
         self.assert_indices(output, run_id, counts)

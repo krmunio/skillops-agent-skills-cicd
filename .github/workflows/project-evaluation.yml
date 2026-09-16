@@ -58,6 +58,8 @@ jobs:
             ci-sample-results/index.json
             ci-sample-results/*/index.json
             ci-sample-results/*/*/report.json
+            ci-sample-results/*/*/skill-snapshots.json
+            ci-sample-results/*/*/skill-evolution.json
           if-no-files-found: error
           retention-days: 30
 
