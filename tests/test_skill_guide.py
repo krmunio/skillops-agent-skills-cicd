@@ -165,6 +165,67 @@ class SkillGuideTests(unittest.TestCase):
                     self.assertEqual(caught.exception.code, "unsafe_skill_path")
                     scanned.assert_not_called()
 
+    def test_rejects_root_ancestor_symlink_replacement_before_initial_root_stat(self):
+        self.write_skill("project/.github/skills/example", "Original skill.")
+        project = self.root / "project"
+        ancestor = project / ".github"
+        root = ancestor / "skills"
+        outside = self.root / "outside"
+        outside.mkdir()
+        stat_path = os.stat
+        replaced = False
+
+        def replace_before_stat(path, *args, **kwargs):
+            nonlocal replaced
+            if path == root and not kwargs.get("follow_symlinks", True) and not replaced:
+                ancestor.rename(self.root / "original-github")
+                ancestor.symlink_to(outside, target_is_directory=True)
+                replaced = True
+            return stat_path(path, *args, **kwargs)
+
+        with patch("os.stat", side_effect=replace_before_stat), patch(
+            "skill_guide.regular_files", wraps=skill_guide.regular_files
+        ) as read:
+            with self.assertRaises(RuntimeFailure) as caught:
+                skill_guide.discover(project)
+
+        self.assertTrue(replaced)
+        self.assertEqual(caught.exception.code, "unsafe_skill_path")
+        read.assert_not_called()
+
+    def test_rejects_previous_skill_root_replacement_while_discovering_later_root(self):
+        self.write_skill(".github/skills/example", "Original skill.")
+        self.write_skill(".claude/skills/second", "Second skill.")
+        sentinel = "REPLACEMENT SENTINEL: never include this content."
+        self.write_skill("replacement/example", sentinel)
+        root = self.root / ".github/skills"
+        later_root = self.root / ".claude/skills"
+        scandir = os.scandir
+        replaced = False
+
+        def replace_before_scan(path):
+            nonlocal replaced
+            if Path(path) == later_root and not replaced:
+                root.rename(self.root / "original-github-skills")
+                (self.root / "replacement").rename(root)
+                replaced = True
+            return scandir(path)
+
+        result, failure = [], None
+        with patch("os.scandir", side_effect=replace_before_scan), patch(
+            "skill_guide.regular_files", wraps=skill_guide.regular_files
+        ) as read:
+            try:
+                result = skill_guide.discover(self.root)
+            except RuntimeFailure as error:
+                failure = error
+
+        self.assertTrue(replaced)
+        self.assertNotIn(sentinel, json.dumps(result))
+        self.assertIsNotNone(failure, "Previously discovered roots must be revalidated before reading.")
+        self.assertEqual(failure.code, "unsafe_skill_path")
+        read.assert_not_called()
+
     def test_rejects_directory_symlinks_before_discovery(self):
         outside = self.write_skill("outside", "Linked skill.")
         for name in skill_guide.SKILL_ROOTS:

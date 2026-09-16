@@ -14,6 +14,11 @@
 각 conventional root는 최초 no-follow stat에서 존재하지 않을 때만 건너뛴다.
 존재하는 root는 symlink가 아닌 디렉터리여야 하며, 최초 stat의 device/inode/type을
 탐색 직전 no-follow stat과 비교하여 삭제나 파일·symlink·다른 디렉터리 교체를 거부한다.
+프로젝트 경로를 절대 정규화한 뒤 프로젝트 root와 `.github`, `.claude`, `skills` 등
+각 존재하는 경로 component를 no-follow stat으로 검사하고 디렉터리 identity를 기록한다.
+이 identity map은 모든 root 탐색이 끝날 때까지 유지하며, 번들 내용을 읽기 직전에
+프로젝트와 모든 기록 디렉터리를 일괄 재검증한다. 다른 root 탐색 중 발생한 삭제·교체·
+symlink·type 변화도 `unsafe_skill_path`로 거부하여 누락이나 교체된 내용 반환을 막는다.
 
 등록 프로젝트가 없을 때는 SkillOps 자체의 `skills/`를 같은 규칙으로 평가한다. manifest와 개별 override는 실제 자동 발견 오분류가 확인되기 전까지 추가하지 않는다.
 
