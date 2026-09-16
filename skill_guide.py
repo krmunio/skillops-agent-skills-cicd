@@ -19,6 +19,13 @@ def fail(code, message):
     raise RuntimeFailure(code, message)
 
 
+def _directory_identity(path):
+    info = os.stat(path, follow_symlinks=False)
+    if not stat.S_ISDIR(info.st_mode):
+        fail("unsafe_skill_path", "Skill path components must be directories.")
+    return info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)
+
+
 def _read_relative(root_fd, relative):
     """Read bounded bytes through a no-follow chain rooted at a pinned directory."""
     relative = Path(relative)
@@ -103,27 +110,30 @@ def regular_files(folder, skill_folders, *, project=None):
 
 
 def discover(project):
-    project = Path(project).resolve(strict=True)
     skill_files = []
     try:
+        project = Path(project).resolve(strict=True)
+        directories = {project: _directory_identity(project)}
         for name in SKILL_ROOTS:
             root = project / name
             relative = Path(name)
-            if any((project / Path(*relative.parts[:index])).is_symlink()
-                   for index in range(1, len(relative.parts))):
-                fail("unsafe_skill_path", "Skill roots cannot be symbolic links.")
-            try:
-                root_info = os.stat(root, follow_symlinks=False)
-            except FileNotFoundError:
+            components = [
+                project / Path(*relative.parts[:index])
+                for index in range(1, len(relative.parts) + 1)
+            ]
+            for component in components:
+                try:
+                    directories[component] = _directory_identity(component)
+                except FileNotFoundError:
+                    continue
+            if root not in directories:
                 continue
-            if not stat.S_ISDIR(root_info.st_mode):
-                fail("unsafe_skill_path", "Skill roots must be directories.")
-            directories = {root: root_info}
+            if any(component not in directories for component in components):
+                fail("unsafe_skill_path", "Skill path components changed during discovery.")
             pending = [root]
             while pending:
                 directory = pending.pop()
-                info = os.stat(directory, follow_symlinks=False)
-                if not stat.S_ISDIR(info.st_mode) or not os.path.samestat(directories[directory], info):
+                if _directory_identity(directory) != directories[directory]:
                     fail("unsafe_skill_path", "Skill directories changed during discovery.")
                 with os.scandir(directory) as entries:
                     for entry in entries:
@@ -136,11 +146,11 @@ def discover(project):
                                 fail("unsafe_skill_path", "SKILL.md must be an ordinary file.")
                             skill_files.append(path)
                         if stat.S_ISDIR(info.st_mode):
-                            directories[path] = info
+                            directories[path] = (info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode))
                             pending.append(path)
-            for directory, info in directories.items():
-                if not os.path.samestat(info, directory.stat(follow_symlinks=False)):
-                    fail("unsafe_skill_path", "Skill directories changed during discovery.")
+        for directory, identity in directories.items():
+            if _directory_identity(directory) != identity:
+                fail("unsafe_skill_path", "Skill directories changed during discovery.")
     except OSError as error:
         raise RuntimeFailure("unsafe_skill_path", "Cannot safely discover skill files.") from error
 
