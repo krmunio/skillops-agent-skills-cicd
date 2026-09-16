@@ -13,9 +13,42 @@ verification evidence. Planned work is not a claim of implemented functionality.
 ## Multi-project foundation
 
 Project snapshots now live under `projects/`, including `projects/sample_repo/`.
+The owner-operated [public dashboard](https://agreeable-pebble-0ea54a800.6.azurestaticapps.net/)
+is available; its screen design is evolving.
 See [project evaluation](docs/PROJECT-EVALUATION.md) for the `results/` schema,
-gated Actions workflow, data branch and static dashboard. Live guide integration
-and model-backed workflow activation are not claimed complete by this skeleton.
+gated Actions workflow, data branch and static dashboard. The Anthropic-inspired
+guide evaluator in `skill_guide.py` is implemented and used by the baseline runner.
+Project-assessment guide integration remains pending; model-backed workflow
+execution still requires explicit settings and authentication.
+
+### Prepared project samples
+
+- `projects/sample_repo`: original issue-management seeds plus an explicitly added development skill.
+- `projects/project-a`: pinned `dbader/schedule` 1.2.2 source with a scheduling-specific, unvalidated skill draft.
+- `projects/project-b`: pinned `obra/superpowers` v6.3.0 source with its existing skills preserved.
+
+```bash
+python3 project_samples.py verify --project project-a
+python3 project_samples.py verify --project project-b
+python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
+```
+
+The portable helper imports public commit-pinned archives into unused project
+directories, preserves licenses/hashes, and requires a selected draft if skills
+are missing. See [preparation commands and boundaries](docs/PROJECT-EVALUATION.md#reproducible-sample-preparation)
+before importing another repository. It never executes upstream code or replaces
+existing skills. Draft installation is not successful behavioral evaluation.
+
+The project workflow's `sample-onboarding-results` artifact verifies actual
+non-model reports using the existing evaluator and schema. Project guide assessment
+is still `blocked / guide_integration_pending`; external execution is `no_adapter`,
+and the built-in sample is `live_disabled`. Green contract tests do not change these
+blocked/unconfigured states or authorize Azure deployment.
+Existing published reports and optional validated skill-history sidecars are retained
+byte-for-byte when adding new sample runs.
+See the [owner's dashboard direction](docs/PROJECT-EVALUATION.md#owner-dashboard-direction)
+for baseline/project separation, target skill/version selection, guide/APO evidence,
+execution comparisons, skill diffs and history, including what still needs integration.
 
 ## Repository validation
 
