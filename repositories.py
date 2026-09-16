@@ -141,7 +141,7 @@ def _write(folder, data):
 
 
 def _snapshot(root, identifier, row, skill):
-    base = Path(row["path"]) if row else Path(root) / "sample_repo"
+    base = Path(row["path"]) if row else Path(root) / "projects/sample_repo"
     seeds = {family: text(read_file(base / Path(spec["seed"]).name, 128 * 1024))
              for family, spec in FAMILIES.items()}
     binding = None
