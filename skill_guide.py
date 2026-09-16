@@ -454,7 +454,7 @@ def evaluate_project(runtime, model, project, rubric, artifact_root):
     return {
         "guide": rubric["source"],
         "report_only": True,
-        "limitation": "Static and model-based guide assessment; no skill execution or behavioral effectiveness validation.",
+        "limitation": "Automated guide assessment; not Anthropic certification or human-calibrated judgment.",
         "summary": {
             "skills": len(skills),
             **{status: sum(row["status"] == status for row in skills)
