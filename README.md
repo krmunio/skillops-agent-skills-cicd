@@ -96,7 +96,8 @@ dedicated login during verification.
 
 These commands consume actual Copilot usage. There are nine judge calls
 for calibration (three per family), then one developer and one judge call for
-each of five tasks: 19 calls for a new complete calibration/baseline sequence.
+each of five tasks: 19 coding/calibration calls for a new sequence, plus the
+size-dependent skill-guide judge calls described below.
 There are no automatic model retries or silent output repairs.
 
 ```bash
@@ -146,6 +147,35 @@ evaluated listing boundary request is now a development regression; the new
 updates family is held out from development-task inputs. Historical v1 reports
 keep their original split labels. Held-out separation applies to generator inputs;
 it does not claim that benchmark authors have never seen the held-out data.
+
+## Anthropic skill guide evaluation
+
+Baseline also discovers skills under the evaluated project's `.github/skills`,
+`.claude/skills` and `skills` roots. Each `SKILL.md` defines an independently
+evaluated bundle. Nested skills are evaluated separately, and their files are
+excluded from the parent bundle.
+
+- **Calls and usage:** a small single-file skill needs one guide-judge call.
+  Large text bundles are split into bounded batches with additional calls;
+  model call count and usage increase with skill size. Binary assets contribute
+  only metadata (path, size and hash); their contents are not sent to the model
+  as text.
+- **Static checks:** required YAML frontmatter with nonempty `name` and
+  `description`, a nonempty body, and local references that exist within the
+  bundle. Warnings cover `SKILL.md` exceeding the 500-line recommendation and
+  Markdown references over 300 lines without a table of contents.
+- **Zero-tool judge dimensions:** trigger description, workflow clarity,
+  generalization, instruction quality, progressive disclosure, resource
+  organization and principle of lack of surprise.
+- **Small-skill applicability:** for single-file skills without supporting
+  resources, `progressive_disclosure` and `resource_organization` are
+  `not_applicable` (N/A) and excluded from the score denominator, not penalized.
+
+Results appear under the `anthropic_skill_guide` key in `report.json` and the
+`Anthropic skill guide` section in `report.md`. Guide scores and findings are
+**report-only**: they do not change coding-task outcomes or canary/promotion
+decisions. This is automated guidance, not Anthropic certification or a
+replacement for human calibration.
 
 ## Read the evidence
 
