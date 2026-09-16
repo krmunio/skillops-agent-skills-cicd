@@ -1405,8 +1405,10 @@ class SkillGuideTests(unittest.TestCase):
         self.assertEqual(set(result), {"guide", "report_only", "limitation", "summary", "skills"})
         self.assertEqual(result["guide"], rubric["source"])
         self.assertIs(result["report_only"], True)
-        self.assertIn("static", result["limitation"].lower())
-        self.assertIn("execution", result["limitation"].lower())
+        self.assertEqual(
+            result["limitation"],
+            "Automated guide assessment; not Anthropic certification or human-calibrated judgment.",
+        )
         self.assertEqual(result["summary"], {"skills": 2, "pass": 1, "review": 0, "blocked": 1})
         self.assertEqual(len(runtime.calls), 2)
         self.assertEqual([row["status"] for row in result["skills"]], ["blocked", "pass"])
