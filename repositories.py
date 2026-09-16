@@ -154,7 +154,12 @@ def _snapshot(root, identifier, row, skill):
             }).encode()).hexdigest(),
             "source_sha256": {family: sha256(seed.encode()).hexdigest() for family, seed in seeds.items()},
         }
-    return {"binding": binding, "skill": skill, "seeds": seeds}
+    return {
+        "binding": binding,
+        "skill": skill,
+        "seeds": seeds,
+        "project_root": str(Path(row["path"]) if row else Path(root)),
+    }
 
 
 def register(root, identifier, path, skill="develop", evaluation_set=EVALUATION_SET):
