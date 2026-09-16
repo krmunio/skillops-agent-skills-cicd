@@ -10,3 +10,9 @@ __pycache__/
 .env.*
 ci-artifacts/
 .worktrees/
+node_modules/
+.dashboard-public/
+.results-worktree/
+ci-results/
+test-results/
+playwright-report/

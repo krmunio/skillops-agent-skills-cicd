@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="프로젝트별 Skill 품질, 개선 근거와 실행 결과를 구분하는 SkillOps 대시보드">
+  <title>SkillOps · 프로젝트 평가</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" type="module"></script>
+</head>
+<body>
+  <a class="skip" href="#main">평가 결과로 이동</a>
+  <header class="site-header">
+    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">▦</span> skillops</a>
+    <span class="header-caption">에이전트 Skill의 변경을 근거로 판단합니다</span>
+    <div class="header-actions"><span class="readonly">공개 기록 · 읽기 전용</span><button id="refresh" type="button">새로고침</button></div>
+  </header>
+  <div class="workspace">
+    <aside aria-label="프로젝트 선택">
+      <h2>프로젝트 <span id="project-count"></span></h2>
+      <div id="projects"><p class="muted">목록을 불러오는 중입니다.</p></div>
+      <div class="sample-entry">
+        <span class="eyebrow">화면 둘러보기</span>
+        <button id="demo-open" type="button" aria-pressed="false">샘플 화면 보기</button>
+        <p>가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
+      </div>
+    </aside>
+    <main id="main">
+      <div id="error" role="alert" hidden></div>
+      <div id="sample-banner" role="status" hidden>
+        <strong>샘플 · 합성 데이터</strong>
+        <span>화면 설명을 위해 만든 예시입니다. 실제 평가·개선 성과·채택 근거가 아닙니다.</span>
+        <button id="exit-sample" type="button">실제 기록으로 돌아가기</button>
+      </div>
+      <section class="intro">
+        <p class="route">프로젝트 / 평가 결과</p>
+        <div class="title-line"><h1 id="project-title">프로젝트 평가</h1><span id="origin" class="badge">프로젝트 선택</span></div>
+        <div class="selection-line">
+          <label for="skill-select">대상 Skill</label>
+          <select id="skill-select" disabled><option>Skill 정보 미기록</option></select>
+          <span id="selection-summary">프로젝트를 선택해 주세요.</span>
+        </div>
+        <p id="freshness" class="freshness">평가 당시의 버전과 현재 소스의 일치 여부를 구분합니다.</p>
+      </section>
+      <nav class="section-nav" aria-label="평가 영역">
+        <a href="#quality-section">스킬 품질·개선 근거</a>
+        <a href="#execution-section">프로젝트 실행</a>
+        <a href="#changes-section">Skill 변경</a>
+        <a href="#history-section">평가 이력</a>
+      </nav>
+      <div id="detail" hidden>
+        <section id="quality-section" class="evaluation-section" data-section="quality" aria-labelledby="quality-title">
+          <div class="section-heading"><h2 id="quality-title">스킬 품질 및 개선 근거 평가</h2><span id="quality-summary"></span></div>
+          <p class="section-description">잘 작성된 지침인지, 변경에 타당한 근거가 있는지 확인합니다. 실제 실행 성능과는 별개의 평가입니다.</p>
+          <div class="two-column">
+            <article class="panel">
+              <h3>스킬 품질</h3>
+              <p class="method-description">Anthropic의 스킬 작성 가이드를 참고해 사용 조건·지침의 명확성, 간결성, 문서·리소스 구성과 단계적 정보 제공 구조를 살펴봅니다.</p>
+              <div id="guide"></div>
+              <details class="methodology"><summary>평가 기준·출처 설명</summary><p>정적 검사와 LLM rubric 결과를 구분합니다. 적용되지 않는 항목은 분모에서 제외하고 이유를 표시합니다. 참고 가이드와 실제 수행된 검사는 동일하지 않으며, 공식 인증을 의미하지 않습니다.</p></details>
+            </article>
+            <article class="panel">
+              <h3>개선 근거</h3>
+              <p class="method-description">APO의 근거 기반 개선 접근을 참고해 관측된 문제, 개선 가설, 지침 변경과 재평가 결과가 연결되는지 살펴봅니다.</p>
+              <div id="improvement-evidence"></div>
+              <details class="methodology"><summary>판단 기준 설명</summary><p>변경 이유만으로 개선을 인정하지 않습니다. 문제와 관련된 변경인지, 같은 조건의 재평가가 주장을 뒷받침하는지 구분합니다. 미기록 근거를 추정하거나 별도 인증 점수를 만들지 않습니다.</p></details>
+            </article>
+          </div>
+        </section>
+        <section id="execution-section" class="evaluation-section" data-section="execution" aria-labelledby="execution-title">
+          <div class="section-heading"><h2 id="execution-title">프로젝트 실행 평가</h2><span id="run-title"></span></div>
+          <p id="execution-scope" class="section-description"></p>
+          <div class="outcome-grid">
+            <article id="execution" class="outcome-card"></article>
+            <article id="cost-card" class="outcome-card"></article>
+            <article id="time-card" class="outcome-card"></article>
+          </div>
+          <div class="two-column">
+            <article class="panel"><h3>왜 이렇게 판단했나</h3><div id="decision-reasons"></div></article>
+            <article class="panel"><h3>어떤 작업을 평가했나</h3><div id="task-results"></div></article>
+          </div>
+          <details class="provenance"><summary>평가 시점·원본 수치·식별 정보</summary><p id="run-time"></p><div id="all-metrics"></div><dl id="provenance"></dl><a id="report-link">공개용 JSON 보기</a></details>
+        </section>
+        <section id="changes-section" class="evaluation-section" data-section="changes" aria-labelledby="changes-title">
+          <div class="section-heading"><h2 id="changes-title">무엇을 바꿨나</h2><span>평가 당시 Skill 기준</span></div>
+          <p class="section-description">기존·후보 지침과 변경 내용을 확인합니다. 자가 생성된 후보와 실제 채택된 버전은 다릅니다.</p>
+          <article id="skill-changes" class="panel"></article>
+        </section>
+      </div>
+      <section id="history-section" class="history-section" data-section="history" aria-labelledby="history-title">
+        <div class="section-heading">
+          <h2 id="history-title">프로젝트 이력</h2>
+        </div>
+        <div class="history-tabs" role="tablist" aria-label="프로젝트 이력 종류">
+          <button id="skill-history-tab" role="tab" type="button" aria-selected="true" aria-controls="skill-history-panel">Skill 이력</button>
+          <button id="execution-history-tab" role="tab" type="button" aria-selected="false" aria-controls="execution-history-panel" tabindex="-1">실행 이력</button>
+        </div>
+        <div id="skill-history-panel" role="tabpanel" aria-labelledby="skill-history-tab">
+          <p class="history-note">Skill을 선택하면 연결된 버전·평가 이력과 As-Is / To-Be를 확인할 수 있습니다. <span id="skill-count"></span></p>
+          <div id="skill-list"></div>
+          <div id="skill-history-runs"></div>
+        </div>
+        <div id="execution-history-panel" role="tabpanel" aria-labelledby="execution-history-tab" hidden>
+          <div class="history-controls">
+            <span id="history-count"></span>
+            <label class="history-filter">종류 <select id="history-filter"><option value="">전체</option><option value="comparison">후보 비교</option><option value="baseline">기준 평가</option><option value="candidate">후보 생성</option><option value="calibration">평가기 교정</option><option value="project_assessment">프로젝트 평가</option></select></label>
+          </div>
+          <p class="history-note">Skill이 미연결된 기록도 포함합니다. 실행을 선택하면 위의 평가 결과와 원문이 해당 기록으로 함께 전환됩니다.</p>
+          <div id="history"><p class="empty">저장된 결과를 기다리고 있습니다.</p></div>
+        </div>
+      </section>
+      <footer>실제 기록은 공개가 허용된 요약과 검토된 Skill 원문을 제공합니다. 미기록 정보는 추정하지 않습니다. 샘플의 지침·평가·변경 내용은 합성 예시이며 실제 이력과 분리됩니다.</footer>
+    </main>
+  </div>
+</body>
+</html>
