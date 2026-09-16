@@ -99,14 +99,47 @@ Selecting a project shows four sections in order:
 2. Project execution. Existing/candidate correctness, Judge, cost and time are
    shown from the selected report. Policy and task details remain unavailable
    when not present in the public record; no thresholds or reasons are invented.
-3. Skill changes. Evaluation-time instructions and a line diff are shown only
-   where supplied. Current source files never substitute for historical snapshots.
-4. History. Selecting a run changes the whole detail view, not just its metrics.
+3. Skill changes. As-Is and To-Be are expanded side by side (stacked on mobile).
+   Current source files never substitute for historical snapshots. To-Be is a
+   candidate, not evidence of adoption or deployment.
+4. History. The **Skill 이력** tab lists the project's recorded Skills, unique
+   version counts and linked records. Selecting a Skill or its record updates
+   the whole detail view. **실행 이력** retains all records, including runs without
+   a recorded Skill identity.
 
-Existing public v1 records remain unchanged. They do not contain full quality
-findings, improvement traces, task-level checks or Skill snapshots. The actual
-history view explicitly reports these fields as unrecorded. A future reviewed
-public-detail contract and producer integration are still required.
+Existing public v1 reports remain unchanged. Full quality findings, improvement
+traces and task-level checks still require a reviewed producer contract; the
+viewer reports missing fields explicitly. Reviewed Skill text can now be attached
+through the optional immutable sidecar described below, without inventing these
+other fields.
+
+### Reviewed archived Skill snapshots
+
+`results/<project>/<run>/skill-snapshots.json` contains exactly schema version,
+project/run identity, the canonical public report SHA-256, Skill ID, and base/
+optional candidate objects with UTF-8 content and SHA-256. Each text is bounded
+to 32 KiB and 400 lines. Extra fields, wrong hashes, wrong report bindings,
+orphans and changed same-path retries are rejected. Indices expose Skill metadata
+only for validated attachments. Build and merge preserve attachments.
+
+This is an explicit exception for **reviewed Skill instructions**, not permission
+to publish raw prompts, logs, generator rationales or arbitrary repository files.
+Review the exact archived texts for secrets and private information first:
+
+```bash
+python3 project_results.py import-skill-snapshots \
+  --source runs --results .dashboard-public/reviewed-results \
+  --project sample_repo --candidate-run 20260915T005404Z-611d681b8bf7 \
+  --skill-id develop --reviewed
+```
+
+This example requires the original local `runs/` archive and matching public
+historical reports; a clean public checkout does not contain that private archive.
+The opt-in importer verifies the archived candidate's saved instructions and
+each original report against recorded hashes. Only compatible baseline,
+candidate and comparison records receive attachments. No current-file fallback
+or rewriting of original report.json is allowed. Guide and calibration records
+without appropriate Skill evidence remain unlinked.
 
 The **샘플 화면 보기** control opens `dashboard/sample-data.json`, a bundled,
 invented layout example with two Skills and three records. Its banner, labels,
