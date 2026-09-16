@@ -1,4 +1,5 @@
 import { $, node, labels, purposes, stamp, renderReport } from './views.js';
+import { validateEvolutionSummary, validateEvolution, renderEvolution, clearEvolution } from './evolution.js';
 
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const runPattern = /^(?:[0-9]+-[0-9]+|(?:import-|local-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})$/;
@@ -18,18 +19,21 @@ function fail(error) {
   $('error').textContent = '이력을 불러오지 못했습니다. 저장된 결과와 배포 상태를 확인한 뒤 새로고침해 주세요.';
   console.error('Dashboard data unavailable:', error.message);
 }
-async function load(url) {
+async function load(url, withRaw = false) {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Result unavailable (${response.status})`);
-  const value = await response.json();
+  const raw = await response.text();
+  if (new TextEncoder().encode(raw).length > 1048576) throw new Error('Result exceeds public size limit');
+  const value = JSON.parse(raw);
   if (value.schema_version !== 1) throw new Error('Unsupported result schema');
-  return value;
+  return withRaw ? { value, raw } : value;
 }
 function resetSelection(isSample) {
   ++selection; ++reportSelection;
   sampleMode = isSample;
   activeRun = null; history = [];
   selectedSkill = null;
+  clearEvolution();
   $('detail').hidden = true;
   $('error').hidden = true;
   $('sample-banner').hidden = !isSample;
@@ -75,13 +79,22 @@ function skillGroups() {
   }
   const groups = new Map();
   for (const run of history) {
-    if (!run.skill_id) continue;
-    if (!groups.has(run.skill_id)) groups.set(run.skill_id, { id: run.skill_id, hashes: new Set(), runs: [] });
-    const group = groups.get(run.skill_id);
-    group.runs.push(run);
-    for (const hash of [run.base_skill_sha256, run.candidate_skill_sha256]) if (hash) group.hashes.add(hash);
+    for (const binding of runSkills(run)) {
+      if (!groups.has(binding.id)) groups.set(binding.id, { ...binding, hashes: new Set(), runs: [] });
+      const group = groups.get(binding.id);
+      group.runs.push(run);
+      for (const hash of binding.hashes) if (hash) group.hashes.add(hash);
+    }
   }
   return [...groups.values()].map(group => ({ ...group, versions: group.hashes.size }));
+}
+function runSkills(run) {
+  if (run.evolution_skills) return run.evolution_skills.map(item => ({
+    id: item.skill_key, name: item.display_name || item.skill_key, registered: true,
+    hashes: [item.base_version_id, item.candidate_version_id],
+  }));
+  return run.skill_id ? [{ id: `legacy:${activeProject.id}:${run.skill_id}`, name: run.skill_id, registered: false,
+    hashes: [run.base_skill_sha256, run.candidate_skill_sha256] }] : [];
 }
 function renderSkillHistory() {
   const groups = skillGroups();
@@ -97,8 +110,9 @@ function renderSkillHistory() {
     const button = node('button', undefined, 'skill-item');
     button.type = 'button';
     button.setAttribute('aria-pressed', String(group.id === selectedSkill));
-    button.append(node('strong', group.id), node('small', `버전 ${group.versions}개 · 연결 기록 ${group.runs.length}건`),
+    button.append(node('strong', group.name || group.id), node('small', `버전 ${group.versions}개 · 연결 기록 ${group.runs.length}건`),
       node('small', `최근 ${stamp(group.runs[0].created_at)}${sampleMode ? ' · 합성 샘플' : ''}`));
+    if (!sampleMode) button.append(node('small', group.registered ? group.id : '고정 Skill ID 미등록 · 프로젝트 범위 이름'));
     button.addEventListener('click', () => chooseSkill(group.id));
     $('skill-list').append(button);
   }
@@ -118,7 +132,7 @@ function renderSkillHistory() {
 function chooseSkill(id) {
   if (sampleMode) { selectSampleSkill(id); return; }
   selectedSkill = id;
-  const run = history.find(item => item.skill_id === id);
+  const run = skillGroups().find(group => group.id === id)?.runs[0];
   if (run) selectRun(run, selection);
   else fail(new Error('Skill history unavailable'));
 }
@@ -135,7 +149,7 @@ async function selectRun(run, token) {
   $('detail').hidden = true;
   $('error').hidden = true;
   try {
-    let report, detail = null, snapshots = null;
+    let report, detail = null, snapshots = null, lifecycle = null;
     if (sampleMode) {
       report = sampleSkill.reports.find(item => item.run_id === run.run_id);
       if (!report) throw new Error('Sample run unavailable');
@@ -147,7 +161,8 @@ async function selectRun(run, token) {
     } else {
       if (!runPattern.test(run.run_id)) throw new Error('Invalid run');
       const url = `/results/${activeProject.id}/${run.run_id}/report.json`;
-      report = await load(url);
+      const loaded = await load(url, true);
+      report = loaded.value;
       if (request !== reportSelection || token !== selection) return;
       if (report.project_id !== activeProject.id || report.run_id !== run.run_id) throw new Error('Identity mismatch');
       $('report-link').href = url;
@@ -161,11 +176,20 @@ async function selectRun(run, token) {
           throw new Error('Skill snapshot identity mismatch');
         }
       }
-      $('skill-select').value = run.skill_id || '';
-      if (run.skill_id) selectedSkill = run.skill_id;
+      if (run.skill_evolution) {
+        const data = await load(`/results/${activeProject.id}/${run.skill_evolution}`);
+        if (request !== reportSelection || token !== selection) return;
+        lifecycle = await validateEvolution(data, report, loaded.raw, run, snapshots);
+        if (request !== reportSelection || token !== selection) return;
+      }
+      const skills = runSkills(run);
+      selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : skills[0]?.id ?? null;
+      $('skill-select').value = selectedSkill || '';
     }
     if (request !== reportSelection || token !== selection) return;
     renderReport(report, activeProject, detail, snapshots);
+    clearEvolution();
+    if (lifecycle) renderEvolution(lifecycle, selectedSkill, history, next => selectRun(next, selection));
     activeRun = run.run_id;
     $('detail').hidden = false;
     renderHistory();
@@ -189,14 +213,15 @@ async function selectProject(project) {
       stamp(run.created_at);
       if (run.skill_id && !idPattern.test(run.skill_id)) throw new Error('Invalid Skill identity');
       if (Boolean(run.skill_id) !== Boolean(run.skill_snapshots)) throw new Error('Incomplete Skill reference');
+      validateEvolutionSummary(run);
     }
     history = data.history;
     const unlinked = node('option', 'Skill 미연결');
     unlinked.value = '';
-    unlinked.disabled = !history.some(run => !run.skill_id);
+    unlinked.disabled = !history.some(run => !runSkills(run).length);
     $('skill-select').replaceChildren(unlinked);
     for (const group of skillGroups()) {
-      const option = node('option', group.id); option.value = group.id;
+      const option = node('option', group.registered ? `${group.name} (${group.id})` : group.name); option.value = group.id;
       $('skill-select').append(option);
     }
     $('skill-select').disabled = skillGroups().length === 0;
@@ -291,7 +316,7 @@ $('skill-select').addEventListener('change', () => {
     const id = $('skill-select').value;
     if (id) chooseSkill(id);
     else {
-      const run = history.find(item => !item.skill_id);
+      const run = history.find(item => !runSkills(item).length);
       if (run) selectRun(run, selection);
     }
   } catch (error) { fail(error); }
