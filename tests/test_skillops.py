@@ -799,6 +799,49 @@ class EvaluationTests(unittest.TestCase):
                 self.assertTrue(all(row["status"] == "completed" for row in report["tasks"]))
                 self.assertNotIn(str(runtime.project), json.dumps(report))
 
+    def test_baseline_bundle_content_errors_remain_report_only(self):
+        import skill_guide
+        import skillops
+        from tests.test_skill_guide import FakeGuideRuntime, GUIDE_DIMENSIONS
+
+        for error in ("invalid_skill_encoding", "skill_file_limit", "skill_bundle_limit"):
+            with self.subTest(error=error):
+                runtime, tasks = self.baseline_runtime()
+                bad = runtime.project / ".claude/skills/bad"
+                bad.mkdir(parents=True)
+                (bad / "SKILL.md").write_bytes(b"\xff" if error == "invalid_skill_encoding" else b"Bad.")
+                if error != "invalid_skill_encoding":
+                    sizes = [skill_guide.FILE_LIMIT + 1] if error == "skill_file_limit" else [
+                        skill_guide.FILE_LIMIT
+                    ] * 4
+                    for index, size in enumerate(sizes):
+                        with (bad / f"asset-{index}.bin").open("wb") as stream:
+                            stream.truncate(size)
+                value = {
+                    name: {
+                        "status": "not_applicable" if name in (
+                            "progressive_disclosure", "resource_organization"
+                        ) else "pass",
+                        "score": None if name in (
+                            "progressive_disclosure", "resource_organization"
+                        ) else 4,
+                        "rationale": "Synthetic guide assessment.",
+                    } for name in GUIDE_DIMENSIONS
+                }
+                fake = FakeGuideRuntime(json.dumps(value))
+                with patch.object(runtime, "invoke", side_effect=fake.invoke):
+                    result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project)
+
+                self.assertEqual((code, result["status"]), (0, "completed"))
+                self.assertEqual((result["errors"], result["blocked"]), (0, 0))
+                report = json.loads((runtime.project / result["report"]).with_suffix(".json").read_text())
+                guide = report["anthropic_skill_guide"]
+                self.assertTrue(guide["report_only"])
+                self.assertEqual([row["status"] for row in guide["skills"]], ["blocked", "pass"])
+                self.assertEqual(guide["skills"][0]["error"]["code"], error)
+                self.assertEqual(len(fake.calls), 1)
+                self.assertEqual(tasks.call_count, result["requested"])
+
     def test_baseline_assesses_registered_project_not_evaluator_skills(self):
         import skill_guide
         import skillops
