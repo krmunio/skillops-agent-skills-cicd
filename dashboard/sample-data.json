@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "synthetic": true,
+  "project_id": "layout-sample",
+  "name": "지원 도구 · 샘플 프로젝트",
+  "skills": [
+    {
+      "id": "issue-helper",
+      "versions": {
+        "v1": {
+          "version": "예시 v1",
+          "content": "---\nname: issue-helper\ndescription: Help maintain the issue list.\n---\n\n# Issue maintenance\n\nInspect the affected function before changing it.\nPreserve existing behavior and run the fixed checks.\nReport what changed and which checks passed.\n"
+        },
+        "v2": {
+          "version": "예시 v2",
+          "content": "---\nname: issue-helper\ndescription: Use when fixing pagination, filtering, or labels in the issue list.\n---\n\n# Issue maintenance\n\nInspect the affected function before changing it.\nWrite down the boundary case and expected behavior first.\nPreserve existing behavior and run the fixed checks.\nRecheck the unchanged paths after each edit.\nReport what changed and which checks passed.\nExplain any remaining evidence gaps without claiming success.\n"
+        }
+      },
+      "reports": [
+        {
+          "run_id": "sample-comparison",
+          "purpose": "comparison",
+          "created_at": "2026-09-16T06:00:00Z",
+          "origin": "synthetic",
+          "guide": { "status": "completed", "reason_code": "evaluation_completed", "metrics": null, "decision": null },
+          "execution": {
+            "status": "completed",
+            "reason_code": "evaluation_completed",
+            "decision": "rejected",
+            "metrics": {
+              "base_requested": 5,
+              "candidate_requested": 5,
+              "base_correctness_successes": 5,
+              "candidate_correctness_successes": 5,
+              "base_judge_score": 100,
+              "candidate_judge_score": 100,
+              "base_cost_nano_aiu": 125712000000,
+              "candidate_cost_nano_aiu": 127772000000,
+              "base_elapsed_seconds": 296.064,
+              "candidate_elapsed_seconds": 302.923,
+              "cost_improvement_percent": -1.638665838106148,
+              "time_improvement_percent": -2.316729490920891
+            }
+          },
+          "details": {
+            "base": "v1",
+            "candidate": "v2",
+            "scope": "합성 예시: Python 이슈 관리 작업 5개 · 실제 저장소 전체의 종합 평가가 아닙니다.",
+            "quality": [
+              { "name": "이름·설명과 문서 구조", "method": "정적 검사", "base": "pass", "candidate": "pass", "finding": "예시: 두 버전 모두 name·description과 비어 있지 않은 본문을 갖습니다." },
+              { "name": "사용 조건의 명확성", "method": "LLM rubric", "base": "review", "candidate": "pass", "finding": "예시: 모호한 issue list 설명을 pagination·filtering·labels의 구체적 사용 조건으로 바꿨습니다. 실제 LLM 채점 결과가 아닙니다." },
+              { "name": "지침과 출력의 명확성", "method": "LLM rubric", "base": "review", "candidate": "pass", "finding": "예시: 경계 조건과 기대 동작을 먼저 기록하고, 남은 근거의 한계를 보고하도록 명시했습니다." },
+              { "name": "일반화와 간결성", "method": "LLM rubric", "base": "pass", "candidate": "review", "finding": "예시: 작업마다 재점검하도록 추가한 지침이 중복 실행을 늘릴 수 있어 검토가 필요합니다." },
+              { "name": "단계적 정보 제공", "method": "조건부 항목", "base": "not_applicable", "candidate": "not_applicable", "finding": "적용 제외: 두 예시 모두 짧은 단일 문서이며 별도의 번들 리소스가 없습니다. 미적용 항목을 감점하지 않습니다." },
+              { "name": "의도 밖 동작 방지", "method": "LLM rubric", "base": "pass", "candidate": "pass", "finding": "예시: 외부 전송이나 권한 변경을 요구하지 않습니다. 공식 인증이나 실제 보안 감사가 아닙니다." }
+            ],
+            "improvement": {
+              "observation": "합성 관측: 기존 지침으로 검사는 통과했지만, 사용 조건과 경계 사례 점검 순서가 모호했습니다.",
+              "hypothesis": "사용 조건을 구체화하고 점검 순서를 명시하면 재작업 없이 동일한 품질을 더 효율적으로 달성할 수 있을 것입니다.",
+              "change": "description에 작업 종류를 추가하고, 경계 사례 기록·수정 후 재점검·미확인 근거 보고를 지침에 넣었습니다.",
+              "verification": "합성 재평가: 정답 5/5와 Judge 100은 유지했지만, 비용은 1.64%, 시간은 2.32% 늘었습니다.",
+              "conclusion": "예시 판단: 일부 지침 품질은 좋아졌지만 실행 효율 개선 가설은 지지되지 않았습니다. 후보는 미채택입니다.",
+              "source_run": "sample-baseline"
+            },
+            "policy": {
+              "version": "sample-policy-v1",
+              "summary": "개선을 입증한 항목이 없습니다. 품질 저하가 아니라 개선 근거 부족으로 거절한 예시입니다.",
+              "rows": [
+                { "name": "필수 품질", "threshold": "정답·Judge 악화 없음", "observed": "5/5 → 5/5 · 100 → 100" },
+                { "name": "악화 한도", "threshold": "비용·시간 각각 5% 이내 증가", "observed": "두 항목 모두 한도 이내" },
+                { "name": "품질 개선", "threshold": "정답 수 또는 Judge 향상", "observed": "개선 없음" },
+                { "name": "비용 개선", "threshold": "10% 이상 감소", "observed": "1.64% 증가" },
+                { "name": "시간 개선", "threshold": "10% 이상 감소", "observed": "2.32% 증가" }
+              ]
+            },
+            "tasks": [
+              { "name": "첫 페이지 누락 수정", "base": 26, "candidate": 26, "total": 26 },
+              { "name": "필터·페이지 처리 순서", "base": 26, "candidate": 26, "total": 26 },
+              { "name": "페이지 경계·입력 검증", "base": 26, "candidate": 26, "total": 26 },
+              { "name": "레이블 정규화", "base": 17, "candidate": 17, "total": 17 },
+              { "name": "이슈 수정·원본 보존 (heldout)", "base": 22, "candidate": 22, "total": 22 }
+            ]
+          }
+        },
+        {
+          "run_id": "sample-baseline",
+          "purpose": "baseline",
+          "created_at": "2026-09-16T04:00:00Z",
+          "origin": "synthetic",
+          "guide": { "status": "completed", "reason_code": "evaluation_completed", "metrics": null, "decision": null },
+          "execution": {
+            "status": "completed", "reason_code": "evaluation_completed", "decision": null,
+            "metrics": { "requested": 5, "attempted": 5, "correctness_successes": 5, "mean_judge_score": 100, "judge_score_denominator": 5 }
+          },
+          "details": {
+            "base": "v1",
+            "candidate": null,
+            "scope": "합성 예시: 기존 Skill 기준 평가 · 후보와의 비교 실행이 아닙니다.",
+            "quality": [
+              { "name": "이름·설명과 문서 구조", "method": "정적 검사", "base": "pass", "finding": "예시: name·description과 본문이 있습니다." },
+              { "name": "사용 조건의 명확성", "method": "LLM rubric", "base": "review", "finding": "예시: 어떤 이슈 관리 작업에 사용해야 하는지 구체적이지 않습니다." },
+              { "name": "단계적 정보 제공", "method": "조건부 항목", "base": "not_applicable", "finding": "적용 제외: 별도 리소스가 없는 짧은 단일 문서입니다." }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "release-notes",
+      "versions": {
+        "v1": {
+          "version": "예시 v1",
+          "content": "---\nname: release-notes\ndescription: Draft release notes from reviewed changes.\n---\n\n# Release notes\n\nSummarize only the supplied changes.\nSeparate breaking changes from fixes.\nDo not invent issue links or release dates.\n"
+        }
+      },
+      "reports": [
+        {
+          "run_id": "sample-notes",
+          "purpose": "project_assessment",
+          "created_at": "2026-09-16T05:00:00Z",
+          "origin": "synthetic",
+          "guide": { "status": "completed", "reason_code": "evaluation_completed", "metrics": null, "decision": null },
+          "execution": { "status": "not_assessed", "reason_code": "no_adapter", "metrics": null, "decision": null },
+          "details": {
+            "base": "v1",
+            "candidate": null,
+            "scope": "합성 예시: 지침 품질만 검토했으며 실행 기반 평가는 수행하지 않았습니다.",
+            "quality": [
+              { "name": "이름·설명과 문서 구조", "method": "정적 검사", "base": "pass", "finding": "예시: 필수 필드와 본문이 있습니다." },
+              { "name": "출력 형식의 명확성", "method": "LLM rubric", "base": "review", "finding": "예시: 변경 종류는 나누지만 최종 출력 형식의 예시가 없습니다." },
+              { "name": "단계적 정보 제공", "method": "조건부 항목", "base": "not_applicable", "finding": "적용 제외: 별도의 번들 리소스가 없는 작은 Skill입니다." }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
