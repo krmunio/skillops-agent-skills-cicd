@@ -32,6 +32,13 @@
 - 300줄을 넘는 Markdown reference의 목차 존재 여부
 - symlink, 비정상 파일, UTF-8 오류와 크기 제한
 
+번들별 읽기는 프로젝트 또는 bundle root descriptor를 한 번 고정한다.
+`rglob`/`stat`은 후보 열거에만 사용하고, 상대 경로의 각 디렉터리와 마지막 파일은
+`dir_fd`, `O_NOFOLLOW`, `O_NONBLOCK`으로 열어 `fstat`으로 검사한다.
+디렉터리에는 `O_DIRECTORY`도 적용하며, 절대 경로와 `..` 요소는 거부한다.
+실제로 연 일반 파일의 크기·내용·hash만 사용하고 모든 descriptor는 `finally`에서 닫는다.
+symlink 및 FIFO/device/socket/directory 교체는 내용을 읽지 않고 `unsafe_skill_path`로 거부한다.
+
 500줄과 목차 항목은 권고 finding이며, 누락 파일·안전하지 않은 경로·필수 frontmatter 오류는 명백한 구조 오류로 기록한다.
 
 ## LLM rubric
