@@ -18,6 +18,7 @@ from evaluation import (
     FAMILIES, apply_proposal, canonical, execute, fingerprint, input_hashes, judge_prompt,
     validate_judge, validate_proposal,
 )
+import repositories
 
 
 def doctor(runtime, workdir):
@@ -76,7 +77,9 @@ def probe(runtime, workdir, model):
 
 
 def write_json(path, value):
-    Path(path).write_text(json.dumps(value, indent=2, allow_nan=False) + "\n")
+    payload = (json.dumps(value, indent=2, allow_nan=False) + "\n").encode("utf-8")
+    Path(path).write_bytes(payload)
+    return sha256(payload).hexdigest()
 
 
 def judge_call(runtime, prompt, model, artifact):
@@ -272,11 +275,14 @@ def render_report(directory, report):
     (directory / "report.md").write_text("\n".join(lines) + "\n")
 
 
-def calibrate(runtime, model, judge_work):
+def calibrate(runtime, model, judge_work, repository=None):
     directory, report = new_run(runtime, "calibration")
     report.update(passed=False, results=[])
     try:
+        snapshot = repositories.resolve(runtime.project, repository) if repository is not None else None
         context = context_for(runtime, model, judge_work)
+        if snapshot is not None:
+            context = {**context, "repository": snapshot["binding"]}
         identity = fingerprint(runtime.project, context)
         report.update(context=context, fingerprint=identity, input_sha256=input_hashes(runtime.project))
         tasks = load_tasks(runtime.project)
@@ -309,6 +315,8 @@ def calibrate(runtime, model, judge_work):
             write_json(directory / "calibration.json", report)
         if fingerprint(runtime.project, context) != identity:
             raise RuntimeFailure("inputs_changed", "Evaluation inputs changed during calibration.")
+        if snapshot is not None:
+            repositories.assert_snapshot(runtime.project, snapshot)
         report["passed"] = calibration_passed(report["results"])
         report["status"] = "completed" if report["passed"] else "failed"
     except RuntimeFailure as error:
@@ -391,7 +399,7 @@ def evaluate_task(runtime, model, task, contract, seed, skill_bytes, rubric, con
     return row
 
 
-def baseline(runtime, model, judge_work):
+def baseline(runtime, model, judge_work, repository=None):
     directory, report = new_run(runtime, "baseline")
     requested = 0
     tasks = []
@@ -399,15 +407,19 @@ def baseline(runtime, model, judge_work):
         data = load_tasks(runtime.project)
         tasks, requested = data["tasks"], len(data["tasks"])
         report["catalog_version"] = data["schema_version"]
+        snapshot = repositories.resolve(runtime.project, repository)
         context = context_for(runtime, model, judge_work)
+        if snapshot["binding"] is not None:
+            context = {**context, "repository": snapshot["binding"]}
         identity = fingerprint(runtime.project, context)
         calibration = find_calibration(runtime.project / "runs", identity)
         if calibration is None:
             raise RuntimeFailure("calibration_required", "Run matching calibration successfully before baseline.")
+        if snapshot["binding"] is not None:
+            report["calibration_sha256"] = repositories.calibration_commitment(runtime.project, calibration["path"], context)
         report.update(context=context, fingerprint=identity, input_sha256=input_hashes(runtime.project),
                       calibration=str(Path(calibration["path"]).relative_to(runtime.project)))
-        seeds = {family: (runtime.project / spec["seed"]).read_text() for family, spec in FAMILIES.items()}
-        skill_bytes = (runtime.project / "skills/develop/SKILL.md").read_bytes()
+        seeds, skill_bytes = snapshot["seeds"], snapshot["skill"]
         report["skill_sha256"] = sha256(skill_bytes).hexdigest()
         report["seed_sha256_by_family"] = {family: sha256(seed.encode()).hexdigest() for family, seed in seeds.items()}
         rubric = strict_json((runtime.project / "eval/rubric.json").read_text())
@@ -421,8 +433,10 @@ def baseline(runtime, model, judge_work):
             render_report(directory, report)
         if fingerprint(runtime.project, context) != identity:
             raise RuntimeFailure("inputs_changed", "Evaluation inputs changed during baseline.")
-        if sha256((runtime.project / "skills/develop/SKILL.md").read_bytes()).hexdigest() != report["skill_sha256"]:
-            raise RuntimeFailure("inputs_changed", "Development skill changed during baseline.")
+        repositories.assert_snapshot(runtime.project, snapshot)
+        if snapshot["binding"] is not None:
+            if repositories.calibration_commitment(runtime.project, calibration["path"], context) != report["calibration_sha256"]:
+                raise RuntimeFailure("changed_calibration", "Consumed calibration changed during baseline.")
         report["status"] = "completed" if all(row["status"] == "completed" for row in report["tasks"]) else "completed_with_errors"
     except RuntimeFailure as error:
         report.update(status="blocked", error={"code": error.code, "message": str(error)})
@@ -455,13 +469,37 @@ def main():
     for name in ("calibrate", "baseline"):
         command = commands.add_parser(name, help=f"Run the actual {name} workflow.")
         command.add_argument("--model", default="gpt-6-astra")
+        command.add_argument("--repository", help="Registered local project ID.")
     for name, argument in (("propose", "baseline"), ("compare", "candidate")):
         command = commands.add_parser(name, help=f"Run the actual {name} workflow.")
         command.add_argument("--model", default="gpt-6-astra")
         command.add_argument(f"--{argument}", required=True, help="Generated run ID (not a path).")
+        if name == "compare":
+            command.add_argument("--repository", help="Registered local project ID.")
+    register_parser = commands.add_parser("register", help="Register a local project and pin develop without model calls.")
+    register_parser.add_argument("--repository", required=True)
+    register_parser.add_argument("--path", required=True)
+    register_parser.add_argument("--skill", default="develop")
+    register_parser.add_argument("--evaluation-set", default=repositories.EVALUATION_SET)
+    commands.add_parser("repositories", help="List registered projects without model calls.")
+    gate_parser = commands.add_parser("eligibility", help="Check recorded comparison eligibility; never deploy.")
+    gate_parser.add_argument("--repository", required=True)
+    gate_parser.add_argument("--comparison", required=True)
     args = parser.parse_args()
     try:
-        runtime = CopilotRuntime(Path(__file__).resolve().parent)
+        root = Path(__file__).resolve().parent
+        if args.command in ("register", "repositories", "eligibility"):
+            exit_code = 0
+            if args.command == "register":
+                report = {"status": "registered", "binding": repositories.register(
+                    root, args.repository, args.path, args.skill, args.evaluation_set), "model_calls": 0, "deployment": False}
+            elif args.command == "repositories":
+                report = {"repositories": repositories.list_repositories(root), "model_calls": 0}
+            else:
+                report, exit_code = repositories.eligibility(root, args.repository, args.comparison)
+            print(json.dumps(report, indent=2))
+            return exit_code
+        runtime = CopilotRuntime(root)
         with runtime.locked():
             if args.command == "login":
                 return subprocess.call(runtime.command("login"), env=runtime.env, cwd=runtime.project)
@@ -475,15 +513,15 @@ def main():
             elif args.command == "probe":
                 report, exit_code = probe(runtime, workdir, args.model)
             elif args.command == "calibrate":
-                report, exit_code = calibrate(runtime, args.model, workdir)
+                report, exit_code = calibrate(runtime, args.model, workdir, args.repository)
             elif args.command == "baseline":
-                report, exit_code = baseline(runtime, args.model, workdir)
+                report, exit_code = baseline(runtime, args.model, workdir, args.repository)
             else:
                 from candidates import compare, propose
                 if args.command == "propose":
                     report, exit_code = propose(runtime, args.model, args.baseline)
                 else:
-                    report, exit_code = compare(runtime, args.model, workdir, args.candidate)
+                    report, exit_code = compare(runtime, args.model, workdir, args.candidate, args.repository)
             print(json.dumps(report, indent=2))
             return exit_code
     except RuntimeFailure as error:
