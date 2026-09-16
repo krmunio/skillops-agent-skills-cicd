@@ -11,6 +11,13 @@
 [기여 가이드](CONTRIBUTING.md)에서 작업 선택·변경 조율·검증 근거 공유 방법을 확인할 수 있습니다.
 공유 문서는 영어로 작성하며, 계획된 기능을 구현 완료로 해석하지 않습니다.
 
+## 다중 프로젝트 기반 구조
+
+샘플은 `projects/sample_repo/`로 이동했습니다.
+[프로젝트 평가 안내](docs/PROJECT-EVALUATION.md)에 `results/` 형식, Actions,
+결과 전용 브랜치와 정적 대시보드 사용법이 있습니다.
+공통 가이드 평가기 연동과 실제 모델 평가 활성화는 아직 완료된 기능이 아닙니다.
+
 ## 현재 구현한 기능
 
 - Python 이슈 관리 작업 3개 작업군, 5개 작업과 기존 개발 스킬 v1
@@ -138,7 +145,7 @@ Judge는 개발 스킬과 도구가 없는 새 세션·작업공간에서 실행
 
 Labels는 공백·Unicode casefold 정규화, 순서 보존과 검증을 다룹니다.
 Updates는 입력을 변경하지 않는 원자적 업데이트와 검증을 다룹니다.
-Seed는 `sample_repo/`, 전체 공개 계약은 `eval/tasks.json`에 있습니다.
+Seed는 `projects/sample_repo/`, 전체 공개 계약은 `eval/tasks.json`에 있습니다.
 
 한 작업군이 development와 heldout에 동시에 속할 수는 없습니다.
 이미 반복 평가한 listing 경계 작업은 development 회귀 작업이며, updates는 generator 입력에서 제외합니다.
@@ -265,7 +272,7 @@ Generator 1회, 교정 9회, 비교 20회는 서로 다른 실제 CLI 세션 30�
 다음 명령은 모델을 호출하지 않으며 Copilot 인증이나 Docker가 필요하지 않습니다.
 
 ```bash
-python3 skillops.py register --repository sample --path sample_repo \
+python3 skillops.py register --repository sample --path projects/sample_repo \
   --skill develop --evaluation-set issue-management-v2
 python3 skillops.py repositories
 ```

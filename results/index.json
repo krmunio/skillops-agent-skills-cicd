@@ -1,0 +1,12 @@
+{
+  "projects": [
+    {
+      "current_run": null,
+      "history_count": 0,
+      "id": "sample_repo",
+      "index": "sample_repo/index.json",
+      "state": "active"
+    }
+  ],
+  "schema_version": 1
+}
