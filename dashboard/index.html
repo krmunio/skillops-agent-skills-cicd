@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SkillOps 프로젝트별 평가 이력과 공개용 검증 결과">
+  <title>SkillOps · 프로젝트 평가 이력</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">평가 결과로 이동</a>
+  <header>
+    <a class="brand" href="/">SkillOps<span>에이전트 스킬의 평가 기록</span></a>
+    <div class="header-actions"><span>공개용 요약 · 읽기 전용</span><button id="refresh" type="button">새로고침</button></div>
+  </header>
+  <div id="error" role="alert" hidden></div>
+  <div class="workspace">
+    <aside aria-label="프로젝트 선택">
+      <h2>프로젝트 <span id="project-count"></span></h2>
+      <div id="projects"><p>프로젝트 목록을 불러오는 중입니다.</p></div>
+      <p class="aside-note">프로젝트의 스킬 작성 품질과 실제 작업 수행 결과를 구분해 확인합니다.</p>
+    </aside>
+    <main id="main">
+      <section class="intro">
+        <p class="route">projects / results</p>
+        <h1 id="project-title">프로젝트 평가 이력</h1>
+        <p id="freshness">프로젝트를 선택하면 저장된 평가 기록을 확인할 수 있습니다.</p>
+      </section>
+      <section class="history-section" aria-labelledby="history-title">
+        <div class="section-heading"><h2 id="history-title">수행 이력</h2><span id="history-count"></span></div>
+        <div id="history"><p class="empty">저장된 결과를 기다리고 있습니다.</p></div>
+      </section>
+      <section id="detail" hidden>
+        <div class="section-heading"><h2 id="run-title">선택한 평가</h2><span id="origin"></span></div>
+        <p id="run-time"></p>
+        <div class="assessment-grid">
+          <article><h3>스킬 작성 가이드</h3><div id="guide"></div><p class="note">Anthropic 작성 가이드 기반 평가 연동 영역입니다. 공식 인증이나 배포 승인을 의미하지 않습니다.</p></article>
+          <article><h3>실행 기반 평가</h3><div id="execution"></div><p class="note">실행 완료와 품질 통과는 다릅니다. 후보의 채택·배포 결정은 별도 절차입니다.</p></article>
+        </div>
+        <details class="provenance"><summary>평가 근거와 식별 정보</summary><dl id="provenance"></dl><a id="report-link">공개용 JSON 보기</a></details>
+      </section>
+      <footer>원본 프롬프트·소스 코드·실행 로그·인증 정보는 제공하지 않습니다. 새 기록은 저장·게시가 끝난 뒤 표시됩니다.</footer>
+    </main>
+  </div>
+</body>
+</html>
