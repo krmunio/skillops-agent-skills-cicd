@@ -343,7 +343,8 @@ class RuntimeTests(unittest.TestCase):
 
     def test_baseline_assets_have_family_disjoint_tasks_and_reasonable_skill(self):
         root = Path(__file__).resolve().parents[1]
-        for name in ("sample_repo/issues.py", "skills/develop/SKILL.md", "eval/tasks.json", "eval/rubric.json", "eval/calibration.json", "eval/fixed_checks.py"):
+        for name in ("sample_repo/issues.py", "skills/develop/SKILL.md", "eval/tasks.json", "eval/rubric.json",
+                     "eval/calibration.json", "eval/fixed_checks.py", "eval/skill-guide-rubric.json", "skill_guide.py"):
             self.assertTrue((root / name).is_file(), f"Missing baseline asset: {name}")
         data = json.loads((root / "eval/tasks.json").read_text())
         self.assertEqual(data["schema_version"], 2)
@@ -535,8 +536,8 @@ class EvaluationTests(unittest.TestCase):
                 self.evaluation.compare_fixed(cases, bad)
 
     def test_fingerprint_changes_for_every_evaluation_input(self):
-        for name in ("sample_repo/labels.py", "sample_repo/updates.py"):
-            self.assertIn(name, self.evaluation.FINGERPRINT_FILES, "All family seeds must invalidate calibration.")
+        for name in ("sample_repo/labels.py", "sample_repo/updates.py", "eval/skill-guide-rubric.json", "skill_guide.py"):
+            self.assertIn(name, self.evaluation.FINGERPRINT_FILES, "All evaluator inputs must invalidate calibration.")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in self.evaluation.FINGERPRINT_FILES:
