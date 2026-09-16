@@ -49,23 +49,32 @@ def _read_relative(root_fd, relative):
 
 
 def regular_files(folder, skill_folders, *, project=None):
-    """Enumerate candidates, then validate their descriptor chains from one root."""
+    """Validate the entrypoint before enumerating other files from one pinned root."""
     files = []
     total = 0
     nested = {path for path in skill_folders if path != folder and folder in path.parents}
-    root = folder if project is None else project
-    root_fd = None
-    try:
-        root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        if not stat.S_ISDIR(os.fstat(root_fd).st_mode):
-            fail("unsafe_skill_path", "Skill roots must be directories.")
+
+    def candidates():
+        entrypoint = folder / "SKILL.md"
+        yield entrypoint
         for path in sorted(folder.rglob("*")):
+            if path == entrypoint:
+                continue
             if path.is_symlink():
                 fail("unsafe_skill_path", "Skill bundles cannot contain symbolic links.")
             if any(root == path or root in path.parents for root in nested):
                 continue
             if stat.S_ISDIR(path.stat(follow_symlinks=False).st_mode):
                 continue
+            yield path
+
+    root = folder if project is None else project
+    root_fd = None
+    try:
+        root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        if not stat.S_ISDIR(os.fstat(root_fd).st_mode):
+            fail("unsafe_skill_path", "Skill roots must be directories.")
+        for path in candidates():
             raw = _read_relative(root_fd, path.relative_to(root))
             size = len(raw)
             if size > FILE_LIMIT:
@@ -90,7 +99,7 @@ def regular_files(folder, skill_folders, *, project=None):
     finally:
         if root_fd is not None:
             os.close(root_fd)
-    return files, total
+    return sorted(files, key=lambda row: Path(row["path"])), total
 
 
 def discover(project):

@@ -83,6 +83,67 @@ class SkillGuideTests(unittest.TestCase):
 
         self.assertEqual(caught.exception.code, "unsafe_skill_path")
 
+    def test_rejects_skill_replaced_by_directory_after_discovery(self):
+        folder = self.write_skill("skills/example", "Original content.")
+        source = folder / "SKILL.md"
+        regular_files = skill_guide.regular_files
+
+        def replace_before_enumeration(*args, **kwargs):
+            source.unlink()
+            source.mkdir()
+            return regular_files(*args, **kwargs)
+
+        with patch("skill_guide.regular_files", side_effect=replace_before_enumeration), patch(
+            "skill_guide._read_relative", wraps=skill_guide._read_relative
+        ) as read:
+            with self.assertRaises(RuntimeFailure) as caught:
+                skill_guide.discover(self.root)
+
+        self.assertEqual(caught.exception.code, "unsafe_skill_path")
+        read.assert_called_once()
+        self.assertEqual(read.call_args.args[1], source.relative_to(self.root))
+
+    def test_reads_skill_once_before_bundle_enumeration(self):
+        body = "Original skill: 원본."
+        folder = self.write_skill("skills/example", body, {"README.md": "Notes."})
+        source = folder / "SKILL.md"
+        rglob = Path.rglob
+
+        def enumerate_paths(path, pattern):
+            if path == folder and pattern == "*":
+                read.assert_called_once()
+                self.assertEqual(read.call_args.args[1], source.relative_to(self.root))
+            return rglob(path, pattern)
+
+        with patch("skill_guide._read_relative", wraps=skill_guide._read_relative) as read, patch(
+            "pathlib.Path.rglob", autospec=True, side_effect=enumerate_paths
+        ):
+            bundles = skill_guide.discover(self.root)
+
+        self.assertEqual(len(bundles), 1)
+        self.assertEqual([file["path"] for file in bundles[0]["files"]], ["README.md", "SKILL.md"])
+        self.assertEqual(bundles[0]["files"][1]["text"], body)
+        self.assertEqual([entry.args[1] for entry in read.call_args_list], [
+            source.relative_to(self.root),
+            (folder / "README.md").relative_to(self.root),
+        ])
+
+    def test_rejects_invalid_skill_encoding_before_bundle_enumeration(self):
+        folder = self.write_skill("skills/example", "Original content.")
+        (folder / "SKILL.md").write_bytes(b"\xff")
+        rglob = Path.rglob
+
+        def enumerate_paths(path, pattern):
+            self.assertFalse(path == folder and pattern == "*",
+                             "SKILL.md must be validated before bundle enumeration.")
+            return rglob(path, pattern)
+
+        with patch("pathlib.Path.rglob", autospec=True, side_effect=enumerate_paths):
+            with self.assertRaises(RuntimeFailure) as caught:
+                skill_guide.discover(self.root)
+
+        self.assertEqual(caught.exception.code, "invalid_skill_encoding")
+
     def test_rejects_directories_replaced_by_external_symlinks_before_open(self):
         sentinel = "OUTSIDE SENTINEL: never include this content."
         open_file, fstat = os.open, os.fstat
