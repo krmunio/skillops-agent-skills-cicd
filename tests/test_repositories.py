@@ -112,6 +112,22 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(snap["project_root"], str(self.target))
         self.assertEqual(self.r.resolve(self.root)["project_root"], str(self.root))
 
+    def test_snapshot_is_stable_across_relative_and_absolute_roots(self):
+        self.register()
+        relative_root = Path(os.path.relpath(self.root))
+        for repository, project_root in ((None, self.root), ("a", self.target)):
+            for root in (relative_root, self.root / "project-a" / ".."):
+                with self.subTest(repository=repository, root=root):
+                    absolute = self.r.resolve(self.root, repository)
+                    snapshot = self.r.resolve(root, repository)
+                    try:
+                        self.r.assert_snapshot(self.root, snapshot)
+                        self.r.assert_snapshot(root, absolute)
+                    except RuntimeFailure as error:
+                        self.fail(f"Equivalent root expressions raised {error.code}.")
+                    self.assertEqual(snapshot, absolute)
+                    self.assertEqual(snapshot["project_root"], os.path.abspath(project_root))
+
     def test_invalid_duplicate_and_unsupported_registration_preserves_state(self):
         self.register()
         before = (self.root / ".skillops/registry.json").read_bytes()
