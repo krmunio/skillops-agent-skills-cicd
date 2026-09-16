@@ -2,6 +2,7 @@
 
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import stat
 
@@ -19,6 +20,7 @@ def fail(code, message):
 
 
 def regular_files(folder, skill_folders):
+    """Validate and read each file through one bounded, no-follow descriptor."""
     files = []
     total = 0
     nested = {path for path in skill_folders if path != folder and folder in path.parents}
@@ -27,14 +29,25 @@ def regular_files(folder, skill_folders):
             fail("unsafe_skill_path", "Skill bundles cannot contain symbolic links.")
         if any(root == path or root in path.parents for root in nested):
             continue
-        info = path.stat(follow_symlinks=False)
-        if stat.S_ISDIR(info.st_mode):
-            continue
-        if not stat.S_ISREG(info.st_mode):
-            fail("unsafe_skill_path", "Skill bundles may contain only ordinary files.")
-        if info.st_size > FILE_LIMIT:
-            fail("skill_file_limit", "A skill file exceeds the size limit.")
-        raw = path.read_bytes()
+        try:
+            info = path.stat(follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                continue
+            if not stat.S_ISREG(info.st_mode):
+                fail("unsafe_skill_path", "Skill bundles may contain only ordinary files.")
+            descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            try:
+                info = os.fstat(descriptor)
+                if not stat.S_ISREG(info.st_mode):
+                    fail("unsafe_skill_path", "Skill bundles may contain only ordinary files.")
+                if info.st_size > FILE_LIMIT:
+                    fail("skill_file_limit", "A skill file exceeds the size limit.")
+                with os.fdopen(descriptor, "rb", closefd=False) as stream:
+                    raw = stream.read(FILE_LIMIT + 1)
+            finally:
+                os.close(descriptor)
+        except OSError as error:
+            raise RuntimeFailure("unsafe_skill_path", "Cannot safely read a skill file.") from error
         size = len(raw)
         if size > FILE_LIMIT:
             fail("skill_file_limit", "A skill file exceeds the size limit.")
