@@ -700,6 +700,190 @@ class EvaluationTests(unittest.TestCase):
             self.assertIn("diff --git", diff.read_text())
             self.assertIn("test_generated.py", diff.read_text())
 
+    def baseline_runtime(self):
+        import skillops
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        for name in (*self.evaluation.FINGERPRINT_FILES, "skills/develop/SKILL.md"):
+            target = root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(self.root / name, target)
+        runtime = self.runtime.CopilotRuntime(root)
+        self.enterContext(patch.object(skillops, "context_for", return_value={
+            "model": "gpt-6-astra", "image": "sha256:" + "0" * 64,
+        }))
+        self.enterContext(patch.object(skillops, "find_calibration", return_value={
+            "path": str(root / "runs/control/calibration.json"),
+        }))
+
+        def completed(runtime, model, task, contract, seed, skill, rubric, context, identity, task_dir):
+            return {
+                **task, "status": "completed", "attempted": True,
+                "execution": {"fixed": {"all_passed": True, "passed": 1, "total": 1}},
+                "judge": {"score": 100}, "artifacts": task_dir.relative_to(root).as_posix(),
+            }
+
+        tasks = self.enterContext(patch.object(skillops, "evaluate_task", side_effect=completed))
+        return runtime, tasks
+
+    def test_baseline_reports_skill_guide_without_changing_exit_status(self):
+        import skill_guide
+        import skillops
+        runtime, tasks = self.baseline_runtime()
+        guide = {
+            "guide": "Anthropic skill-creator writing guide", "report_only": True,
+            "limitation": "Static/model assessment, not skill execution.",
+            "summary": {"skills": 1, "pass": 0, "review": 0, "blocked": 1},
+            "skills": [{
+                "path": "skills/example", "bundle_sha256": "a" * 64,
+                "status": "blocked", "file_count": 1, "bytes": 123, "judge_calls": 1,
+                "error": {"code": "timeout", "message": "Synthetic guide timeout."},
+                "artifacts": "anthropic-skill-guide/skills-example-12345678",
+            }],
+        }
+
+        def assess(actual_runtime, model, project, rubric, artifact_root):
+            incremental = json.loads((artifact_root.parent / "report.json").read_text())
+            requested = len(skillops.load_tasks(runtime.project)["tasks"])
+            self.assertEqual(tasks.call_count, requested)
+            self.assertEqual(len(incremental["tasks"]), requested)
+            self.assertEqual(incremental["status"], "running")
+            self.assertNotIn("anthropic_skill_guide", incremental)
+            self.assertNotIn("## Anthropic skill guide", (artifact_root.parent / "report.md").read_text())
+            self.assertIs(actual_runtime, runtime)
+            self.assertEqual((model, project), ("gpt-6-astra", str(runtime.project)))
+            self.assertEqual(rubric, json.loads((runtime.project / "eval/skill-guide-rubric.json").read_text()))
+            self.assertEqual(artifact_root.name, "anthropic-skill-guide")
+            self.assertEqual(artifact_root.parent.parent, runtime.project / "runs")
+            return deepcopy(guide)
+
+        with patch.object(skill_guide, "evaluate_project", side_effect=assess) as evaluate:
+            result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project)
+
+        self.assertEqual((code, result["status"]), (0, "completed"))
+        report_path = runtime.project / result["report"]
+        report = json.loads(report_path.with_suffix(".json").read_text())
+        self.assertIn("anthropic_skill_guide", report)
+        evaluate.assert_called_once()
+        expected = deepcopy(guide)
+        expected["skills"][0]["artifacts"] = (
+            report_path.parent.relative_to(runtime.project) / guide["skills"][0]["artifacts"]
+        ).as_posix()
+        self.assertEqual(report["anthropic_skill_guide"], expected)
+        self.assertTrue(all(row["status"] == "completed" for row in report["tasks"]))
+        self.assertEqual((result["errors"], result["blocked"]), (0, 0))
+        self.assertEqual(result["evaluation_completed"], result["requested"])
+        self.assertNotIn(str(runtime.project), json.dumps(report))
+        markdown = report_path.read_text()
+        self.assertIn("## Anthropic skill guide", markdown)
+        self.assertIn("report-only", markdown.lower())
+        self.assertIn(guide["limitation"], markdown)
+        self.assertIn("Skills: 1; pass: 0; review: 0; blocked: 1.", markdown)
+        self.assertIn("| Skill | Status | Files | Bytes | Judge calls |", markdown)
+        self.assertIn("| skills/example | blocked | 1 | 123 | 1 |", markdown)
+
+    def test_baseline_blocks_if_skill_inputs_change_during_guide_evaluation(self):
+        import skill_guide
+        import skillops
+        for error_code in ("skill_inputs_changed", "unsafe_skill_path"):
+            with self.subTest(error_code=error_code):
+                runtime, tasks = self.baseline_runtime()
+                error = self.runtime.RuntimeFailure(error_code, "Synthetic guide input failure.")
+                with patch.object(skill_guide, "evaluate_project", side_effect=error):
+                    result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project)
+
+                self.assertEqual((code, result["status"]), (2, "blocked"))
+                report = json.loads((runtime.project / result["report"]).with_suffix(".json").read_text())
+                self.assertEqual(report["error"], {"code": error_code, "message": str(error)})
+                self.assertEqual(tasks.call_count, result["requested"])
+                self.assertEqual(result["evaluation_completed"], result["requested"])
+                self.assertTrue(all(row["status"] == "completed" for row in report["tasks"]))
+                self.assertNotIn(str(runtime.project), json.dumps(report))
+
+    def test_baseline_assesses_registered_project_not_evaluator_skills(self):
+        import skill_guide
+        import skillops
+        runtime, tasks = self.baseline_runtime()
+        target = runtime.project / "registered-project"
+        target.mkdir()
+        for spec in self.evaluation.FAMILIES.values():
+            shutil.copyfile(runtime.project / spec["seed"], target / Path(spec["seed"]).name)
+        skillops.repositories.register(runtime.project, "example", target)
+        with patch.object(skillops.repositories, "calibration_commitment", return_value="a" * 64), patch.object(
+            skill_guide, "evaluate_project", wraps=skill_guide.evaluate_project
+        ) as assess, patch.object(runtime, "invoke") as invoke:
+            result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project, repository="example")
+
+        self.assertEqual((code, result["status"]), (0, "completed"))
+        self.assertEqual(assess.call_count, 1)
+        self.assertEqual(assess.call_args.args[2], str(target))
+        invoke.assert_not_called()
+        report = json.loads((runtime.project / result["report"]).with_suffix(".json").read_text())
+        self.assertEqual(report["anthropic_skill_guide"]["summary"], {
+            "skills": 0, "pass": 0, "review": 0, "blocked": 0,
+        })
+        self.assertEqual(tasks.call_count, result["requested"])
+        self.assertNotIn(str(target), json.dumps(report))
+
+    def test_baseline_rechecks_fingerprint_and_snapshot_after_skill_guide(self):
+        import skill_guide
+        import skillops
+        for name in ("eval/rubric.json", "skills/develop/SKILL.md"):
+            with self.subTest(input=name):
+                runtime, tasks = self.baseline_runtime()
+
+                def change_input(*args):
+                    path = runtime.project / name
+                    path.write_bytes(path.read_bytes() + b"\n")
+                    return {
+                        "guide": "Anthropic skill-creator writing guide", "report_only": True,
+                        "limitation": "Static/model assessment, not skill execution.",
+                        "summary": {"skills": 0, "pass": 0, "review": 0, "blocked": 0}, "skills": [],
+                    }
+
+                with patch.object(skill_guide, "evaluate_project", side_effect=change_input):
+                    result, code = skillops.baseline(runtime, "gpt-6-astra", runtime.project)
+
+                self.assertEqual((code, result["status"]), (2, "blocked"))
+                report = json.loads((runtime.project / result["report"]).with_suffix(".json").read_text())
+                self.assertEqual(report["error"]["code"], "inputs_changed")
+                self.assertEqual(tasks.call_count, result["requested"])
+
+    def test_incremental_report_without_skill_guide_remains_valid(self):
+        import skillops
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        report = {"status": "running", "tasks": [], "limitation": "Synthetic report fixture."}
+
+        skillops.render_report(directory, report)
+
+        self.assertEqual(json.loads((directory / "report.json").read_text()), report)
+        markdown = (directory / "report.md").read_text()
+        self.assertIn("Status: **running**", markdown)
+        self.assertIn("| Task | Family | Split | Status | Fixed checks | Judge score | Seconds |", markdown)
+        self.assertNotIn("## Anthropic skill guide", markdown)
+
+    def test_skill_guide_markdown_keeps_special_paths_in_one_literal_cell(self):
+        import skillops
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        path = "skills/한글|[part]<tag>*_~`\\name\r\nnext"
+        report = {
+            "status": "completed", "tasks": [], "limitation": "Synthetic report fixture.",
+            "anthropic_skill_guide": {
+                "guide": "Anthropic skill-creator writing guide", "report_only": True,
+                "limitation": "Static/model assessment, not skill execution.",
+                "summary": {"skills": 1, "pass": 0, "review": 1, "blocked": 0},
+                "skills": [{
+                    "path": path, "status": "review", "file_count": 1, "bytes": 12, "judge_calls": 1,
+                }],
+            },
+        }
+
+        skillops.render_report(directory, report)
+
+        markdown = (directory / "report.md").read_text()
+        escaped = r"skills/한글\|\[part\]\<tag\>\*\_\~\`\\name\r\nnext"
+        self.assertIn(f"| {escaped} | review | 1 | 12 | 1 |", markdown.splitlines())
+        self.assertEqual(json.loads((directory / "report.json").read_text()), report)
+
     @unittest.skipUnless(os.environ.get("SKILLOPS_CONTAINER_TESTS") == "1", "Opt-in Docker checks")
     def test_actual_container_detects_hardcoded_page_size(self):
         data = self.controls()

@@ -422,3 +422,43 @@ def evaluate_bundle(runtime, model, bundle, rubric, artifact_dir):
         "judge": judge,
         "artifacts": str(artifact_dir),
     }
+
+
+def artifact_id(path):
+    slug = re.sub(r"[^A-Za-z0-9_-]+", "-", path).strip("-")[:80] or "skill"
+    return f"{slug}-{sha256(path.encode()).hexdigest()[:8]}"
+
+
+def evaluate_project(runtime, model, project, rubric, artifact_root):
+    """Assess stable project bundles; artifact paths are relative to the enclosing run."""
+    bundles = discover(project)
+    before = {bundle["path"]: bundle["sha256"] for bundle in bundles}
+    artifact_root = Path(artifact_root)
+    skills = []
+    for bundle in bundles:
+        folder = artifact_root / artifact_id(bundle["path"])
+        try:
+            result = evaluate_bundle(runtime, model, bundle, rubric, folder)
+        except RuntimeFailure as error:
+            result = {
+                "path": bundle["path"], "bundle_sha256": bundle["sha256"],
+                "file_count": bundle["file_count"], "bytes": bundle["bytes"],
+                "judge_calls": len(list(folder.glob("judge-*.json"))),
+                "status": "blocked", "error": {"code": error.code, "message": str(error)},
+            }
+        result["artifacts"] = (Path(artifact_root.name) / folder.name).as_posix()
+        skills.append(result)
+    after = {bundle["path"]: bundle["sha256"] for bundle in discover(project)}
+    if before != after:
+        fail("skill_inputs_changed", "Skill inputs changed during guide evaluation.")
+    return {
+        "guide": rubric["source"],
+        "report_only": True,
+        "limitation": "Static and model-based guide assessment; no skill execution or behavioral effectiveness validation.",
+        "summary": {
+            "skills": len(skills),
+            **{status: sum(row["status"] == status for row in skills)
+               for status in ("pass", "review", "blocked")},
+        },
+        "skills": skills,
+    }
