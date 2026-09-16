@@ -64,6 +64,13 @@ symlink 및 FIFO/device/socket/directory 교체는 내용을 읽지 않고 `unsa
 
 500줄과 목차 항목은 권고 finding이며, 누락 파일·안전하지 않은 경로·필수 frontmatter 오류는 명백한 구조 오류로 기록한다.
 
+`static_assessment(bundle)`은 이미 발견한 번들만 검사하고 `metadata`, `applicability`,
+`findings`를 반환한다. 정적 오류는 예외로 실행을 차단하지 않는다. Frontmatter는 단순
+scalar `name`/`description`과 들여쓴 continuation만 읽으며 전체 YAML parser는 추가하지
+않는다. 본문의 inline Markdown 로컬 링크는 URL 디코딩 후 번들 파일 목록과 비교하며,
+외부 URL과 anchor는 무시한다. 300줄 초과 Markdown resource의 목차 heading은 첫 80줄
+안에 있어야 한다.
+
 ## LLM rubric
 
 도구 없는 독립 judge가 Anthropic 가이드에 근거해 적용 가능한 항목만 평가한다.

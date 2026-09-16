@@ -703,3 +703,223 @@ class SkillGuideTests(unittest.TestCase):
         self.assertEqual(first["bytes"], second["bytes"])
         self.assertEqual(first["file_count"], second["file_count"])
         self.assertNotEqual(first["sha256"], second["sha256"])
+
+    def test_static_assessment_marks_single_file_skill_conditions_not_applicable(self):
+        self.write_skill(
+            "skills/small",
+            "---\nname: small\ndescription: Use for tiny work.\n---\nDo the work.\n",
+        )
+        bundle = skill_guide.discover(self.root)[0]
+
+        self.assertEqual(skill_guide.static_assessment(bundle), {
+            "metadata": {"name": "small", "description": "Use for tiny work."},
+            "applicability": {
+                "progressive_disclosure": "not_applicable",
+                "resource_organization": "not_applicable",
+            },
+            "findings": [],
+        })
+
+    def test_static_assessment_accepts_local_references_and_long_resource_tocs(self):
+        self.write_skill(
+            "skills/good",
+            "---\nname: good\ndescription: Use when reviewing release notes.\n---\n"
+            "Read [guide](./references/guide%20one.md#details), "
+            "[more](references/more.MD), and [notes](README.md).\n",
+            {
+                "README.md": "# Notes\n",
+                "references/guide one.md": "# Guide\n" + "line\n" * 78 + "## Contents\n" + "line\n" * 221,
+                "references/more.MD": "# More\n## Table of Contents\n" + "line\n" * 299,
+            },
+        )
+
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(result["metadata"]["name"], "good")
+        self.assertEqual(result["applicability"], {
+            "progressive_disclosure": "applicable",
+            "resource_organization": "applicable",
+        })
+
+    def test_static_assessment_counts_binary_assets_as_resources(self):
+        self.write_skill(
+            "skills/asset",
+            "---\nname: asset\ndescription: Use the icon.\n---\n![Icon](assets/icon.bin)\n",
+            {"assets/icon.bin": b"\x00\x01"},
+        )
+
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+
+        self.assertEqual(result["findings"], [])
+        self.assertEqual(set(result["applicability"].values()), {"applicable"})
+
+    def test_frontmatter_supports_scalar_values_and_indented_continuations(self):
+        metadata, body, delimited = skill_guide.frontmatter(
+            "---\r\nname: 'example'\r\ndescription: Use when reviewing\r\n"
+            "  release notes:\r\n\tcheck the changes.\r\n"
+            "other: ignored\r\n  not part of the description\r\n---\r\nDo work.\r\n"
+        )
+
+        self.assertTrue(delimited)
+        self.assertEqual(metadata, {
+            "name": "example",
+            "description": "Use when reviewing release notes: check the changes.",
+        })
+        self.assertEqual(body.strip(), "Do work.")
+
+    def test_static_assessment_requires_nonempty_frontmatter_fields(self):
+        for key in ("name", "description"):
+            for index, value in enumerate((None, "", "   ", "''", '""', "' '")):
+                with self.subTest(key=key, value=value):
+                    fields = {"name": "example", "description": "Use for work."}
+                    if value is None:
+                        del fields[key]
+                    else:
+                        fields[key] = value
+                    header = "".join(f"{name}: {text}\n" for name, text in fields.items())
+                    case = f"{key}-{index}"
+                    self.write_skill(f"{case}/skills/example", f"---\n{header}---\nDo work.\n")
+
+                    result = skill_guide.static_assessment(skill_guide.discover(self.root / case)[0])
+
+                    self.assertEqual(
+                        [(row["check"], row["severity"], row["path"]) for row in result["findings"]],
+                        [(f"frontmatter_{key}", "error", "SKILL.md")],
+                    )
+                    self.assertFalse(result["metadata"][key])
+
+    def test_static_assessment_reports_frontmatter_limits_toc_and_missing_links(self):
+        self.write_skill(
+            "skills/broken",
+            "---\nname: broken\ndescription:\n---\n"
+            "See [missing](references/nope.md).\n" + "line\n" * 500,
+            {"references/large.md": "# Reference\n" + "line\n" * 301},
+        )
+
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+
+        self.assertEqual(
+            {(row["check"], row["severity"], row["path"]) for row in result["findings"]},
+            {
+                ("frontmatter_description", "error", "SKILL.md"),
+                ("skill_line_count", "warning", "SKILL.md"),
+                ("missing_reference", "error", "SKILL.md"),
+                ("reference_toc", "warning", "references/large.md"),
+            },
+        )
+        for row in result["findings"]:
+            self.assertEqual(set(row), {"check", "severity", "path", "message"})
+            self.assertIsInstance(row["message"], str)
+            self.assertTrue(row["message"].strip())
+
+    def test_static_assessment_skill_line_count_boundary(self):
+        for count in (500, 501):
+            with self.subTest(lines=count):
+                self.write_skill(
+                    f"case-{count}/skills/example",
+                    "---\nname: example\ndescription: Do work.\n---\n" + "line\n" * (count - 4),
+                )
+
+                result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{count}")[0])
+
+                self.assertEqual(
+                    [row["check"] for row in result["findings"]],
+                    ["skill_line_count"] if count > 500 else [],
+                )
+
+    def test_static_assessment_resource_toc_boundaries(self):
+        cases = [
+            ("line\n" * 300, False),
+            ("line\n" * 301, True),
+            ("line\n" * 80 + "## Contents\n" + "line\n" * 220, True),
+            ("### Contents\n" + "line\n" * 300, True),
+            ("See ## Table of Contents below.\n" + "line\n" * 300, True),
+        ]
+        for index, (text, warning) in enumerate(cases):
+            with self.subTest(case=index):
+                self.write_skill(
+                    f"case-{index}/skills/example",
+                    "---\nname: example\ndescription: Do work.\n---\nDo work.\n",
+                    {"references/guide.MD": text, "notes.txt": "line\n" * 301},
+                )
+
+                result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{index}")[0])
+
+                self.assertEqual(
+                    [(row["check"], row["path"]) for row in result["findings"]],
+                    [("reference_toc", "references/guide.MD")] if warning else [],
+                )
+
+    def test_static_assessment_rejects_unsafe_local_references(self):
+        targets = ("../outside.md", "references/../notes.md", "/outside.md",
+                   "%2e%2e/outside.md", "%2Foutside.md")
+        self.write_skill(
+            "skills/unsafe",
+            "---\nname: unsafe\ndescription: Do work.\n---\n"
+            + "\n".join(f"[Link]({target})" for target in targets),
+        )
+
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+
+        self.assertEqual(
+            [(row["check"], row["severity"], row["path"]) for row in result["findings"]],
+            [("unsafe_reference", "error", "SKILL.md")] * len(targets),
+        )
+
+    def test_static_assessment_ignores_external_urls_and_anchors(self):
+        self.write_skill(
+            "skills/external",
+            "---\nname: external\ndescription: Do work.\n---\n"
+            "[Web](https://example.test/../guide.md#details)\n"
+            "[HTTP](http://example.test/guide)\n"
+            "[Email](mailto:help@example.test)\n[Anchor](#details)\n[Empty]()\n",
+        )
+
+        result = skill_guide.static_assessment(skill_guide.discover(self.root)[0])
+
+        self.assertEqual(result["findings"], [])
+
+    def test_static_assessment_checks_references_against_bundle_not_disk(self):
+        folder = self.write_skill(
+            "skills/example",
+            "---\nname: example\ndescription: Do work.\n---\nRead [notes](late.md).\n",
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        (folder / "late.md").write_text("Not in the discovered bundle.")
+
+        result = skill_guide.static_assessment(bundle)
+
+        self.assertEqual([row["check"] for row in result["findings"]], ["missing_reference"])
+
+    def test_static_assessment_requires_frontmatter_delimiters(self):
+        texts = (
+            "name: example\ndescription: Do work.\n---\nDo work.\n",
+            "---\nname: example\ndescription: Do work.\nDo work.\n",
+            "",
+        )
+        for index, text in enumerate(texts):
+            with self.subTest(case=index):
+                self.write_skill(f"case-{index}/skills/example", text)
+
+                result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{index}")[0])
+
+                checks = {row["check"]: row["severity"] for row in result["findings"]}
+                self.assertEqual(checks["frontmatter"], "error")
+                self.assertEqual(checks["frontmatter_name"], "error")
+                self.assertEqual(checks["frontmatter_description"], "error")
+
+    def test_static_assessment_requires_nonempty_body(self):
+        for index, body in enumerate(("", "\n", "\n \t\n")):
+            with self.subTest(body=body):
+                self.write_skill(
+                    f"case-{index}/skills/example",
+                    "---\nname: example\ndescription: Do work.\n---" + body,
+                )
+
+                result = skill_guide.static_assessment(skill_guide.discover(self.root / f"case-{index}")[0])
+
+                self.assertEqual(
+                    [(row["check"], row["severity"]) for row in result["findings"]],
+                    [("body", "error")],
+                )
