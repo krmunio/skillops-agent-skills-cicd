@@ -55,13 +55,26 @@
       "run_id": "import-20260915T061400Z-4f3ff97675d8"
     },
     {
+      "base_skill_sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac",
+      "candidate_skill_sha256": "3a56d2455dcc976ce13b8d630f0d0b8a382b7d4a43a5f76f04e20bbe74c3efb7",
       "created_at": "2026-09-15T01:09:16.603576+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4",
+          "candidate_version_id": "sha256:18efc0f1575a86bd0a8374b1ee38cc04d9cb6799a353aa96a3465444dcfa6c7d",
+          "display_name": "develop",
+          "skill_key": "skillops:develop"
+        }
+      ],
       "execution_status": "completed",
       "guide_status": "not_assessed",
       "origin": "historical_import",
       "purpose": "comparison",
       "report": "import-20260915T010916Z-74058d9807da/report.json",
-      "run_id": "import-20260915T010916Z-74058d9807da"
+      "run_id": "import-20260915T010916Z-74058d9807da",
+      "skill_evolution": "import-20260915T010916Z-74058d9807da/skill-evolution.json",
+      "skill_id": "develop",
+      "skill_snapshots": "import-20260915T010916Z-74058d9807da/skill-snapshots.json"
     },
     {
       "created_at": "2026-09-15T01:02:10.041397+00:00",
@@ -73,22 +86,48 @@
       "run_id": "import-20260915T010210Z-45057be9ce19"
     },
     {
+      "base_skill_sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac",
+      "candidate_skill_sha256": "3a56d2455dcc976ce13b8d630f0d0b8a382b7d4a43a5f76f04e20bbe74c3efb7",
       "created_at": "2026-09-15T00:54:04.128175+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4",
+          "candidate_version_id": "sha256:18efc0f1575a86bd0a8374b1ee38cc04d9cb6799a353aa96a3465444dcfa6c7d",
+          "display_name": "develop",
+          "skill_key": "skillops:develop"
+        }
+      ],
       "execution_status": "completed",
       "guide_status": "not_assessed",
       "origin": "historical_import",
       "purpose": "candidate",
       "report": "import-20260915T005404Z-611d681b8bf7/report.json",
-      "run_id": "import-20260915T005404Z-611d681b8bf7"
+      "run_id": "import-20260915T005404Z-611d681b8bf7",
+      "skill_evolution": "import-20260915T005404Z-611d681b8bf7/skill-evolution.json",
+      "skill_id": "develop",
+      "skill_snapshots": "import-20260915T005404Z-611d681b8bf7/skill-snapshots.json"
     },
     {
+      "base_skill_sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac",
+      "candidate_skill_sha256": null,
       "created_at": "2026-09-14T07:24:51.058013+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4",
+          "candidate_version_id": null,
+          "display_name": "develop",
+          "skill_key": "skillops:develop"
+        }
+      ],
       "execution_status": "completed",
       "guide_status": "not_assessed",
       "origin": "historical_import",
       "purpose": "baseline",
       "report": "import-20260914T072451Z-50354146d951/report.json",
-      "run_id": "import-20260914T072451Z-50354146d951"
+      "run_id": "import-20260914T072451Z-50354146d951",
+      "skill_evolution": "import-20260914T072451Z-50354146d951/skill-evolution.json",
+      "skill_id": "develop",
+      "skill_snapshots": "import-20260914T072451Z-50354146d951/skill-snapshots.json"
     },
     {
       "created_at": "2026-09-14T07:21:41.737277+00:00",
@@ -100,13 +139,26 @@
       "run_id": "import-20260914T072141Z-5c725fbc2345"
     },
     {
+      "base_skill_sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac",
+      "candidate_skill_sha256": null,
       "created_at": "2026-09-14T06:08:23.105405+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4",
+          "candidate_version_id": null,
+          "display_name": "develop",
+          "skill_key": "skillops:develop"
+        }
+      ],
       "execution_status": "completed",
       "guide_status": "not_assessed",
       "origin": "historical_import",
       "purpose": "baseline",
       "report": "import-20260914T060823Z-14e718d87c27/report.json",
-      "run_id": "import-20260914T060823Z-14e718d87c27"
+      "run_id": "import-20260914T060823Z-14e718d87c27",
+      "skill_evolution": "import-20260914T060823Z-14e718d87c27/skill-evolution.json",
+      "skill_id": "develop",
+      "skill_snapshots": "import-20260914T060823Z-14e718d87c27/skill-snapshots.json"
     },
     {
       "created_at": "2026-09-14T06:07:21.854106+00:00",
@@ -118,13 +170,26 @@
       "run_id": "import-20260914T060721Z-1a2a687aea00"
     },
     {
+      "base_skill_sha256": "ae8da2e2c169754c9d2771133516dd669932bcd19f58be31d02be5f1a826edac",
+      "candidate_skill_sha256": null,
       "created_at": "2026-09-14T05:44:41.518603+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:2a25ac949167c42766bf1d5db533c6e83264dc170147f4c2a2d12e4f00a45ca4",
+          "candidate_version_id": null,
+          "display_name": "develop",
+          "skill_key": "skillops:develop"
+        }
+      ],
       "execution_status": "completed",
       "guide_status": "not_assessed",
       "origin": "historical_import",
       "purpose": "baseline",
       "report": "import-20260914T054441Z-154dde840ca8/report.json",
-      "run_id": "import-20260914T054441Z-154dde840ca8"
+      "run_id": "import-20260914T054441Z-154dde840ca8",
+      "skill_evolution": "import-20260914T054441Z-154dde840ca8/skill-evolution.json",
+      "skill_id": "develop",
+      "skill_snapshots": "import-20260914T054441Z-154dde840ca8/skill-snapshots.json"
     },
     {
       "created_at": "2026-09-14T05:40:46.152891+00:00",
