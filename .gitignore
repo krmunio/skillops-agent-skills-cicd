@@ -13,5 +13,6 @@ node_modules/
 .dashboard-public/
 .results-worktree/
 ci-results/
+ci-sample-results/
 test-results/
 playwright-report/

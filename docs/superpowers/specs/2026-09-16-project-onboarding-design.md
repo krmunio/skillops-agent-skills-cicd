@@ -1,7 +1,7 @@
 # Project samples and skill onboarding
 
-Revised September 16, 2026, against upstream `0fceb1e69b7c915e13625f5f173a88796d8c1452`
-(PR #6). This revision awaits review and replaces the earlier proposal to build a
+Revised September 16, 2026, against upstream `0b1d5a39aac8be6cccfe450abd7f171ed44ba87c`
+(PR #8). This approved scope replaces the earlier proposal to build a
 second evaluator, report schema, workflow, and results branch.
 
 ## Reuse the merged foundation
@@ -103,10 +103,22 @@ or live task evaluations.
 
 ## Operational prerequisites, not replacement features
 
-The inspected main run `35064353388` produced a real public report with
+The initially inspected main run `35064353388` produced a real public report with
 `guide: not_assessed / no_skills` and `execution: blocked / live_disabled`.
 Its persistence job failed because `evaluation-results` did not exist, and deploy
 was skipped. The existing baseline validation succeeded for the same main commit.
+
+Later on September 16, the owner published the dashboard and merged PR #7
+(`6798e17`), adding 11 reviewed historical/project reports to main. Preserve those
+report bytes when adding sample evidence. The inspected remote still lacked the
+`evaluation-results` ref; successful site access is not proof that the next writer
+or deployment run is configured. Do not redeploy or initialize the branch implicitly.
+
+PR #8 subsequently adds an evidence-first viewer and a clearly separated synthetic
+sample screen. Preserve those upstream assets and their tests when synchronizing.
+Public v1 records and the missing-producer boundaries remain unchanged. The
+synthetic screen must never become sample-project assessment evidence or a writer
+input; our real project snapshots are separate from that invented layout dataset.
 
 Use the existing data-branch design if result persistence is initialized; do not
 create the superseded `skillops-results` branch. Branch initialization, enabling
@@ -116,6 +128,11 @@ completion of any of them as a side effect of importing samples.
 
 ## Acceptance and delivery
 
+- Reflect the owner's baseline/project separation and planned skill/version,
+  Anthropic-guide/APO evidence, execution, diff and history views without duplicating
+  their UI work or claiming that missing producers are implemented.
+- Seed sample CI output from existing public history, append exactly one fresh
+  report per catalog project and verify historical bytes and rebuilt indices.
 - Two real, pinned external snapshots with preserved licenses and provenance.
 - A missing skill is supplied intentionally; existing upstream skills are intact.
 - Existing catalog/report/index/dashboard contracts accept the prepared samples.
