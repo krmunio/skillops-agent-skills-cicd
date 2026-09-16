@@ -19,6 +19,7 @@ from evaluation import (
     validate_judge, validate_proposal,
 )
 import repositories
+import skill_guide
 
 
 def doctor(runtime, workdir):
@@ -270,6 +271,20 @@ def render_report(directory, report):
         for family, result in report["families"].items():
             lines.append(f"| {family} | {result['correctness_successes']}/{result['requested']} | "
                          f"{result['evaluation_completed']} | {result['mean_judge_score']} |")
+    if "anthropic_skill_guide" in report:
+        guide = report["anthropic_skill_guide"]
+        counts = guide["summary"]
+        lines.extend([
+            "", "## Anthropic skill guide", "",
+            "Report-only: skill assessments do not change coding-task status or promotion eligibility.",
+            guide["limitation"], "",
+            f"Skills: {counts['skills']}; pass: {counts['pass']}; review: {counts['review']}; blocked: {counts['blocked']}.",
+            "", "| Skill | Status | Files | Bytes | Judge calls |", "|---|---|---|---|---|",
+        ])
+        for row in guide["skills"]:
+            path = re.sub(r"([\\`*_\[\]<>|~])", r"\\\1", row["path"]).replace("\r", r"\r").replace("\n", r"\n")
+            lines.append(f"| {path} | {row['status']} | {row['file_count']} | "
+                         f"{row['bytes']} | {row['judge_calls']} |")
     lines.extend(["", "Per-call usage, units, rationales and errors are in report.json and each task's artifacts.",
                   "Unavailable usage is not zero. No currency estimate or deployment approval is inferred."])
     (directory / "report.md").write_text("\n".join(lines) + "\n")
@@ -431,6 +446,13 @@ def baseline(runtime, model, judge_work, repository=None):
             report["tasks"].append(row)
             report["aggregate"] = summarize(report["tasks"], requested)
             render_report(directory, report)
+        guide_rubric = strict_json((runtime.project / "eval/skill-guide-rubric.json").read_text())
+        guide = skill_guide.evaluate_project(
+            runtime, model, snapshot["project_root"], guide_rubric, directory / "anthropic-skill-guide",
+        )
+        for row in guide["skills"]:
+            row["artifacts"] = (directory.relative_to(runtime.project) / row["artifacts"]).as_posix()
+        report["anthropic_skill_guide"] = guide
         if fingerprint(runtime.project, context) != identity:
             raise RuntimeFailure("inputs_changed", "Evaluation inputs changed during baseline.")
         repositories.assert_snapshot(runtime.project, snapshot)

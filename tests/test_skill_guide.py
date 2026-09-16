@@ -1368,3 +1368,165 @@ class SkillGuideTests(unittest.TestCase):
         self.assertTrue((artifact_dir / "manifest.json").is_file())
         receipt = strict_json((artifact_dir / "judge-1.json").read_text())
         self.assertEqual(receipt["error"]["code"], "cli_error")
+
+    def test_artifact_id_is_safe_stable_and_resists_slug_collisions(self):
+        self.assertTrue(hasattr(skill_guide, "artifact_id"), "Skill artifact IDs are missing.")
+        paths = [
+            "skills/a/b", "skills/a-b", ".github/skills/review", "skills/한글 |#\n",
+            "---", "skills/" + "nested/" * 50 + "review",
+        ]
+        identifiers = [skill_guide.artifact_id(path) for path in paths]
+
+        self.assertEqual(len(set(identifiers)), len(paths))
+        self.assertEqual(identifiers[0].rsplit("-", 1)[0], identifiers[1].rsplit("-", 1)[0])
+        for path, identifier in zip(paths, identifiers):
+            with self.subTest(path=path):
+                self.assertRegex(identifier, r"^[A-Za-z0-9_-]+-[0-9a-f]{8}$")
+                self.assertTrue(identifier.endswith("-" + sha256(path.encode()).hexdigest()[:8]))
+                self.assertLessEqual(len(identifier), 255)
+                self.assertEqual(skill_guide.artifact_id(path), identifier)
+
+    def test_evaluate_project_continues_after_timeout_and_reports_relative_artifacts(self):
+        self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
+        for name in ("first", "second"):
+            self.write_skill(
+                f"skills/{name}",
+                f"---\nname: {name}\ndescription: Use for work.\n---\nPRIVATE_SKILL_CONTENT\n",
+            )
+        bundles = skill_guide.discover(self.root)
+        rubric = self.guide_rubric()
+        value = self.judge_value(skill_guide.static_assessment(bundles[1])["applicability"])
+        error = RuntimeFailure("timeout", "Synthetic guide timeout.")
+        runtime = FakeGuideRuntime(error, json.dumps(value))
+        artifact_root = self.root / "runs" / "test-run" / "anthropic-skill-guide"
+
+        result = skill_guide.evaluate_project(runtime, "gpt-6-astra", self.root, rubric, artifact_root)
+
+        self.assertEqual(set(result), {"guide", "report_only", "limitation", "summary", "skills"})
+        self.assertEqual(result["guide"], rubric["source"])
+        self.assertIs(result["report_only"], True)
+        self.assertIn("static", result["limitation"].lower())
+        self.assertIn("execution", result["limitation"].lower())
+        self.assertEqual(result["summary"], {"skills": 2, "pass": 1, "review": 0, "blocked": 1})
+        self.assertEqual(len(runtime.calls), 2)
+        self.assertEqual([row["status"] for row in result["skills"]], ["blocked", "pass"])
+        self.assertEqual(result["skills"][0]["error"], {"code": "timeout", "message": str(error)})
+        for bundle, row in zip(bundles, result["skills"]):
+            self.assertEqual(
+                (row["path"], row["bundle_sha256"], row["file_count"], row["bytes"], row["judge_calls"]),
+                (bundle["path"], bundle["sha256"], bundle["file_count"], bundle["bytes"], 1),
+            )
+            self.assertEqual(row["artifacts"], "anthropic-skill-guide/" + skill_guide.artifact_id(bundle["path"]))
+            folder = artifact_root.parent / row["artifacts"]
+            self.assertTrue((folder / "manifest.json").is_file())
+            self.assertTrue((folder / "judge-1.json").is_file())
+        self.assertNotIn(str(self.root), json.dumps(result))
+        self.assertNotIn("PRIVATE_SKILL_CONTENT", json.dumps(result))
+
+    def test_evaluate_project_with_zero_skills_does_not_invoke_runtime(self):
+        self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
+        runtime = FakeGuideRuntime()
+        artifact_root = self.root / "runs" / "empty" / "anthropic-skill-guide"
+
+        result = skill_guide.evaluate_project(
+            runtime, "gpt-6-astra", self.root, self.guide_rubric(), artifact_root,
+        )
+
+        self.assertIs(result["report_only"], True)
+        self.assertEqual(result["summary"], {"skills": 0, "pass": 0, "review": 0, "blocked": 0})
+        self.assertEqual(result["skills"], [])
+        self.assertEqual(runtime.calls, [])
+        self.assertFalse(artifact_root.exists())
+
+    def test_evaluate_project_raises_if_skill_paths_or_hashes_change_even_after_timeout(self):
+        self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
+        for change in ("content", "rename", "added"):
+            with self.subTest(change=change):
+                folder = self.write_skill(
+                    f"{change}/skills/example",
+                    "---\nname: example\ndescription: Use for work.\n---\nDo work.\n",
+                )
+                project = self.root / change
+                runtime = FakeGuideRuntime(RuntimeFailure("timeout", "Synthetic guide timeout."))
+                invoke = runtime.invoke
+
+                def change_after_invoke(*args, **kwargs):
+                    try:
+                        return invoke(*args, **kwargs)
+                    finally:
+                        if change == "content":
+                            (folder / "SKILL.md").write_text("Changed instructions.")
+                        elif change == "rename":
+                            folder.rename(folder.with_name("renamed"))
+                        else:
+                            (folder / "extra.txt").write_text("New resource.")
+
+                with patch.object(runtime, "invoke", side_effect=change_after_invoke):
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_guide.evaluate_project(
+                            runtime, "gpt-6-astra", project, self.guide_rubric(),
+                            self.root / "runs" / change / "anthropic-skill-guide",
+                        )
+
+                self.assertEqual(caught.exception.code, "skill_inputs_changed")
+                self.assertEqual(len(runtime.calls), 1)
+                self.assertNotIn(str(project), str(caught.exception))
+                self.assertNotIn("Changed instructions", str(caught.exception))
+
+    def test_evaluate_project_checks_discovery_again_when_initially_empty(self):
+        self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
+        discover = skill_guide.discover
+        calls = []
+
+        def add_skill_after_discovery(project):
+            bundles = discover(project)
+            calls.append(bundles)
+            if len(calls) == 1:
+                self.write_skill("skills/added", "Added after initial discovery.")
+            return bundles
+
+        runtime = FakeGuideRuntime()
+        with patch.object(skill_guide, "discover", side_effect=add_skill_after_discovery):
+            with self.assertRaises(RuntimeFailure) as caught:
+                skill_guide.evaluate_project(
+                    runtime, "gpt-6-astra", self.root, self.guide_rubric(),
+                    self.root / "runs" / "empty" / "anthropic-skill-guide",
+                )
+
+        self.assertEqual(caught.exception.code, "skill_inputs_changed")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(runtime.calls, [])
+
+    def test_evaluate_project_propagates_unsafe_discovery_before_and_after_calls(self):
+        self.assertTrue(hasattr(skill_guide, "evaluate_project"), "Project guide evaluation is missing.")
+        folder = self.write_skill(
+            "skills/example", "---\nname: example\ndescription: Use for work.\n---\nDo work.\n",
+        )
+        bundle = skill_guide.discover(self.root)[0]
+        value = self.judge_value(skill_guide.static_assessment(bundle)["applicability"])
+        runtime = FakeGuideRuntime(json.dumps(value))
+        invoke = runtime.invoke
+
+        def replace_after_invoke(*args, **kwargs):
+            result = invoke(*args, **kwargs)
+            folder.rename(self.root / "original")
+            folder.symlink_to(self.root / "original", target_is_directory=True)
+            return result
+
+        with patch.object(runtime, "invoke", side_effect=replace_after_invoke):
+            with self.assertRaises(RuntimeFailure) as caught:
+                skill_guide.evaluate_project(
+                    runtime, "gpt-6-astra", self.root, self.guide_rubric(),
+                    self.root / "runs" / "after" / "anthropic-skill-guide",
+                )
+        self.assertEqual(caught.exception.code, "unsafe_skill_path")
+        self.assertEqual(len(runtime.calls), 1)
+
+        runtime = FakeGuideRuntime()
+        with self.assertRaises(RuntimeFailure) as caught:
+            skill_guide.evaluate_project(
+                runtime, "gpt-6-astra", self.root, self.guide_rubric(),
+                self.root / "runs" / "before" / "anthropic-skill-guide",
+            )
+        self.assertEqual(caught.exception.code, "unsafe_skill_path")
+        self.assertEqual(runtime.calls, [])
