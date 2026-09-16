@@ -2,7 +2,7 @@
   "projects": [
     {
       "current_run": null,
-      "history_count": 0,
+      "history_count": 10,
       "id": "sample_repo",
       "index": "sample_repo/index.json",
       "state": "active"
