@@ -84,18 +84,33 @@
         <section id="changes-section" class="evaluation-section" data-section="changes" aria-labelledby="changes-title">
           <div class="section-heading"><h2 id="changes-title">무엇을 바꿨나</h2><span>평가 당시 Skill 기준</span></div>
           <p class="section-description">기존·후보 지침과 변경 내용을 확인합니다. 자가 생성된 후보와 실제 채택된 버전은 다릅니다.</p>
+          <article id="evolution-metadata" class="panel" aria-label="Skill 버전과 채택 근거" hidden></article>
           <article id="skill-changes" class="panel"></article>
         </section>
       </div>
       <section id="history-section" class="history-section" data-section="history" aria-labelledby="history-title">
         <div class="section-heading">
-          <h2 id="history-title">평가 이력 <span id="history-count"></span></h2>
-          <label class="history-filter">종류 <select id="history-filter"><option value="">전체</option><option value="comparison">후보 비교</option><option value="baseline">기준 평가</option><option value="candidate">후보 생성</option><option value="calibration">평가기 교정</option><option value="project_assessment">프로젝트 평가</option></select></label>
+          <h2 id="history-title">프로젝트 이력</h2>
         </div>
-        <p class="history-note">이력을 선택하면 위의 평가 결과와 Skill 정보가 해당 기록으로 함께 전환됩니다.</p>
-        <div id="history"><p class="empty">저장된 결과를 기다리고 있습니다.</p></div>
+        <div class="history-tabs" role="tablist" aria-label="프로젝트 이력 종류">
+          <button id="skill-history-tab" role="tab" type="button" aria-selected="true" aria-controls="skill-history-panel">Skill 이력</button>
+          <button id="execution-history-tab" role="tab" type="button" aria-selected="false" aria-controls="execution-history-panel" tabindex="-1">실행 이력</button>
+        </div>
+        <div id="skill-history-panel" role="tabpanel" aria-labelledby="skill-history-tab">
+          <p class="history-note">Skill을 선택하면 연결된 버전·평가 이력과 As-Is / To-Be를 확인할 수 있습니다. <span id="skill-count"></span></p>
+          <div id="skill-list"></div>
+          <div id="skill-history-runs"></div>
+        </div>
+        <div id="execution-history-panel" role="tabpanel" aria-labelledby="execution-history-tab" hidden>
+          <div class="history-controls">
+            <span id="history-count"></span>
+            <label class="history-filter">종류 <select id="history-filter"><option value="">전체</option><option value="comparison">후보 비교</option><option value="baseline">기준 평가</option><option value="candidate">후보 생성</option><option value="calibration">평가기 교정</option><option value="project_assessment">프로젝트 평가</option></select></label>
+          </div>
+          <p class="history-note">Skill이 미연결된 기록도 포함합니다. 실행을 선택하면 위의 평가 결과와 원문이 해당 기록으로 함께 전환됩니다.</p>
+          <div id="history"><p class="empty">저장된 결과를 기다리고 있습니다.</p></div>
+        </div>
       </section>
-      <footer>실제 기록은 공개가 허용된 요약만 제공합니다. 미기록 정보는 추정하지 않습니다. 샘플의 지침·평가·변경 내용은 합성 예시이며 실제 이력과 분리됩니다.</footer>
+      <footer>실제 기록은 공개가 허용된 요약과 검토된 Skill 원문을 제공합니다. 미기록 정보는 추정하지 않습니다. 샘플의 지침·평가·변경 내용은 합성 예시이며 실제 이력과 분리됩니다.</footer>
     </main>
   </div>
 </body>

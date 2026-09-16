@@ -1,6 +1,8 @@
 """Bounded public results, project identity and static dashboard builds."""
 
 import argparse
+import base64
+import binascii
 from datetime import datetime
 from hashlib import sha256
 import json
@@ -12,6 +14,7 @@ import sys
 import tempfile
 
 from copilot_runtime import RuntimeFailure, strict_json
+import evolution_records as evolution
 
 
 ID = r"[a-z0-9][a-z0-9_-]{0,63}"
@@ -44,7 +47,7 @@ STATES = {"completed", "failed", "blocked", "not_assessed", "configuration_requi
 DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_passed", "calibration_failed"}
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
-    "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py",
+    "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
 )
 
 
@@ -248,11 +251,339 @@ def load_reports(results):
     return rows
 
 
+def validate_snapshots(data, report):
+    validate(report)
+    require(isinstance(data, dict) and set(data) == {
+        "schema_version", "project_id", "run_id", "report_sha256", "skill_id", "base", "candidate",
+    }, "invalid_skill_snapshots")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1)
+    require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"])
+    require(data["report_sha256"] == sha256(encoded(report)).hexdigest(), "snapshot_report_mismatch")
+    require(matches(ID, data["skill_id"]))
+    for arm in ("base", "candidate"):
+        snapshot = data[arm]
+        if arm == "candidate" and snapshot is None:
+            continue
+        require(isinstance(snapshot, dict) and set(snapshot) == {"content", "sha256"})
+        text = snapshot["content"]
+        require(isinstance(text, str) and 0 < len(text.encode("utf-8")) <= 32768
+                and len(text.split("\n")) <= 400, "snapshot_size_limit")
+        require(sha256(text.encode("utf-8")).hexdigest() == snapshot["sha256"], "snapshot_hash_mismatch")
+    return data
+
+
+def store_snapshots(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = Path(results) / data["project_id"] / data["run_id"]
+    report = read_json(folder / "report.json")
+    validate_snapshots(data, report)
+    counterpart = safe_path(folder / "skill-evolution.json")
+    if counterpart.exists():
+        validate_evolution(read_json(counterpart), report, data)
+    path = folder / "skill-snapshots.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_snapshots(results, rows=None):
+    results = safe_path(results)
+    reports = {(row["project_id"], row["run_id"]): row
+               for row in (load_reports(results) if rows is None else rows)}
+    snapshots = {}
+    for path in sorted(results.glob("*/*/skill-snapshots.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_skill_snapshots")
+        snapshots[key] = validate_snapshots(read_json(path), reports[key])
+    return snapshots
+
+
+def merge_results(root, incoming, results):
+    rows = load_reports(incoming)
+    snapshots = load_snapshots(incoming, rows)
+    lifecycles = load_evolution(incoming, rows, snapshots)
+    existing_rows = load_reports(results)
+    existing_snapshots = load_snapshots(results, existing_rows)
+    existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
+    merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
+    merged_snapshots = dict(existing_snapshots)
+    merged_lifecycles = dict(existing_lifecycles)
+    for mapping, values, name in (
+        (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
+        (merged_snapshots, snapshots, "skill-snapshots.json"),
+        (merged_lifecycles, lifecycles, "skill-evolution.json"),
+    ):
+        for key, value in values.items():
+            path = safe_path(Path(results) / key[0] / key[1] / name)
+            require(not path.exists() or read_bytes(path) == encoded(value), "immutable_conflict")
+            mapping[key] = value
+    for key, value in merged_lifecycles.items():
+        validate_evolution(value, merged_rows[key], merged_snapshots.get(key))
+    for row in rows:
+        store(results, row)
+    for data in snapshots.values():
+        store_snapshots(results, data)
+    for data in lifecycles.values():
+        store_evolution(results, data)
+    return reindex(root, results)
+
+
+def validate_evolution(data, report, snapshots=None):
+    validate(report)
+    evolution.exact(data, "schema_version project_id run_id report_sha256 records bindings file_contents")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1)
+    require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"])
+    require(data["report_sha256"] == sha256(encoded(report)).hexdigest(), "evolution_report_mismatch")
+    require(len(encoded(data)) <= LIMIT, "output_limit")
+    rows = evolution.validate_public_records(data["records"])
+    versions = {item["version_id"]: item for item in rows["versions"]}
+    identities = {item["skill_key"] for item in rows["identities"]}
+    require(identities, "empty_evolution_identity")
+    associations = {(item["skill_key"], item["version_id"]) for item in rows["skill_versions"]}
+    require(isinstance(data["bindings"], list) and len(data["bindings"]) == len(identities))
+    keys, legacy = set(), []
+    original_run = report["run_id"].removeprefix("import-").removeprefix("local-")
+    for binding in data["bindings"]:
+        evolution.exact(binding, "skill_key base_version_id candidate_version_id legacy_skill_id")
+        key = binding["skill_key"]
+        require(evolution.matches(evolution.SKILL_KEY, key) and key in identities and key not in keys)
+        keys.add(key)
+        for arm in ("base", "candidate"):
+            value = binding[f"{arm}_version_id"]
+            require(value is None or (evolution.matches(evolution.VERSION_ID, value) and (key, value) in associations))
+        if report["purpose"] == "baseline":
+            require(binding["candidate_version_id"] is None, "future_evolution_binding")
+        if binding["legacy_skill_id"] is not None:
+            require(matches(ID, binding["legacy_skill_id"]))
+            legacy.append(binding)
+        for collection, ref_name in (("generations", "candidate_ref"), ("comparisons", "comparison_ref")):
+            for link in rows[collection]:
+                ref = link[ref_name]
+                if link["skill_key"] == key and ref["run_id"] == original_run:
+                    require(ref["kind"] == report["purpose"], "evolution_evidence_mismatch")
+                    for arm in ("base", "candidate"):
+                        require(binding[f"{arm}_version_id"] == link[f"{arm}_version_id"],
+                                "evolution_binding_mismatch")
+                    if report["origin"] == "historical_import":
+                        require(ref["artifact_sha256"] == report["source_report_sha256"],
+                                "evolution_evidence_mismatch")
+                    if collection == "comparisons":
+                        require(link["decision"] == report["execution"]["decision"])
+    for item in rows["sources"] + rows["adoptions"]:
+        require(item["project_id"] == report["project_id"], "evolution_project_mismatch")
+    if snapshots is None:
+        require(not legacy, "missing_legacy_skill_binding")
+    else:
+        validate_snapshots(snapshots, report)
+        require(len(legacy) == 1 and legacy[0]["legacy_skill_id"] == snapshots["skill_id"],
+                "evolution_snapshot_mismatch")
+        for arm in ("base", "candidate"):
+            version_id = legacy[0][f"{arm}_version_id"]
+            snapshot = snapshots[arm]
+            require((version_id is None) == (snapshot is None), "evolution_snapshot_mismatch")
+            if snapshot is not None:
+                require(evolution.entrypoint_hash(versions[version_id]) == snapshot["sha256"],
+                        "evolution_snapshot_mismatch")
+    expected = {(version["version_id"], item["path"]): item
+                for version in versions.values() for item in version["files"]}
+    require(isinstance(data["file_contents"], list) and len(data["file_contents"]) == len(expected))
+    seen = set()
+    for item in data["file_contents"]:
+        evolution.exact(item, "version_id path encoding data")
+        require(evolution.matches(evolution.VERSION_ID, item["version_id"]))
+        evolution.relative_path(item["path"])
+        key = (item["version_id"], item["path"])
+        require(key in expected and key not in seen and item["encoding"] == "base64")
+        require(isinstance(item["data"], str))
+        try:
+            raw = base64.b64decode(item["data"], validate=True)
+        except (binascii.Error, ValueError) as error:
+            raise RuntimeFailure("invalid_evolution_content", "Expected canonical base64 content.") from error
+        require(base64.b64encode(raw).decode("ascii") == item["data"])
+        require(len(raw) == expected[key]["bytes"] and sha256(raw).hexdigest() == expected[key]["sha256"],
+                "evolution_content_mismatch")
+        seen.add(key)
+    return data
+
+
+def store_evolution(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = Path(results) / data["project_id"] / data["run_id"]
+    snapshot_path = safe_path(folder / "skill-snapshots.json")
+    snapshots = read_json(snapshot_path) if snapshot_path.exists() else None
+    validate_evolution(data, read_json(folder / "report.json"), snapshots)
+    path = folder / "skill-evolution.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_evolution(results, rows=None, snapshots=None):
+    results = safe_path(results)
+    reports = {(row["project_id"], row["run_id"]): row
+               for row in (load_reports(results) if rows is None else rows)}
+    snapshots = load_snapshots(results, list(reports.values())) if snapshots is None else snapshots
+    values = {}
+    for path in sorted(results.glob("*/*/skill-evolution.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_skill_evolution")
+        values[key] = validate_evolution(read_json(path), reports[key], snapshots.get(key))
+    return values
+
+
+def evolution_summary(data):
+    names = {item["skill_key"]: item["display_name"] for item in data["records"]["identities"]}
+    return [{"skill_key": item["skill_key"], "display_name": names[item["skill_key"]],
+             "base_version_id": item["base_version_id"], "candidate_version_id": item["candidate_version_id"]}
+            for item in data["bindings"]]
+
+
+def import_skill_evolution(source, results, project, candidate_run, skill_key, legacy_skill_id):
+    """Attach reviewed archived entrypoints and evidence; never infer a historical definition path."""
+    require(matches(ID, project) and matches(ID, legacy_skill_id))
+    require(evolution.matches(evolution.SKILL_KEY, skill_key))
+    source = safe_path(source)
+    generation, versions, retained = evolution.import_candidate(source, candidate_run, skill_key=skill_key)
+    reports = load_reports(results)
+    snapshots = load_snapshots(results, reports)
+    existing = load_evolution(results, reports, snapshots)
+    pending = []
+    reused = 0
+    for report in reports:
+        key = (report["project_id"], report["run_id"])
+        snapshot = snapshots.get(key)
+        if (key[0] != project or report["origin"] != "historical_import" or
+                snapshot is None or snapshot["skill_id"] != legacy_skill_id):
+            continue
+        name = {"baseline": "report.json", "candidate": "candidate.json",
+                "comparison": "comparison.json"}.get(report["purpose"])
+        if name is None:
+            continue
+        original_run = report["run_id"].removeprefix("import-")
+        raw = evolution.archived(source, original_run, name)
+        require(sha256(raw).hexdigest() == report["source_report_sha256"], "source_report_mismatch")
+        original = evolution.artifact(raw, original_run, report["purpose"],
+                                      ("completed", "completed_with_errors", "blocked", "failed"))
+        comparison = None
+        if report["purpose"] == "baseline":
+            if original.get("skill_sha256") != generation["base_entrypoint_sha256"]:
+                continue
+            if key in existing:
+                prior = existing[key]
+                bindings = [item for item in prior["bindings"] if item["legacy_skill_id"] == legacy_skill_id]
+                require(len(bindings) == 1 and bindings[0]["skill_key"] == skill_key,
+                        "evolution_baseline_identity_mismatch")
+                binding = bindings[0]
+                require(binding["base_version_id"] is not None and binding["candidate_version_id"] is None,
+                        "evolution_baseline_binding_mismatch")
+                version = next(item for item in prior["records"]["versions"]
+                               if item["version_id"] == binding["base_version_id"])
+                require(evolution.entrypoint_hash(version) == generation["base_entrypoint_sha256"],
+                        "evolution_baseline_content_mismatch")
+                reused += 1
+                continue
+        elif report["purpose"] == "candidate":
+            if original_run != candidate_run:
+                continue
+        else:
+            if original.get("candidate_run") != candidate_run:
+                continue
+            comparison = evolution.import_comparison(source, original_run, skill_key=skill_key,
+                                                       candidate_record=generation)
+        candidate_version = generation["candidate_version_id"] if report["purpose"] != "baseline" else None
+        used = {generation["base_version_id"], candidate_version} - {None}
+        rows = evolution.empty_records()
+        rows.update(
+            identities=[{"skill_key": skill_key, "display_name": legacy_skill_id}],
+            versions=[version for version in versions if version["version_id"] in used],
+            skill_versions=[{"skill_key": skill_key, "version_id": identifier} for identifier in sorted(used)],
+            sources=[{"skill_key": skill_key, "project_id": project, "kind": "run_archive", "scope": "unknown",
+                      "path": f"runs/{candidate_run}", "observed_at": None,
+                      "evidence_ref": evolution.evidence(report["purpose"], original_run, sha256(raw).hexdigest(), True)}],
+            generations=[generation] if candidate_version else [],
+            comparisons=[comparison] if comparison else [],
+            adoptions=[evolution.observe_registry(None, project_id=project, repository_id="unobserved",
+                       expected_engine_skill_id="develop", skill_key=skill_key, observed_at=None)],
+        )
+        data = {"schema_version": 1, "project_id": project, "run_id": report["run_id"],
+                "report_sha256": sha256(encoded(report)).hexdigest(), "records": rows,
+                "bindings": [{"skill_key": skill_key, "base_version_id": generation["base_version_id"],
+                              "candidate_version_id": candidate_version, "legacy_skill_id": legacy_skill_id}],
+                "file_contents": [{"version_id": identifier, "path": path, "encoding": "base64",
+                                   "data": base64.b64encode(content).decode("ascii")}
+                                  for identifier in sorted(used) for path, content in sorted(retained[identifier].items())]}
+        pending.append(validate_evolution(data, report, snapshot))
+    require(pending or reused, "no_matching_skill_records")
+    for data in pending:
+        path = safe_path(Path(results) / data["project_id"] / data["run_id"] / "skill-evolution.json")
+        require(not path.exists() or read_bytes(path) == encoded(data), "immutable_conflict")
+    for data in pending:
+        store_evolution(results, data)
+    return len(pending) + reused
+
+
+def import_skill_snapshots(source, results, project, candidate_run, skill_id):
+    require(matches(ID, project) and matches(ID, skill_id))
+    require(matches(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}", candidate_run))
+    source = safe_path(source)
+    candidate = read_json(source / candidate_run / "candidate.json")
+    require(candidate.get("run_id") == candidate_run and candidate.get("purpose") == "candidate"
+            and candidate.get("status") == "completed", "invalid_candidate")
+    bundle = {}
+    for arm, name, key in (("base", "base-SKILL.md", "base_skill_sha256"),
+                           ("candidate", "SKILL.md", "skill_sha256")):
+        raw = read_bytes(source / candidate_run / name, 32768)
+        require(sha256(raw).hexdigest() == candidate.get(key), "snapshot_hash_mismatch")
+        text = raw.decode("utf-8")
+        frontmatter = text.split("---", 2)
+        require(len(frontmatter) == 3 and not frontmatter[0].strip()
+                and re.search(r"(?m)^name:\s*" + re.escape(skill_id) + r"\s*$", frontmatter[1]),
+                "snapshot_skill_mismatch")
+        bundle[arm] = {"content": text, "sha256": sha256(raw).hexdigest()}
+    pending = []
+    for row in load_reports(results):
+        if row["project_id"] != project or row["origin"] != "historical_import":
+            continue
+        name = {"baseline": "report.json", "candidate": "candidate.json",
+                "comparison": "comparison.json"}.get(row["purpose"])
+        if name is None:
+            continue
+        original_id = row["run_id"].removeprefix("import-")
+        require(matches(r"[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}", original_id))
+        raw = read_bytes(source / original_id / name)
+        require(sha256(raw).hexdigest() == row["source_report_sha256"], "source_report_mismatch")
+        original = strict_json(raw.decode("utf-8"))
+        require(original.get("run_id") == original_id and original.get("purpose") == row["purpose"])
+        if row["purpose"] == "baseline":
+            if original.get("skill_sha256") != bundle["base"]["sha256"]:
+                continue
+            to_be = None
+        elif row["purpose"] == "candidate":
+            if original_id != candidate_run:
+                continue
+            to_be = bundle["candidate"]
+        else:
+            if original.get("candidate_run") != candidate_run:
+                continue
+            require(original.get("skill_sha256") == {arm: value["sha256"] for arm, value in bundle.items()},
+                    "comparison_skill_mismatch")
+            to_be = bundle["candidate"]
+        data = {"schema_version": 1, "project_id": project, "run_id": row["run_id"],
+                "report_sha256": sha256(encoded(row)).hexdigest(), "skill_id": skill_id,
+                "base": bundle["base"], "candidate": to_be}
+        pending.append(validate_snapshots(data, row))
+    require(pending, "no_matching_skill_records")
+    for data in pending:
+        store_snapshots(results, data)
+    return len(pending)
+
+
 def reindex(root, results):
     current = {row["id"]: row for row in catalog(root)}
     fingerprint = evaluator_hash(root)
     grouped = {}
-    for row in load_reports(results):
+    all_rows = load_reports(results)
+    snapshots = load_snapshots(results, all_rows)
+    lifecycles = load_evolution(results, all_rows, snapshots)
+    for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
     for identifier in sorted(set(current) | set(grouped)):
@@ -272,6 +603,17 @@ def reindex(root, results):
             "purpose": row["purpose"], "guide_status": row["guide"]["status"],
             "execution_status": row["execution"]["status"], "report": f"{row['run_id']}/report.json",
         } for row in rows]
+        for summary in summaries:
+            snapshot = snapshots.get((identifier, summary["run_id"]))
+            if snapshot is not None:
+                summary.update(skill_id=snapshot["skill_id"],
+                               skill_snapshots=f"{summary['run_id']}/skill-snapshots.json",
+                               base_skill_sha256=snapshot["base"]["sha256"],
+                               candidate_skill_sha256=snapshot["candidate"]["sha256"] if snapshot["candidate"] else None)
+            lifecycle = lifecycles.get((identifier, summary["run_id"]))
+            if lifecycle is not None:
+                summary.update(skill_evolution=f"{summary['run_id']}/skill-evolution.json",
+                               evolution_skills=evolution_summary(lifecycle))
         atomic_json(Path(results) / identifier / "index.json", {"schema_version": 1, "project": entry, "history": summaries})
         entries.append(entry)
     index = {"schema_version": 1, "projects": entries}
@@ -340,12 +682,18 @@ def build(root, results, output):
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
     rows = load_reports(results)
+    snapshots = load_snapshots(results, rows)
+    lifecycles = load_evolution(results, rows, snapshots)
     output.mkdir(parents=True)
-    for name in ("index.html", "styles.css", "app.js", "views.js", "sample-data.json", "staticwebapp.config.json"):
+    for name in ("index.html", "styles.css", "app.js", "views.js", "evolution.js", "sample-data.json", "staticwebapp.config.json"):
         raw = read_bytes(root / "dashboard" / name)
         (output / name).write_bytes(raw)
     for row in rows:
         store(output / "results", row)
+    for data in snapshots.values():
+        store_snapshots(output / "results", data)
+    for data in lifecycles.values():
+        store_evolution(output / "results", data)
     return reindex(root, output / "results")
 
 
@@ -365,6 +713,23 @@ def main():
     legacy.add_argument("--source", type=Path, required=True)
     legacy.add_argument("--results", type=Path, default=Path("results"))
     legacy.add_argument("--project", required=True)
+    skills = sub.add_parser("import-skill-snapshots")
+    skills.add_argument("--source", type=Path, required=True)
+    skills.add_argument("--results", type=Path, required=True)
+    skills.add_argument("--project", required=True)
+    skills.add_argument("--candidate-run", required=True)
+    skills.add_argument("--skill-id", required=True)
+    skills.add_argument("--reviewed", action="store_true", required=True,
+                        help="Confirm the exact archived Skill texts were reviewed for public disclosure.")
+    lifecycle = sub.add_parser("import-skill-evolution")
+    lifecycle.add_argument("--source", type=Path, required=True)
+    lifecycle.add_argument("--results", type=Path, required=True)
+    lifecycle.add_argument("--project", required=True)
+    lifecycle.add_argument("--candidate-run", required=True)
+    lifecycle.add_argument("--skill-key", required=True)
+    lifecycle.add_argument("--legacy-skill-id", required=True)
+    lifecycle.add_argument("--reviewed", action="store_true", required=True,
+                           help="Confirm explicit Skill registration and review of all retained content for disclosure.")
     site = sub.add_parser("build")
     site.add_argument("--results", type=Path, default=Path("results"))
     site.add_argument("--output", type=Path, required=True)
@@ -374,14 +739,21 @@ def main():
             value = catalog(args.root)
         elif args.command == "validate":
             value = {"validated": len(load_reports(args.results))}
+            load_snapshots(args.results)
+            load_evolution(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)
         elif args.command == "merge":
-            rows = load_reports(args.incoming)
-            for row in rows:
-                store(args.results, row)
-            value = reindex(args.root, args.results)
+            value = merge_results(args.root, args.incoming, args.results)
+        elif args.command == "import-skill-snapshots":
+            value = {"attached": import_skill_snapshots(
+                args.source, args.results, args.project, args.candidate_run, args.skill_id)}
+            reindex(args.root, args.results)
+        elif args.command == "import-skill-evolution":
+            value = {"attached": import_skill_evolution(
+                args.source, args.results, args.project, args.candidate_run, args.skill_key, args.legacy_skill_id)}
+            reindex(args.root, args.results)
         elif args.command == "build":
             value = build(args.root, args.results, args.output)
         else:
