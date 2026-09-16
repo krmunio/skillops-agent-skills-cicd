@@ -97,6 +97,74 @@ class SkillGuideTests(unittest.TestCase):
 
                 self.assertEqual(caught.exception.code, "unsafe_skill_path")
 
+    def test_skips_initially_missing_skill_roots_after_one_no_follow_stat(self):
+        with patch("os.stat", wraps=os.stat) as checked:
+            self.assertEqual(skill_guide.discover(self.root), [])
+
+        for name in skill_guide.SKILL_ROOTS:
+            with self.subTest(root=name):
+                root = self.root / name
+                self.assertEqual(
+                    [entry for entry in checked.call_args_list if entry.args[0] == root],
+                    [call(root, follow_symlinks=False)],
+                )
+
+    def test_rejects_initially_non_directory_skill_roots(self):
+        for name in skill_guide.SKILL_ROOTS:
+            for kind in ("file", "dangling_symlink"):
+                with self.subTest(root=name, kind=kind):
+                    project = self.root / name.replace("/", "-") / kind
+                    root = project / name
+                    root.parent.mkdir(parents=True)
+                    if kind == "file":
+                        root.write_text("Not a directory.")
+                    else:
+                        root.symlink_to(project / "missing", target_is_directory=True)
+
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_guide.discover(project)
+
+                    self.assertEqual(caught.exception.code, "unsafe_skill_path")
+
+    def test_rejects_skill_roots_replaced_after_initial_stat_before_traversal(self):
+        stat_path = os.stat
+        for name in skill_guide.SKILL_ROOTS:
+            for replacement in ("missing", "file", "symlink", "dangling_symlink", "directory"):
+                with self.subTest(root=name, replacement=replacement):
+                    case = Path(name.replace("/", "-")) / replacement
+                    project = self.root / case / "project"
+                    self.write_skill(case / "project" / name / "example", "Original skill.")
+                    root = project / name
+                    outside = self.root / case / "outside"
+                    outside.mkdir()
+                    replaced = False
+
+                    def replace_after_stat(path, *args, **kwargs):
+                        nonlocal replaced
+                        info = stat_path(path, *args, **kwargs)
+                        if path == root and not kwargs.get("follow_symlinks", True) and not replaced:
+                            self.assertTrue(stat.S_ISDIR(info.st_mode))
+                            root.rename(outside / "original")
+                            if replacement == "file":
+                                root.write_text("Not a directory.")
+                            elif replacement in ("symlink", "dangling_symlink"):
+                                target = outside if replacement == "symlink" else outside / "missing"
+                                root.symlink_to(target, target_is_directory=True)
+                            elif replacement == "directory":
+                                root.mkdir()
+                            replaced = True
+                        return info
+
+                    with patch("os.stat", side_effect=replace_after_stat), patch(
+                        "os.scandir", wraps=os.scandir
+                    ) as scanned:
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            skill_guide.discover(project)
+
+                    self.assertTrue(replaced)
+                    self.assertEqual(caught.exception.code, "unsafe_skill_path")
+                    scanned.assert_not_called()
+
     def test_rejects_directory_symlinks_before_discovery(self):
         outside = self.write_skill("outside", "Linked skill.")
         for name in skill_guide.SKILL_ROOTS:

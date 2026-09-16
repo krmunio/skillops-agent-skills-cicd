@@ -11,6 +11,9 @@
 발견 단계는 `scandir`로 명시적으로 탐색하며 skill root와 그 아래의 symlink를
 `unsafe_skill_path`로 거부한다. 디렉터리 식별자를 탐색 전후에 비교하여 탐색 중 교체나
 삭제도 조용한 skill 누락 대신 같은 오류로 처리한다.
+각 conventional root는 최초 no-follow stat에서 존재하지 않을 때만 건너뛴다.
+존재하는 root는 symlink가 아닌 디렉터리여야 하며, 최초 stat의 device/inode/type을
+탐색 직전 no-follow stat과 비교하여 삭제나 파일·symlink·다른 디렉터리 교체를 거부한다.
 
 등록 프로젝트가 없을 때는 SkillOps 자체의 `skills/`를 같은 규칙으로 평가한다. manifest와 개별 override는 실제 자동 발견 오분류가 확인되기 전까지 추가하지 않는다.
 
