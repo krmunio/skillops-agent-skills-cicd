@@ -4,6 +4,12 @@
 
 Agent-skill CI/CD, starting with a reproducible coding-task baseline.
 
+## Collaboration
+
+See the [roadmap](docs/ROADMAP.md) for planned capabilities and dependencies, and
+[CONTRIBUTING](CONTRIBUTING.md) for choosing work, coordinating changes and submitting
+verification evidence. Planned work is not a claim of implemented functionality.
+
 ## Repository validation
 
 The **Baseline validation** GitHub Actions workflow runs offline runner tests,
