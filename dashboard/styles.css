@@ -121,6 +121,12 @@ th:first-child, td:first-child { padding-left: 0; }
 .provenance summary { color: var(--teal); }
 .provenance dd { margin: 3px 0 10px; overflow-wrap: anywhere; }
 .skill-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; font-size: 12px; }
+.skill-meta .badge { white-space: normal; overflow-wrap: anywhere; }
+#evolution-metadata { margin-bottom: 14px; }
+#evolution-metadata .source-hash { padding: 0; }
+.evolution-path, .evolution-path button { overflow-wrap: anywhere; font-size: 12px; }
+#evolution-file { width: 100%; margin-top: 8px; }
+.skill-item small { overflow-wrap: anywhere; }
 .source-panel { border: 1px solid var(--line); border-radius: 4px; margin: 10px 0; }
 .skill-compare-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
 .skill-compare-grid > * { min-width: 0; }
