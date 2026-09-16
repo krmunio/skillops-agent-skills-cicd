@@ -1,0 +1,38 @@
+{
+  "created_at": "2026-09-15T01:09:16.603576+00:00",
+  "evaluator_sha256": "d2aa5793a612bfb9464d2f63226cec9abff83b794782b875e6173e8f0720cb72",
+  "execution": {
+    "decision": "rejected",
+    "metrics": {
+      "base_correctness_successes": 5,
+      "base_cost_nano_aiu": 125712450000.0,
+      "base_elapsed_seconds": 296.064,
+      "base_judge_score": 100.0,
+      "base_requested": 5,
+      "candidate_correctness_successes": 5,
+      "candidate_cost_nano_aiu": 127772200000.0,
+      "candidate_elapsed_seconds": 302.923,
+      "candidate_judge_score": 100.0,
+      "candidate_requested": 5,
+      "cost_improvement_percent": -1.6384614252605847,
+      "time_improvement_percent": -2.316728815391267
+    },
+    "reason_code": "historical_import",
+    "status": "completed"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "historical_import",
+    "status": "not_assessed"
+  },
+  "origin": "historical_import",
+  "project_id": "sample_repo",
+  "project_tree_sha256": null,
+  "purpose": "comparison",
+  "run_id": "import-20260915T010916Z-74058d9807da",
+  "schema_version": 1,
+  "source_commit": null,
+  "source_report_sha256": "5acc9bb01639898a44190026cf38b46e49423e958aef39fc2b81abe9cd1e6fe1",
+  "source_schema_version": 2
+}

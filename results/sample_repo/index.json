@@ -1,8 +1,108 @@
 {
-  "history": [],
+  "history": [
+    {
+      "created_at": "2026-09-16T06:35:00.848565+00:00",
+      "execution_status": "blocked",
+      "guide_status": "not_assessed",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35064353388-1/report.json",
+      "run_id": "35064353388-1"
+    },
+    {
+      "created_at": "2026-09-15T06:14:00.908378+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "calibration",
+      "report": "import-20260915T061400Z-4f3ff97675d8/report.json",
+      "run_id": "import-20260915T061400Z-4f3ff97675d8"
+    },
+    {
+      "created_at": "2026-09-15T01:09:16.603576+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "comparison",
+      "report": "import-20260915T010916Z-74058d9807da/report.json",
+      "run_id": "import-20260915T010916Z-74058d9807da"
+    },
+    {
+      "created_at": "2026-09-15T01:02:10.041397+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "calibration",
+      "report": "import-20260915T010210Z-45057be9ce19/report.json",
+      "run_id": "import-20260915T010210Z-45057be9ce19"
+    },
+    {
+      "created_at": "2026-09-15T00:54:04.128175+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "candidate",
+      "report": "import-20260915T005404Z-611d681b8bf7/report.json",
+      "run_id": "import-20260915T005404Z-611d681b8bf7"
+    },
+    {
+      "created_at": "2026-09-14T07:24:51.058013+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "baseline",
+      "report": "import-20260914T072451Z-50354146d951/report.json",
+      "run_id": "import-20260914T072451Z-50354146d951"
+    },
+    {
+      "created_at": "2026-09-14T07:21:41.737277+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "calibration",
+      "report": "import-20260914T072141Z-5c725fbc2345/report.json",
+      "run_id": "import-20260914T072141Z-5c725fbc2345"
+    },
+    {
+      "created_at": "2026-09-14T06:08:23.105405+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "baseline",
+      "report": "import-20260914T060823Z-14e718d87c27/report.json",
+      "run_id": "import-20260914T060823Z-14e718d87c27"
+    },
+    {
+      "created_at": "2026-09-14T06:07:21.854106+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "calibration",
+      "report": "import-20260914T060721Z-1a2a687aea00/report.json",
+      "run_id": "import-20260914T060721Z-1a2a687aea00"
+    },
+    {
+      "created_at": "2026-09-14T05:44:41.518603+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "baseline",
+      "report": "import-20260914T054441Z-154dde840ca8/report.json",
+      "run_id": "import-20260914T054441Z-154dde840ca8"
+    },
+    {
+      "created_at": "2026-09-14T05:40:46.152891+00:00",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "historical_import",
+      "purpose": "calibration",
+      "report": "import-20260914T054046Z-220a667bc6d2/report.json",
+      "run_id": "import-20260914T054046Z-220a667bc6d2"
+    }
+  ],
   "project": {
-    "current_run": null,
-    "history_count": 0,
+    "current_run": "35064353388-1",
+    "history_count": 11,
     "id": "sample_repo",
     "index": "sample_repo/index.json",
     "state": "active"

@@ -1,0 +1,27 @@
+{
+  "created_at": "2026-09-15T06:14:00.908378+00:00",
+  "evaluator_sha256": "e1debee3d75f420ed4db01662c5c67cbb2b9b4c5b86f3f734e02fe4c5c23b884",
+  "execution": {
+    "decision": "calibration_passed",
+    "metrics": {
+      "controls": 9
+    },
+    "reason_code": "historical_import",
+    "status": "completed"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "historical_import",
+    "status": "not_assessed"
+  },
+  "origin": "historical_import",
+  "project_id": "sample_repo",
+  "project_tree_sha256": null,
+  "purpose": "calibration",
+  "run_id": "import-20260915T061400Z-4f3ff97675d8",
+  "schema_version": 1,
+  "source_commit": null,
+  "source_report_sha256": "61da9dd3d196024fb935dbf0a6f1f911c1a887dadef028ffb87ca71fb181dba0",
+  "source_schema_version": 2
+}
