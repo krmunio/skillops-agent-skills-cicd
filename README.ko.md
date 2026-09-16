@@ -18,7 +18,9 @@ Owner가 운영하는 [공개 대시보드](https://agreeable-pebble-0ea54a800.6
 접속할 수 있으며, 화면 구성은 개편 중입니다.
 [프로젝트 평가 안내](docs/PROJECT-EVALUATION.md)에 `results/` 형식, Actions,
 결과 전용 브랜치와 정적 대시보드 사용법이 있습니다.
-공통 가이드 평가기 연동과 실제 모델 평가 활성화는 아직 완료된 기능이 아닙니다.
+`skill_guide.py`의 Anthropic 가이드 기반 평가기는 구현되어 있으며 baseline 실행에 연동되어 있습니다.
+프로젝트 평가의 가이드 축 연동은 아직 대기 중이며, 실제 모델 평가 워크플로 실행에는
+명시적 설정과 인증이 필요합니다.
 
 ### 준비된 프로젝트 샘플
 
@@ -40,10 +42,12 @@ python3 project_samples.py add-skill --project sample_repo --skill skills/develo
 스킬 초안을 넣었다는 사실과 행동 품질이 검증됐다는 판단은 다릅니다.
 
 프로젝트 워크플로의 `sample-onboarding-results` artifact는 기존 평가기로 생성한
-비모델 보고서와 index의 실제 계약 검증 기록입니다. 가이드 평가는 `guide_integration_pending`,
-외부 프로젝트 실행은 `no_adapter`, 내장 샘플 실행은 `live_disabled` 상태입니다.
+비모델 보고서와 index의 실제 계약 검증 기록입니다. 프로젝트 가이드 평가는
+`blocked / guide_integration_pending`, 외부 프로젝트 실행은 `no_adapter`,
+내장 샘플 실행은 `live_disabled` 상태입니다.
 계약 테스트가 성공해도 이 차단·설정 필요 상태가 통과로 바뀌거나 Azure 배포가 승인되지 않습니다.
-새 샘플 기록을 추가할 때 기존 공개 보고서는 바이트 단위로 보존합니다.
+새 샘플 기록을 추가할 때 기존 공개 보고서와 검증된 선택적 스킬 이력 sidecar는
+바이트 단위로 보존합니다.
 [Owner 대시보드 방향](docs/PROJECT-EVALUATION.md#owner-dashboard-direction)에 자동 CI와
 프로젝트 평가의 구분, 대상 스킬·버전 선택, 가이드/APO 근거, 실행 비교, 변경 내역·이력 및
 아직 연동되지 않은 범위를 정리했습니다. 화면의 과거 비교 수치를 새 샘플의 평가 결과로 사용하지 않습니다.

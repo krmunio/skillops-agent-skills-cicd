@@ -14,9 +14,11 @@
   pushes and main-only manual dispatch record assessments or explicit blocked states.
 - Results persist on `evaluation-results`; main still requires a reviewed PR and CI.
 
-**The shared skill-guide producer is not integrated yet.** Projects with skills
-receive `blocked / guide_integration_pending`, not invented scores. Projects
-without skills receive `not_assessed / no_skills`. Unsupported execution adapters
+The standalone Anthropic-inspired evaluator in `skill_guide.py` is implemented
+and integrated into baseline reports.
+**Its integration into the `project_evaluation.py` guide axis is still pending.**
+Projects with skills receive `blocked / guide_integration_pending`, not invented
+scores. Projects without skills receive `not_assessed / no_skills`. Unsupported execution adapters
 receive `configuration_required`; arbitrary project commands are never executed.
 
 ## Add a project
@@ -105,8 +107,8 @@ imported files before staging; public upstream content is not automatically trus
 Preparation is separate from assessment. The current registration path pins the
 common root `skills/develop/SKILL.md`; it does **not** select each project's local
 skill. Adding a local skill does not prove that live execution exercised it.
-Per-project skill selection, the shared guide producer and additional execution
-adapters require follow-up integration.
+Per-project skill selection, project-assessment integration of the existing guide
+evaluator and additional execution adapters require follow-up integration.
 
 With model execution disabled, the existing evaluator records:
 
@@ -125,16 +127,20 @@ project evaluator with `SKILLOPS_LIVE_EVALUATION_ENABLED=false`. It requires the
 expected blocked exit code **2**, validates each report/index, and checks that
 there is exactly one **new** actual report per catalog project with the checked-out
 commit, run ID, project tree and evaluator identities. The output starts from the
-checked-in history; all older report bytes must remain unchanged, with no missing
-or unexpected report identities. Empty output fails.
-The distinct `sample-onboarding-results` artifact contains only report/index
-JSON and is never consumed by the live result publisher. Contract success means
+checked-in history; all older report and optional sidecar bytes must remain
+unchanged, with no missing or unexpected report identities. Rebuilt indices retain
+validated sidecar references. Empty output fails.
+The distinct `sample-onboarding-results` artifact contains report/index JSON
+plus optional validated `skill-snapshots.json` and `skill-evolution.json` sidecars,
+and is never consumed by the live result publisher. Contract success means
 these behaviors were verified, not that guide or model evaluation passed.
 
 Feature-branch manual dispatch can run this contract job without enabling the
 main-only evaluation, persistence or Azure deployment jobs. Reviewed actual
 artifact bytes may be preserved under `results/<project>/<run-id>/report.json`;
-their evaluated source commit stays unchanged in a later evidence commit.
+their original evaluated source commit and evaluator fingerprint stay unchanged
+in later evidence or integration commits. New evaluator code on main can make old
+results non-current; never rewrite their provenance to match it.
 Synthetic test reports exist only in temporary directories. This preparation
 does not create the data branch, enable paid calls, install upstream skills into
 the user's agent, or provision Azure resources.
@@ -144,8 +150,9 @@ the user's agent, or provision Azure resources.
 The owner's September 16, 2026 direction separates automatic baseline checks
 from project evaluation and keeps the dashboard read-only. PR #8 implements an
 evidence-first layout and a separately labeled, opt-in synthetic sample screen.
-The real history still uses public v1 reports; richer producer-backed evidence
-remains a follow-up integration, not something supplied by the layout example.
+The real history still uses public v1 reports, with optional validated snapshot
+and evolution sidecars now supporting reviewed skill versions and dashboard history.
+These attachments do not populate the pending project-assessment guide axis.
 
 Keep these evidence scopes distinct:
 
@@ -159,9 +166,9 @@ Keep these evidence scopes distinct:
 | Proposed project view | Required evidence and current boundary |
 | --- | --- |
 | Project, target skill, base/candidate selection | Bind actual skill names, versions, hashes and parent relationships to a run. Preparation records skill paths/hashes, but the current execution adapter still pins the common root skill, not an arbitrary project-local selection. |
-| Skill quality and improvement evidence | Keep Anthropic-inspired static/rubric findings separate from APO-style observations, hypotheses, changed instructions, re-evaluation and hypothesis support. Link real evidence records; the shared guide producer remains unintegrated. |
+| Skill quality and improvement evidence | Keep Anthropic-inspired static/rubric findings separate from APO-style observations, hypotheses, changed instructions, re-evaluation and hypothesis support. Link real evidence records; baseline guide evaluation exists, but its project-assessment guide-axis integration remains pending. |
 | Project execution | Compare the same declared tasks for base/candidate versions; show checks, judge, cost/time, heldout scope and policy/decision evidence. The supported scope is the built-in five Python tasks, not arbitrary imported repository tests. |
-| Skill changes | Show only reviewed version documents and diffs with generation/parent/adoption metadata. Existing public reports intentionally reject raw skill bodies; any richer public projection needs a separately reviewed, bounded export contract. |
+| Skill changes | Show only reviewed version documents and diffs with recorded generation/parent/adoption metadata. Public v1 reports still reject raw skill bodies; optional validated snapshot/evolution sidecars provide the reviewed, bounded export contract described below. |
 | History | Preserve project/run identities, evaluation kind, source/evaluator hashes, timestamps and current/stale/historical distinctions. Do not merge records merely because they share a skill name. |
 
 The screenshot's rejected candidate, 5/5 results and cost/time changes describe
@@ -393,4 +400,4 @@ az bicep build --file infra/public-dashboard.bicep
 ```
 
 Offline tests do not claim a live model-backed Actions run. Do not merge or enable
-billable workflows solely because the skeleton's validation passed.
+billable workflows solely because offline validation passed.

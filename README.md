@@ -16,8 +16,10 @@ Project snapshots now live under `projects/`, including `projects/sample_repo/`.
 The owner-operated [public dashboard](https://agreeable-pebble-0ea54a800.6.azurestaticapps.net/)
 is available; its screen design is evolving.
 See [project evaluation](docs/PROJECT-EVALUATION.md) for the `results/` schema,
-gated Actions workflow, data branch and static dashboard. Live guide integration
-and model-backed workflow activation are not claimed complete by this skeleton.
+gated Actions workflow, data branch and static dashboard. The Anthropic-inspired
+guide evaluator in `skill_guide.py` is implemented and used by the baseline runner.
+Project-assessment guide integration remains pending; model-backed workflow
+execution still requires explicit settings and authentication.
 
 ### Prepared project samples
 
@@ -38,11 +40,12 @@ before importing another repository. It never executes upstream code or replaces
 existing skills. Draft installation is not successful behavioral evaluation.
 
 The project workflow's `sample-onboarding-results` artifact verifies actual
-non-model reports using the existing evaluator and schema. Guide assessment is
-still `guide_integration_pending`; external execution is `no_adapter`, and the
-built-in sample is `live_disabled`. Green contract tests do not change these
+non-model reports using the existing evaluator and schema. Project guide assessment
+is still `blocked / guide_integration_pending`; external execution is `no_adapter`,
+and the built-in sample is `live_disabled`. Green contract tests do not change these
 blocked/unconfigured states or authorize Azure deployment.
-Existing published history is retained byte-for-byte when adding new sample runs.
+Existing published reports and optional validated skill-history sidecars are retained
+byte-for-byte when adding new sample runs.
 See the [owner's dashboard direction](docs/PROJECT-EVALUATION.md#owner-dashboard-direction)
 for baseline/project separation, target skill/version selection, guide/APO evidence,
 execution comparisons, skill diffs and history, including what still needs integration.
