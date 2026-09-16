@@ -341,7 +341,7 @@ def build(root, results, output):
     require(not output.exists(), "output_exists")
     rows = load_reports(results)
     output.mkdir(parents=True)
-    for name in ("index.html", "styles.css", "app.js", "staticwebapp.config.json"):
+    for name in ("index.html", "styles.css", "app.js", "views.js", "sample-data.json", "staticwebapp.config.json"):
         raw = read_bytes(root / "dashboard" / name)
         (output / name).write_bytes(raw)
     for row in rows:

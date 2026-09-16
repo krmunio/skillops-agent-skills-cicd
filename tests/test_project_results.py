@@ -140,6 +140,22 @@ class ProjectResultsTests(unittest.TestCase):
             with self.assertRaises(m.RuntimeFailure):
                 m.load_reports(root)
 
+    def test_build_includes_sample_assets_without_importing_synthetic_history(self):
+        m = self.module()
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "site"
+            real = m.load_reports(root / "results")
+            m.build(root, root / "results", output)
+            self.assertTrue((output / "sample-data.json").is_file(), "sample view asset must be deployed")
+            self.assertTrue((output / "views.js").is_file())
+            sample = json.loads((output / "sample-data.json").read_text())
+            self.assertIs(sample["synthetic"], True)
+            self.assertEqual(m.load_reports(output / "results"), real)
+            self.assertNotIn(sample["project_id"], [
+                item["id"] for item in json.loads((output / "results/index.json").read_text())["projects"]
+            ])
+
 
 if __name__ == "__main__":
     unittest.main()
