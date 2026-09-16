@@ -14,11 +14,17 @@
 각 conventional root는 최초 no-follow stat에서 존재하지 않을 때만 건너뛴다.
 존재하는 root는 symlink가 아닌 디렉터리여야 하며, 최초 stat의 device/inode/type을
 탐색 직전 no-follow stat과 비교하여 삭제나 파일·symlink·다른 디렉터리 교체를 거부한다.
-프로젝트 경로를 절대 정규화한 뒤 프로젝트 root와 `.github`, `.claude`, `skills` 등
+프로젝트 경로는 symlink를 따라가지 않는 절대 lexical 정규화를 사용한다.
+프로젝트 자체 symlink도 거부하며, 프로젝트 root와 `.github`, `.claude`, `skills` 등
 각 존재하는 경로 component를 no-follow stat으로 검사하고 디렉터리 identity를 기록한다.
 이 identity map은 모든 root 탐색이 끝날 때까지 유지하며, 번들 내용을 읽기 직전에
 프로젝트와 모든 기록 디렉터리를 일괄 재검증한다. 다른 root 탐색 중 발생한 삭제·교체·
 symlink·type 변화도 `unsafe_skill_path`로 거부하여 누락이나 교체된 내용 반환을 막는다.
+최초 탐색에서 파일 후보와 device/inode/type도 보존한다. 중첩 child 번들 파일을 제외한
+각 번들의 후보 상대 경로를 읽기 단계에 전달하며, 파일 시스템을 재열거하지 않는다.
+`SKILL.md`는 먼저 정확히 한 번 읽는다. 발견한 resource나 경로 디렉터리가 읽기 전에
+삭제·rename·교체되면 `unsafe_skill_path`로 거부하고 SKILL-only 번들을 반환하지 않는다.
+최초 탐색 이후 추가된 파일은 다음 `discover` 호출에서 발견한다.
 
 등록 프로젝트가 없을 때는 SkillOps 자체의 `skills/`를 같은 규칙으로 평가한다. manifest와 개별 override는 실제 자동 발견 오분류가 확인되기 전까지 추가하지 않는다.
 
@@ -49,8 +55,9 @@ symlink·type 변화도 `unsafe_skill_path`로 거부하여 누락이나 교체�
 - symlink, 비정상 파일, UTF-8 오류와 크기 제한
 
 번들별 읽기는 프로젝트 또는 bundle root descriptor를 한 번 고정한다.
-`rglob`/`stat`은 후보 열거에만 사용하고, 상대 경로의 각 디렉터리와 마지막 파일은
+최초 `scandir` 탐색에서 보존한 후보에 대해 상대 경로의 각 디렉터리와 마지막 파일은
 `dir_fd`, `O_NOFOLLOW`, `O_NONBLOCK`으로 열어 `fstat`으로 검사한다.
+프로젝트 root와 각 디렉터리·파일의 descriptor identity를 최초 발견 identity와 비교한다.
 디렉터리에는 `O_DIRECTORY`도 적용하며, 절대 경로와 `..` 요소는 거부한다.
 실제로 연 일반 파일의 크기·내용·hash만 사용하고 모든 descriptor는 `finally`에서 닫는다.
 symlink 및 FIFO/device/socket/directory 교체는 내용을 읽지 않고 `unsafe_skill_path`로 거부한다.
