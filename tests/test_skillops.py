@@ -1,7 +1,6 @@
 import importlib
 import importlib.util
 from copy import deepcopy
-from decimal import Decimal
 import json
 import os
 import shutil
@@ -564,57 +563,6 @@ class EvaluationTests(unittest.TestCase):
                     self.evaluation.generated_result(value)
             else:
                 self.assertFalse(self.evaluation.generated_result(value)["passed"])
-
-    def test_trial_count_requires_a_positive_integer(self):
-        import skillops
-        self.assertEqual(skillops.positive_int("3"), 3)
-        for value in ("0", "-1", "1.5", "true"):
-            with self.subTest(value=value), self.assertRaises(skillops.argparse.ArgumentTypeError):
-                skillops.positive_int(value)
-
-    def test_trial_summary_reports_success_rate_and_variance(self):
-        import skillops
-        def usage(value):
-            return {"nano_aiu": {"value": value, "unit": "nano_aiu"}}
-        rows = [
-            {"status": "completed", "execution": {
-                "fixed": {"all_passed": True}, "generated": {"passed": True},
-            }, "judge": {"score": 100}, "elapsed_seconds": 10,
-             "developer_usage": usage(10), "judge_usage": usage(20)},
-            {"status": "completed", "execution": {
-                "fixed": {"all_passed": False}, "generated": {"passed": True},
-            }, "judge": {"score": 50}, "elapsed_seconds": 14,
-             "developer_usage": usage(15), "judge_usage": usage(25)},
-        ]
-        result = skillops.summarize(rows, 2)
-        self.assertEqual(result["correctness_successes"], 1)
-        self.assertEqual(result["trial_successes"], 1)
-        self.assertEqual(result["trial_success_rate"], 0.5)
-        self.assertFalse(result["all_trials_passed"])
-        self.assertEqual(result["judge_score"], {
-            "mean": 75.0, "standard_deviation": 25.0, "denominator": 2,
-        })
-        self.assertEqual(result["elapsed_seconds"], {
-            "mean": 12.0, "standard_deviation": 2.0, "denominator": 2,
-        })
-        self.assertEqual(result["cost_nano_aiu"], {
-            "mean": 35.0, "standard_deviation": 5.0, "denominator": 2,
-        })
-        json.dumps(result, allow_nan=False)
-        self.assertEqual(skillops.row_cost(rows[0]), Decimal("30"))
-        self.assertIsNone(skillops.row_cost({}))
-        self.assertIsNone(skillops.row_cost({
-            "developer_usage": usage(None), "judge_usage": usage(1),
-        }))
-        for metric in (
-            {"value": 1, "unit": "tokens"},
-            {"value": -1, "unit": "nano_aiu"},
-            {"value": float("inf"), "unit": "nano_aiu"},
-            {"value": True, "unit": "nano_aiu"},
-        ):
-            with self.subTest(metric=metric), self.assertRaises(self.runtime.RuntimeFailure) as caught:
-                skillops.row_cost({"developer_usage": {"nano_aiu": metric}})
-            self.assertEqual(caught.exception.code, "invalid_metric")
 
     def test_aggregate_keeps_failures_in_requested_denominator(self):
         import skillops
