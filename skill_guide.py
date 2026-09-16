@@ -1,10 +1,12 @@
-"""Project skill bundle discovery."""
+"""Project skill bundle discovery and report-only static assessment."""
 
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import re
 import stat
+from urllib.parse import unquote
 
 from copilot_runtime import RuntimeFailure
 
@@ -13,6 +15,7 @@ SKILL_ROOTS = (".github/skills", ".claude/skills", "skills")
 FILE_LIMIT = 2 * 1024 * 1024
 BUNDLE_LIMIT = 8 * 1024 * 1024
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".yaml", ".yml", ".py", ".js", ".ts", ".sh"}
+LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 
 def fail(code, message):
@@ -184,3 +187,92 @@ def discover(project):
             ).encode()).hexdigest(),
         })
     return sorted(bundles, key=lambda row: row["path"])
+
+
+def skill_text(bundle):
+    return next(row["text"] for row in bundle["files"] if row["path"] == "SKILL.md")
+
+
+def frontmatter(text):
+    """Read only scalar name/description fields and indented continuations, not full YAML."""
+    lines = text.splitlines()
+    if not lines or lines[0] != "---" or "---" not in lines[1:]:
+        return {}, text, False
+    end = lines.index("---", 1)
+    values = {}
+    current = None
+    for line in lines[1:end]:
+        match = re.fullmatch(r"(name|description):\s*(.*)", line)
+        if match:
+            current = match.group(1)
+            value = match.group(2).strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1].strip()
+            values[current] = value
+        elif current and line.startswith((" ", "\t")):
+            values[current] = (values[current] + " " + line.strip()).strip()
+        else:
+            current = None
+    return values, "\n".join(lines[end + 1:]), True
+
+
+def finding(check, severity, message, path="SKILL.md"):
+    return {"check": check, "severity": severity, "path": path, "message": message}
+
+
+def static_assessment(bundle):
+    """Report structure and inline local-link findings using only the discovered bundle."""
+    text = skill_text(bundle)
+    metadata, body, delimited = frontmatter(text)
+    findings = []
+    if not delimited:
+        findings.append(finding("frontmatter", "error", "YAML frontmatter delimiters are required."))
+    for key in ("name", "description"):
+        if not metadata.get(key):
+            findings.append(finding(f"frontmatter_{key}", "error", f"{key} must be nonempty."))
+    if not body.strip():
+        findings.append(finding("body", "error", "Skill instructions must be nonempty."))
+    if len(text.splitlines()) > 500:
+        findings.append(finding(
+            "skill_line_count", "warning", "SKILL.md exceeds the 500-line guide recommendation.",
+        ))
+
+    paths = {row["path"] for row in bundle["files"]}
+    for target in LINK.findall(body):
+        target = target.strip()
+        if re.match(r"[A-Za-z][A-Za-z0-9+.-]*:", target):
+            continue
+        target = unquote(target.split("#", 1)[0])
+        if not target:
+            continue
+        normalized = Path(target)
+        if normalized.is_absolute() or ".." in normalized.parts:
+            findings.append(finding(
+                "unsafe_reference", "error", "Local references must stay inside the skill bundle.",
+            ))
+        elif normalized.as_posix() not in paths:
+            findings.append(finding("missing_reference", "error", f"Referenced file is missing: {target}"))
+
+    resource_files = [row for row in bundle["files"] if row["path"] != "SKILL.md"]
+    for row in resource_files:
+        if Path(row["path"]).suffix.lower() != ".md" or row["text"] is None:
+            continue
+        lines = row["text"].splitlines()
+        if len(lines) > 300 and not any(
+            re.fullmatch(r"## (?:Contents|Table of Contents)\s*", line, re.IGNORECASE)
+            for line in lines[:80]
+        ):
+            findings.append(finding(
+                "reference_toc", "warning",
+                "Markdown references over 300 lines should include a table of contents.",
+                row["path"],
+            ))
+    applicable = "applicable" if resource_files else "not_applicable"
+    return {
+        "metadata": {"name": metadata.get("name"), "description": metadata.get("description")},
+        "applicability": {
+            "progressive_disclosure": applicable,
+            "resource_organization": applicable,
+        },
+        "findings": findings,
+    }
