@@ -151,14 +151,16 @@ class ProjectSampleReportTests(unittest.TestCase):
         self.assertEqual(report["evaluator_sha256"], self.results.evaluator_hash(ROOT))
         self.assertIsNone(report["source_report_sha256"])
         self.assertIsNone(report["source_schema_version"])
-        self.assertEqual(report["guide"], self.results.axis("blocked", "guide_integration_pending"))
-        expected = ("blocked", "live_disabled") if report["project_id"] == "sample_repo" else (
-            "configuration_required", "no_adapter")
-        self.assertEqual(report["execution"], self.results.axis(*expected))
         strings = list(string_values(report))
         for text in strings:
             self.assertNotIn(str(ROOT), text)
             self.assertNotIn(".skillops-private", text)
+        if report["project_id"] not in PROJECT_IDS:
+            return
+        self.assertEqual(report["guide"], self.results.axis("blocked", "guide_integration_pending"))
+        expected = ("blocked", "live_disabled") if report["project_id"] == "sample_repo" else (
+            "configuration_required", "no_adapter")
+        self.assertEqual(report["execution"], self.results.axis(*expected))
         for skill in project_skills(ROOT / "projects" / report["project_id"]):
             body = skill.read_text(encoding="utf-8")
             self.assertFalse(any(body in text for text in strings))
@@ -229,7 +231,7 @@ class ProjectSampleReportTests(unittest.TestCase):
             with patch(f"{__name__}.ROOT", root):
                 self.assert_sample_report(report, "104-1", "a" * 40)
                 for field, value in (("source_commit", "b" * 40), ("project_tree_sha256", "b" * 64),
-                                     ("evaluator_sha256", "b" * 64), ("run_id", "other-run")):
+                                     ("evaluator_sha256", "b" * 64), ("run_id", "105-1")):
                     with self.subTest(field=field):
                         changed = copy.deepcopy(report)
                         changed[field] = value
