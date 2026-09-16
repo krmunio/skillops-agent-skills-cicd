@@ -1,6 +1,8 @@
 {
   "schema_version": 1,
   "projects": {
+    "project-a": {"adapter": null},
+    "project-b": {"adapter": null},
     "sample_repo": {"adapter": "issue-management-v2"}
   }
 }
