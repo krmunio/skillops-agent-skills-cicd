@@ -240,8 +240,8 @@ function renderExecution(report, detail) {
 }
 
 function diffLines(before, after) {
-  const a = before.split('\n');
-  const b = after.split('\n');
+  const a = before === '' ? [] : before.split('\n');
+  const b = after === '' ? [] : after.split('\n');
   if (a.length > 400 || b.length > 400 || before.length + after.length > 100000) {
     throw new Error('Skill comparison exceeds display limits');
   }
@@ -265,36 +265,58 @@ function diffLines(before, after) {
   return lines;
 }
 
-function renderSkill(detail, synthetic) {
+export function renderSkill(detail, synthetic) {
   const container = $('skill-changes');
-  if (!detail?.base) {
+  if (!detail?.base && !detail?.candidate) {
     empty(container, 'Skill 원문이 공개 기록에 없습니다.',
       '평가 당시 버전의 공개가 검토된 원문·해시·변경 비교가 필요합니다. 현재 파일로 과거 원문을 대체하지 않습니다.');
     return;
   }
-  const version = snapshot => snapshot.version || snapshot.sha256?.slice(0, 12) || '버전 미기록';
+  const availability = snapshot => snapshot?.availability || (snapshot ? 'captured' : 'absent');
+  const version = snapshot => snapshot?.version || snapshot?.sha256?.slice(0, 12) ||
+    (availability(snapshot) === 'uncaptured' ? '원문 미보관' : '파일 없음');
+  const displayable = snapshot => typeof snapshot?.content === 'string' &&
+    snapshot.content.length <= 50000 && snapshot.content.split('\n').length <= 400;
   const meta = node('div', undefined, 'skill-meta');
   meta.append(node('strong', detail.skill_id),
     node('span', detail.candidate ? `${version(detail.base)} → ${version(detail.candidate)}` : version(detail.base), 'badge'),
-    node('span', synthetic ? '합성 예시 · 실제 평가 아님' : '평가 당시 원문 · 기록된 SHA-256과 일치', 'muted'));
+    node('span', synthetic ? '합성 예시 · 실제 평가 아님' : detail.file_path ?
+      '보관된 원문만 해시 확인 · 미보관 파일은 판단하지 않음' : '평가 당시 원문 · 기록된 SHA-256과 일치', 'muted'));
   container.replaceChildren(meta);
+  if (detail.file_path) container.append(node('p', detail.file_path, 'source-hash'));
   const columns = node('div', undefined, 'skill-compare-grid');
   for (const [key, label] of [['base', 'As-Is · 기존 Skill 원문'], ['candidate', 'To-Be · 후보 Skill 원문']]) {
-    if (!detail[key]) continue;
+    if (!detail[key] && !detail.has_candidate_version) continue;
     const source = node('details', undefined, 'source-panel');
     source.open = true;
     source.append(node('summary', label));
-    if (detail[key].sha256) source.append(node('p', `SHA-256 ${detail[key].sha256}`, 'source-hash'));
+    if (detail[key]?.sha256) source.append(node('p', `SHA-256 ${detail[key].sha256}`, 'source-hash'));
+    if (detail[key]?.bytes !== undefined) source.append(node('p', `${detail[key].bytes} bytes`, 'source-hash'));
     if (key === 'candidate') source.append(node('p', '비교 대상 후보이며 채택·배포 승인을 의미하지 않습니다.', 'source-hash'));
-    source.append(node('pre', detail[key].content));
+    if (availability(detail[key]) === 'uncaptured') {
+      source.append(node('p', '원문 미보관 · 해당 파일의 유무와 내용을 판단할 수 없습니다.', 'source-hash'));
+    } else if (availability(detail[key]) === 'absent') {
+      source.append(node('p', '전체 보관 목록 기준으로 이 버전에는 해당 파일이 없습니다.', 'source-hash'));
+    }
+    else if (detail[key].content === null) source.append(node('p', '바이너리 파일 · 원본 bytes 보관, 실행·미리보기 안 함', 'source-hash'));
+    else if (!displayable(detail[key])) source.append(node('p', '원문 표시 한도 초과 · 전체 bytes는 변경 없이 보관됩니다.', 'source-hash'));
+    else source.append(node('pre', detail[key].content));
     columns.append(source);
   }
   container.append(columns);
-  if (!detail.candidate) {
-    container.append(node('p', '이 기록에는 후보 Skill이 없습니다.', 'reason'));
+  if (!detail.candidate && !detail.has_candidate_version) {
+    container.append(node('p', '이 기록에는 보관된 후보 Skill이 없습니다.', 'reason'));
     return;
   }
-  const lines = diffLines(detail.base.content, detail.candidate.content);
+  if ([detail.base, detail.candidate].some(snapshot => availability(snapshot) === 'uncaptured')) {
+    container.append(node('p', '원문 미보관으로 변경을 확인할 수 없습니다. 미보관을 추가·삭제로 해석하지 않습니다.', 'reason'));
+    return;
+  }
+  if ([detail.base, detail.candidate].some(snapshot => availability(snapshot) === 'captured' && !displayable(snapshot))) {
+    container.append(node('p', '변경 비교 표시 한도 또는 바이너리 파일 · 다른 파일과 평가 근거는 계속 확인할 수 있습니다.', 'reason'));
+    return;
+  }
+  const lines = diffLines(detail.base?.content ?? '', detail.candidate?.content ?? '');
   const toolbar = node('div', undefined, 'diff-toolbar');
   const toggle = node('button', '변경 비교');
   toggle.type = 'button';
