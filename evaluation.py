@@ -12,9 +12,9 @@ from eval.fixed_checks import cases
 
 DIMENSIONS = ("requirement_fulfillment", "test_quality", "review_quality")
 FAMILIES = {
-    "listing": {"seed": "sample_repo/issues.py", "entrypoint": "list_issues"},
-    "labels": {"seed": "sample_repo/labels.py", "entrypoint": "normalize_labels"},
-    "updates": {"seed": "sample_repo/updates.py", "entrypoint": "update_issue"},
+    "listing": {"seed": "projects/sample_repo/issues.py", "entrypoint": "list_issues"},
+    "labels": {"seed": "projects/sample_repo/labels.py", "entrypoint": "normalize_labels"},
+    "updates": {"seed": "projects/sample_repo/updates.py", "entrypoint": "update_issue"},
 }
 FINGERPRINT_FILES = (
     "eval/rubric.json", "eval/calibration.json", "eval/tasks.json", "eval/fixed_checks.py",

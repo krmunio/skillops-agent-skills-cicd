@@ -4,6 +4,19 @@
 
 Agent-skill CI/CD, starting with a reproducible coding-task baseline.
 
+## Collaboration
+
+See the [roadmap](docs/ROADMAP.md) for planned capabilities and dependencies, and
+[CONTRIBUTING](CONTRIBUTING.md) for choosing work, coordinating changes and submitting
+verification evidence. Planned work is not a claim of implemented functionality.
+
+## Multi-project foundation
+
+Project snapshots now live under `projects/`, including `projects/sample_repo/`.
+See [project evaluation](docs/PROJECT-EVALUATION.md) for the `results/` schema,
+gated Actions workflow, data branch and static dashboard. Live guide integration
+and model-backed workflow activation are not claimed complete by this skeleton.
+
 ## Repository validation
 
 The **Baseline validation** GitHub Actions workflow runs offline runner tests,
@@ -139,7 +152,7 @@ reach the developer.
 
 Labels exercise stable whitespace/Unicode casefold normalization and validation.
 Updates exercise validated, nonmutating atomic patches. Their seeds are in
-`sample_repo/labels.py` and `sample_repo/updates.py`; full contracts are in
+`projects/sample_repo/labels.py` and `projects/sample_repo/updates.py`; full contracts are in
 `eval/tasks.json`.
 
 A family cannot appear in both development and held-out splits. The previously
@@ -337,7 +350,7 @@ the models. It adds no spending cap and does not change the selection policy.
 These commands are offline: they require neither Copilot authentication nor Docker.
 
 ```bash
-python3 skillops.py register --repository sample --path sample_repo \
+python3 skillops.py register --repository sample --path projects/sample_repo \
   --skill develop --evaluation-set issue-management-v2
 python3 skillops.py repositories
 ```

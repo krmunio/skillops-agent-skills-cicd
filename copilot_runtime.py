@@ -385,7 +385,7 @@ class CopilotRuntime:
             "instructions": [], "plugins": [], "custom_mcp_servers": [],
         }
 
-    def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None):
+    def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180):
         if len(prompt.encode("utf-8")) > PROMPT_LIMIT:
             raise RuntimeFailure("prompt_limit", "Prompt exceeds the bounded CLI input size.")
         artifact = Path(artifact)
@@ -406,7 +406,7 @@ class CopilotRuntime:
         try:
             record["inventory"] = self.configure(workdir, expected_skill)
             command = self.model_command(prompt, model, role) + ["--usage-output-file", str(usage_path)]
-            result = capture(command, cwd=workdir, env=self.env)
+            result = capture(command, cwd=workdir, env=self.env, timeout=timeout)
             stdout, stderr = redact(result.stdout, self.env), redact(result.stderr, self.env)
             (private / f"{identifier}.jsonl").write_text(stdout)
             record.update(returncode=result.returncode, stderr=stderr[:16384])
