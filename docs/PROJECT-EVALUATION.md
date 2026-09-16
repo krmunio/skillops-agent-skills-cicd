@@ -51,7 +51,7 @@ python3 project_results.py build --results .dashboard-public/reviewed-results \
 
 Review exported JSON before publishing. Import only run-level baseline, comparison,
 candidate and calibration summaries; raw invocation artifacts remain local.
-Build output must be a new directory. It contains only the four dashboard assets
+Build output must be a new directory. It contains only allowlisted dashboard assets
 and validated results, never project sources or raw logs.
 
 ## Actions activation
@@ -88,6 +88,38 @@ The viewer loads `results/index.json`, project indices and selected reports.
 Historical scope, missing provenance, stale results and unassessed states remain
 visible. Guide scores, execution quality and skill adoption are different concepts.
 No Anthropic certification or successful deployment of a candidate is claimed.
+
+### Evidence-first layout
+
+Selecting a project shows four sections in order:
+
+1. Skill quality and improvement evidence. Method descriptions explain which
+   Anthropic writing-guide and APO-style evidence concepts inform the assessment;
+   these descriptions are not claims that an evaluator has run.
+2. Project execution. Existing/candidate correctness, Judge, cost and time are
+   shown from the selected report. Policy and task details remain unavailable
+   when not present in the public record; no thresholds or reasons are invented.
+3. Skill changes. Evaluation-time instructions and a line diff are shown only
+   where supplied. Current source files never substitute for historical snapshots.
+4. History. Selecting a run changes the whole detail view, not just its metrics.
+
+Existing public v1 records remain unchanged. They do not contain full quality
+findings, improvement traces, task-level checks or Skill snapshots. The actual
+history view explicitly reports these fields as unrecorded. A future reviewed
+public-detail contract and producer integration are still required.
+
+The **샘플 화면 보기** control opens `dashboard/sample-data.json`, a bundled,
+invented layout example with two Skills and three records. Its banner, labels,
+source panels and history identify synthetic content. It is opt-in and separate
+from `results/`, catalog counts, real assessment APIs and candidate adoption.
+Switching back to a real project clears sample evidence. The sample is not the
+historically evaluated `sample_repo` and is never a result-publisher input.
+Do not add private instructions or real raw run artifacts to this example.
+
+The sample demonstrates static/rubric distinctions, conditional exclusions,
+observation-to-verification evidence, rejected candidates and missing execution.
+Code is rendered as text and diffs are bounded to 400 lines per version. No model
+calls or evaluator activation are required to explore it.
 
 `infra/public-dashboard.bicep` defines one public Azure Static Web App using the
 approved Standard tier. It creates no VM, Storage account or anonymous write API.
