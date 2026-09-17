@@ -905,12 +905,15 @@ test('trace links original, two parents, feedback, confirmation and verified use
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 });
-for (const [use, label] of [['none', '승인됐지만 사용 미기록'], ['failed', '사용 실패']]) {
-  test(`trace distinguishes local approval/use: ${use}`, async ({ page }) => {
-    await tracePage(page, traceFixture({ mode: 'live', use }), '105-1');
-    await expect(page.locator('#evidence-trace')).toContainText(label);
-    await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
-  });
+for (const mode of ['live', 'offline_test']) {
+  for (const [use, label] of [['none', '승인됐지만 사용 미기록'], ['failed', '사용 실패']]) {
+    test(`trace distinguishes local approval/use: ${mode} ${use}`, async ({ page }) => {
+      await tracePage(page, traceFixture({ mode, use }), '105-1');
+      await expect(page.locator('#evidence-trace')).toContainText(label);
+      await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+      await expect(page.locator('#trace-mode')).toContainText(mode);
+    });
+  }
 }
 for (const mode of ['offline_test', 'sample']) {
   test(`trace labels ${mode} separately from live adoption and measured improvement`, async ({ page }) => {
