@@ -624,6 +624,38 @@ class IterationTests(unittest.TestCase):
                 self.run_cycle()
         self.assertEqual(self.generated, [])
 
+    def test_unknown_or_duplicate_addressed_findings_cannot_be_persisted(self):
+        for findings in (["not-in-feedback"], ["clarity", "clarity"], "clarity"):
+            with self.subTest(findings=findings):
+                self.artifact = self.root / f"findings-{len(self.raw.invoke.call_args_list)}"
+                self.generated.clear()
+                self.evaluated.clear()
+                self.saved.clear()
+                def unsupported(*args, **kwargs):
+                    generation, candidate = self.generate(*args, **kwargs)
+                    generation["addressed_findings"] = findings
+                    return generation, candidate
+                self.generate_mock.side_effect = unsupported
+                result = self.run_cycle(max_rounds=1)
+                self.assertEqual(result["stop_reason"], "runtime_error")
+                self.assertEqual(self.evaluated, [])
+                self.assertEqual(self.saved, [])
+
+    def test_deadline_expiring_during_feedback_does_not_count_a_generation_attempt(self):
+        clock = [100.0]
+        self.budget["deadline"] = 120.0
+        def slow_feedback(*args):
+            packet = self.feedback(*args)
+            clock[0] = 121.0
+            return packet
+        self.project_feedback.side_effect = slow_feedback
+        with patch("time.monotonic", side_effect=lambda: clock[0]):
+            result = self.run_cycle(max_rounds=1)
+        self.assertEqual(result["stop_reason"], "time_limit")
+        self.assertEqual(result["rounds"], [])
+        self.assertEqual(self.generated, [])
+        self.assertEqual(self.budget["calls"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
