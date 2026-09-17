@@ -432,6 +432,17 @@ def load_assessments(results, rows=None, lifecycles=None):
     return values
 
 
+def store_replay(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = safe_path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    lifecycle = validate_evolution(read_json(folder / "skill-evolution.json", EVOLUTION_LIMIT), report)
+    assessments.validate_replay(data, report=report, lifecycle=lifecycle)
+    path = folder / "replay-evaluation.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
 def load_replays(results, rows=None):
     results = safe_path(results)
     rows = load_reports(results) if rows is None else rows

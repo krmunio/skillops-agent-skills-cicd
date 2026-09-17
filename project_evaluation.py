@@ -1,6 +1,7 @@
 """Project orchestration with explicit live-evaluation gates and public-only output."""
 
 import argparse
+import base64
 from contextlib import ExitStack
 from datetime import datetime, timezone
 from functools import partial
@@ -11,6 +12,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from uuid import uuid4
 
 from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture
 import project_results as results
@@ -18,6 +20,8 @@ import repositories
 import project_checks
 import skill_guide
 import skill_pipeline
+import skill_assessments
+import evolution_records as evolution
 import evaluation_reporting
 import evaluation_telemetry
 
@@ -216,6 +220,120 @@ def budget_limits(budget):
                                       and credit >= MIN_AI_CREDITS), "missing_limits")
     return {"max_invocations": budget["max_calls"], "max_seconds": budget["max_seconds"],
             "max_ai_credits_per_session": credit}
+
+
+def persist_replay(output, evaluation, captures, generation, reference, *, execution_mode, run_id=None):
+    """Shared persist_round callback; never mutate the provider's retained evaluation."""
+    output = results.safe_path(output)
+    stamp = datetime.now(timezone.utc)
+    prefix = "sample-" if execution_mode == "sample" else "local-"
+    run_id = run_id or prefix + stamp.strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:12]
+    complete_quality = all(evaluation["quality"][arm] is not None
+                           and evaluation["quality"][arm]["status"] == "completed" for arm in ("base", "candidate"))
+    report = {
+        "schema_version": 1, "project_id": reference["project_id"], "run_id": run_id,
+        "created_at": stamp.isoformat(), "origin": "sample" if execution_mode == "sample" else "local",
+        "purpose": "project_assessment", "source_commit": reference["source_commit"],
+        "project_tree_sha256": reference["project_tree_sha256"], "evaluator_sha256": reference["evaluator_sha256"],
+        "source_report_sha256": None, "source_schema_version": None,
+        "guide": results.axis("completed" if complete_quality else "blocked",
+                              "evaluation_completed" if complete_quality else "assessment_unverified"),
+        "execution": results.axis("blocked", "assessment_unverified"),
+    }
+    common = {"schema_version": 1, "project_id": report["project_id"], "run_id": run_id,
+              "report_sha256": sha256(results.encoded(report)).hexdigest()}
+    key = evaluation["skill_key"]
+    records = evolution.empty_records()
+    records["identities"] = [{"skill_key": key, "display_name": Path(evaluation["source_path"]).name}]
+    records["sources"] = [{
+        "skill_key": key, "project_id": report["project_id"], "kind": "workspace", "scope": "project",
+        "path": evaluation["source_path"], "observed_at": report["created_at"], "evidence_ref": None,
+    }]
+    versions, contents = {}, {}
+    for version, files in captures:
+        identifier = version["version_id"]
+        results.require(identifier not in versions or versions[identifier] == version, "capture_mismatch")
+        versions[identifier] = version
+        for name, raw in files.items():
+            item = {"version_id": identifier, "path": name, "encoding": "base64",
+                    "data": base64.b64encode(raw).decode("ascii")}
+            results.require((identifier, name) not in contents or contents[(identifier, name)] == item,
+                            "capture_mismatch")
+            contents[(identifier, name)] = item
+    records["versions"] = list(versions.values())
+    records["skill_versions"] = [{"skill_key": key, "version_id": identifier} for identifier in versions]
+    lifecycle = {**common, "records": records, "bindings": [{
+        "skill_key": key, "base_version_id": evaluation["base_version_id"],
+        "candidate_version_id": evaluation["candidate_version_id"], "legacy_skill_id": None,
+    }], "file_contents": list(contents.values())}
+    replay = {**common, "execution_mode": execution_mode, "reference": reference,
+              "generation": generation, "evaluation": evaluation}
+    results.validate_evolution(lifecycle, report)
+    skill_assessments.validate_replay(replay, report=report, lifecycle=lifecycle)
+    results.require(len(results.encoded(replay)) <= results.LIMIT, "output_limit")
+    results.store(output, report)
+    results.store_evolution(output, lifecycle)
+    path = results.store_replay(output, replay)
+    return {"project_id": report["project_id"], "run_id": run_id,
+            "path": path.name,
+            "sha256": sha256(results.read_bytes(path)).hexdigest()}
+
+
+def run_replay(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
+               runtime_factory=None):
+    """One opt-in development replay, using the same providers and persistence as iteration."""
+    results.require(policy.get("enabled") is True, "live_disabled")
+    results.require(policy.get("authenticated") is True, "missing_auth")
+    budget = policy.get("budget")
+    limits = budget_limits(budget)
+    results.require(limits["max_ai_credits_per_session"] is not None, "missing_limits")
+    results.require(type(budget.get("calls")) is int and 0 <= budget["calls"] <= budget["max_calls"]
+                    and type(budget.get("deadline")) in (int, float) and math.isfinite(budget["deadline"]),
+                    "missing_limits")
+    remaining = budget["deadline"] - time.monotonic()
+    results.require(remaining > 0, "time_limit")
+    results.require(remaining <= limits["max_seconds"], "missing_limits")
+    results.require(budget["calls"] < budget["max_calls"], "call_limit")
+    results.require(execution_mode in ("live", "offline_test"), "invalid_execution_mode")
+    root, output = results.safe_path(root), results.safe_path(output)
+    results.require(results.matches(results.ID, project_id), "invalid_project_id")
+    project = root / "projects" / project_id
+    results.require(not output.is_relative_to(project), "unsafe_path")
+    work = results.read_json(work_item)
+    results.require(isinstance(work, dict), "invalid_work_item")
+    skill_assessments.validate_work_item(work, project=project, source_commit=work.get("source_commit"))
+    results.require(work["project_id"] == project_id, "work_project_mismatch")
+    results.require(work["split"] == "development", "confirmation_isolation_unverified")
+    history = list(results.load_assessments(output).values())
+    history.extend({"project_id": row["project_id"], "skills": [row["evaluation"]]}
+                   for row in results.load_replays(output).values())
+    selected = [bundle for bundle in skill_guide.discover(project)
+                if skill_pipeline.skill_key(project_id, bundle["path"], history) == skill_key]
+    results.require(len(selected) == 1, "unknown_skill")
+    rubric = results.read_json(root / "eval/skill-guide-rubric.json")
+    raw_runtime = (runtime_factory or CopilotRuntime)(root)
+    runtime = BudgetRuntime(raw_runtime, budget)
+    runtime.execution_mode = execution_mode
+    artifact = runtime.private / "replays" / uuid4().hex
+    with raw_runtime.locked():
+        images = resolve_images(project)
+        remaining = min(180, budget["deadline"] - time.monotonic())
+        results.require(remaining > 0, "time_limit")
+        with project_checks.prepared_images(project, images, timeout=remaining) as prepared:
+            context = skill_pipeline.prepare_replay(
+                runtime, model, project, selected[0], skill_key, rubric, prepared, artifact / "prepare",
+                work_item=work, deadline=budget["deadline"])
+            generation, candidate = skill_pipeline.generate_candidate(
+                runtime, model, context["original"], context["feedback"], artifact / "generation",
+                deadline=budget["deadline"])
+            row, captures = skill_pipeline.evaluate_candidate(
+                runtime, model, context, candidate, artifact / "evaluation", deadline=budget["deadline"])
+            evidence = persist_replay(output, row, captures, generation, context["reference"],
+                                      execution_mode=execution_mode)
+    return {"status": row["decision"]["status"], "execution_mode": execution_mode, "evaluation_ref": evidence,
+            "candidate_version_id": candidate[0]["version_id"], "budget": limits, "calls": budget["calls"],
+            "approval_eligible": False, "confirmation_status": "not_run",
+            "confirmation_reason": "confirmation_isolation_unverified"}
 
 
 def changed_projects(root, projects, before, source_commit):

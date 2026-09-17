@@ -92,6 +92,34 @@ project-a·b의 일반 평가 이력에 화면 구성용 개선·유지·악화 
 실평가의 과거 근거 및 현재 버전 검증에서는 제외합니다. 모델 호출·원본 변경·채택은 하지 않습니다.
 배포 시 publisher가 `merge-samples`로 결과 브랜치에 추가하고, 정적 빌드는 저장된 결과만 읽습니다.
 
+### 기록된 개발 작업의 단일 재평가
+
+Opt-in 어댑터는 기록된 development WorkItem과 고정된 원본 Skill을 기준으로
+후보 1개를 평가합니다. 기존 자동 단일 후보 경로는 변경하지 않습니다.
+
+```bash
+python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --results <replay-results-directory>
+```
+
+`--live`를 명시하고 환경에 `SKILLOPS_LIVE_EVALUATION_ENABLED=true`,
+인증(`COPILOT_GITHUB_TOKEN` 또는 `GITHUB_TOKEN`), 승인된
+`SKILLOPS_MAX_INVOCATIONS`, `SKILLOPS_MAX_SECONDS`,
+`SKILLOPS_MAX_AI_CREDITS_PER_SESSION`을 제공하지 않으면 **모델 호출 전에 차단**합니다.
+활성화 전 프로젝트·Skill·한도에 대한 별도 승인을 받아야 합니다.
+Credit은 세션별 soft cap이며 전체 금액의 보장된 상한이 아닙니다.
+모든 단계는 하나의 호출·시간 예산을 공유합니다. 프로젝트는 `projects/` 아래에 있어야 하며,
+비공개 WorkItem은 실제 Git 커밋·요청·소스 해시·보호된 검사를 고정합니다.
+스키마와 재사용 콜백은 [replay 계약](docs/HACKATHON-CONTRACTS.md)을 참고하세요.
+
+실행마다 불변 `report.json`, 전체 번들의 `skill-evolution.json`,
+`replay-evaluation.json`을 저장하고 CLI가 정확한 근거 참조를 반환합니다.
+Confirmation은 `not_run` 및 `confirmation_isolation_unverified`로 남고 승인 가능 여부는 항상 false입니다.
+개발 평가의 개선은 최종 확인·승인·다음 실행의 검증된 사용을 뜻하지 않으며 Active는 변경하지 않습니다.
+반복·승인/다음 실행 CLI·Actions·대시보드 게시 연결은 이번 어댑터에 포함되지 않았습니다.
+새 sidecar의 게시도 계속 차단합니다. 오프라인 통합 테스트는 모델·컨테이너 경계만 대체하고
+결과를 `offline_test`로 표시하며 실측 모델 개선으로 표시하지 않습니다.
+
 ### 준비된 프로젝트 샘플
 
 - `projects/sample_repo`: 원래 이슈 관리 소스를 보존하고 개발 스킬을 명시적으로 추가했습니다.

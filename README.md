@@ -100,6 +100,38 @@ evaluation history or current-version qualification. The publisher appends them
 with `merge-samples`; static builds only read stored results. No paid calls,
 source changes or candidate adoption are performed.
 
+### One recorded development replay
+
+The opt-in adapter evaluates one candidate against a recorded development
+WorkItem and fixed original Skill. It does not replace the existing automatic
+single-candidate path:
+
+```bash
+python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --results <replay-results-directory>
+```
+
+This command **blocks without model calls** unless `--live` is explicitly added
+and the environment provides `SKILLOPS_LIVE_EVALUATION_ENABLED=true`,
+authentication (`COPILOT_GITHUB_TOKEN` or `GITHUB_TOKEN`), approved
+`SKILLOPS_MAX_INVOCATIONS`, `SKILLOPS_MAX_SECONDS` and
+`SKILLOPS_MAX_AI_CREDITS_PER_SESSION`. Obtain separate authorization for the
+project, Skill and limits before enabling it. Credit is a per-session soft cap,
+not an aggregate monetary guarantee. All stages share one call/time budget.
+The project must be under `projects/`; the private WorkItem pins its actual Git
+commit, request, source hashes and protected checks. See the
+[replay contract](docs/HACKATHON-CONTRACTS.md) for its schema and callback API.
+
+Each run stores immutable `report.json`, complete `skill-evolution.json` and
+`replay-evaluation.json`; the CLI returns the exact evidence reference.
+Confirmation remains `not_run` with `confirmation_isolation_unverified` and
+approval eligibility is always false. Development improvement is not final
+confirmation, approval or verified next use. The command never updates Active.
+Iteration, approval/next-use CLI, Actions and dashboard publication are not
+connected by this adapter; publication still rejects these new sidecars.
+Offline integration tests simulate only model/container boundaries and label
+their results `offline_test`, never measured model improvement.
+
 ### Prepared project samples
 
 - `projects/sample_repo`: original issue-management seeds plus an explicitly added development skill.
