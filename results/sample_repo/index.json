@@ -110,10 +110,18 @@
     }
   ],
   "project": {
-    "current_run": "35072620142-1",
+    "current_run": null,
+    "detected_skills": [
+      {
+        "display_name": "develop",
+        "skill_key": "path:79987a29cd1cfc62eec0509b",
+        "source_path": ".github/skills/develop"
+      }
+    ],
     "history_count": 12,
     "id": "sample_repo",
     "index": "sample_repo/index.json",
+    "skill_discovery_error": null,
     "state": "active"
   },
   "schema_version": 1

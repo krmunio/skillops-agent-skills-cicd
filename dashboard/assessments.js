@@ -225,11 +225,11 @@ export async function validateAssessments(data, report, rawReport, lifecycle) {
   return data;
 }
 
-export function renderAssessment(data, key) {
+export function renderAssessment(data, key, origin) {
   const row = data.skills.find(item => item.skill_key === key);
   check(row);
   const { base, candidate } = row.quality;
-  $('quality-summary').textContent = '선택 Skill · 실제 버전 평가';
+  $('quality-summary').textContent = origin === 'sample' ? '선택 Skill · 버전별 평가' : '선택 Skill · 실제 버전 평가';
   const dimensions = new Map([...(base?.dimensions || []), ...(candidate?.dimensions || [])].map(item => [item.id, item.id]));
   const score = (quality, id) => quality?.dimensions.find(item => item.id === id)?.score ?? '미평가';
   $('guide').replaceChildren(table(['평가 항목', '기존 → 후보'], [...dimensions.keys()].map(id => {
@@ -245,7 +245,7 @@ export function renderAssessment(data, key) {
   for (const finding of base?.findings || []) $('improvement-evidence').append(node('p', finding.message));
   if (!base?.findings.length) $('improvement-evidence').append(node('p', '정적 검사 지적 사항 없음 · 점수 변화는 위에서 확인'));
   const hypothesis = node('details', undefined, 'hypothesis');
-  hypothesis.append(node('summary', '모델이 제시한 가설 (영문 원문)'),
+  hypothesis.append(node('summary', origin === 'sample' ? '개선 가설' : '모델이 제시한 가설 (영문 원문)'),
     node('p', row.generation.hypothesis ?? '가설 미기록'));
   $('improvement-evidence').append(hypothesis,
     node('p', `후보 생성: ${row.generation.status} · 근거 연결 ${row.generation.addressed_findings.length}건`, 'reason'),
@@ -283,8 +283,8 @@ export function renderAssessment(data, key) {
   for (const arm of ['base', 'candidate']) {
     for (const name of ['cost_nano_aiu', 'elapsed_seconds']) metrics[`${arm}_${name}`] = row.applications[arm]?.measurement?.[name] ?? null;
   }
-  const changes = [renderMetric($('cost-card'), 'Skill 적용 비용 · 기존 → 후보', 'cost_nano_aiu', metrics),
-    renderMetric($('time-card'), 'Skill 적용 시간 · 기존 → 후보', 'elapsed_seconds', metrics)];
+  const changes = [renderMetric($('cost-card'), 'Skill 적용 비용 · 기존 → 후보', 'cost_nano_aiu', metrics, origin),
+    renderMetric($('time-card'), 'Skill 적용 시간 · 기존 → 후보', 'elapsed_seconds', metrics, origin)];
   if (changes.some(change => change !== null && change > 5)) {
     heading.append(node('span', '비용·시간 증가 주의', 'badge review efficiency-warning'));
   }

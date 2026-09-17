@@ -279,7 +279,7 @@ function renderEvidence(detail) {
   }
 }
 
-export function renderMetric(container, title, key, metrics) {
+export function renderMetric(container, title, key, metrics, origin = null) {
   container.replaceChildren(node('h3', title));
   const base = metrics[`base_${key}`];
   const candidate = metrics[`candidate_${key}`];
@@ -316,8 +316,9 @@ export function renderMetric(container, title, key, metrics) {
     row.append(node('span', label), track, node('span', display, 'bar-value'));
     bars.append(row);
   }
-  container.append(line, bars, node('p', cost ?
-    'AIU는 CLI가 기록한 Copilot 사용량 단위입니다.' : '초 · 기록된 실행 시간', 'metric-note'));
+  container.append(line, bars, node('p', origin === 'layout' ? '합성 예시 · 실제 CLI 측정값이 아닙니다.' : cost ?
+    origin === 'sample' ? 'AIU · 기록된 사용량 단위이며 통화 금액이 아닙니다.' :
+      'AIU는 CLI가 기록한 Copilot 사용량 단위입니다.' : '초 · 기록된 실행 시간', 'metric-note'));
   return Number.isFinite(change) ? change : null;
 }
 
@@ -343,8 +344,8 @@ function renderExecution(report, detail) {
   }
   $('execution-scope').textContent = detail?.scope ||
     '공개 기록에 세부 작업 범위가 없습니다. 이 결과를 프로젝트 전체의 종합 검증으로 해석하지 않습니다.';
-  const changes = [renderMetric($('cost-card'), '실행 비용 · 기존 → 후보', 'cost_nano_aiu', metrics),
-    renderMetric($('time-card'), '실행 시간 · 기존 → 후보', 'elapsed_seconds', metrics)];
+  const changes = [renderMetric($('cost-card'), '실행 비용 · 기존 → 후보', 'cost_nano_aiu', metrics, detail ? 'layout' : report.origin),
+    renderMetric($('time-card'), '실행 시간 · 기존 → 후보', 'elapsed_seconds', metrics, detail ? 'layout' : report.origin)];
   if (changes.some(change => change !== null && change > 5)) {
     heading.append(node('span', '비용·시간 증가 주의', 'badge review efficiency-warning'));
   }
@@ -487,7 +488,7 @@ export function renderReport(report, project, detail = null, snapshots = null) {
   renderExecution(report, detail);
   renderSkill(snapshots || detail, Boolean(detail));
   $('provenance').replaceChildren();
-  for (const [key, label] of [['run_id', '실행 ID'], ['source_commit', '평가 대상 커밋'],
+  for (const [key, label] of [['run_id', '실행 ID'], ['origin', '데이터 출처'], ['source_commit', '평가 대상 커밋'],
     ['project_tree_sha256', '프로젝트 내용 SHA-256'], ['evaluator_sha256', '평가기 SHA-256'],
     ['source_report_sha256', '원본 보고서 SHA-256']]) {
     const value = node('dd');

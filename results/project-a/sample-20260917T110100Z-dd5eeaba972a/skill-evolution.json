@@ -1,0 +1,86 @@
+{
+  "bindings": [
+    {
+      "base_version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+      "candidate_version_id": "sha256:f62de428e0ef6d874d22d9023e511906e262401d3f6342bee3713c077f872f32",
+      "legacy_skill_id": null,
+      "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+    }
+  ],
+  "file_contents": [
+    {
+      "data": "LS0tCm5hbWU6IHNjaGVkdWxlLWRldmVsb3BtZW50CmRlc2NyaXB0aW9uOiBHdWlkZSBzY2hlZHVsZS1kZXZlbG9wbWVudCB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyBzY2hlZHVsZS1kZXZlbG9wbWVudAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHNjaGVkdWxlLWRldmVsb3BtZW50CmRlc2NyaXB0aW9uOiBHdWlkZSBzY2hlZHVsZS1kZXZlbG9wbWVudCB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyBzY2hlZHVsZS1kZXZlbG9wbWVudAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:f62de428e0ef6d874d22d9023e511906e262401d3f6342bee3713c077f872f32"
+    }
+  ],
+  "project_id": "project-a",
+  "records": {
+    "adoptions": [],
+    "comparisons": [],
+    "generations": [],
+    "identities": [
+      {
+        "display_name": "schedule-development",
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+      }
+    ],
+    "skill_versions": [
+      {
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+        "version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157"
+      },
+      {
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+        "version_id": "sha256:f62de428e0ef6d874d22d9023e511906e262401d3f6342bee3713c077f872f32"
+      }
+    ],
+    "sources": [
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": ".github/skills/schedule-development",
+        "project_id": "project-a",
+        "scope": "project",
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+      }
+    ],
+    "versions": [
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 282,
+            "path": "SKILL.md",
+            "sha256": "66ffb31c215930a399c500796fc726588bba54329a239d39ed4669b00fb91360"
+          }
+        ],
+        "version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 383,
+            "path": "SKILL.md",
+            "sha256": "dc2355e8212d7180cf26dc3bae582522ee21d5a85e96264149c0650ff2155db2"
+          }
+        ],
+        "version_id": "sha256:f62de428e0ef6d874d22d9023e511906e262401d3f6342bee3713c077f872f32"
+      }
+    ]
+  },
+  "report_sha256": "bb192e9751bb0810e0540f2994613e91d328e4d80607b42497e373a1492aa055",
+  "run_id": "sample-20260917T110100Z-dd5eeaba972a",
+  "schema_version": 1
+}
