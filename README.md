@@ -71,6 +71,23 @@ The project path now discovers local Skills, evaluates their quality, generates 
 reevaluates it and compares original/base/candidate project checks. No root adapter registration
 is required. Missing supported checks or a suitable work item leaves execution effect unverified.
 Model-backed workflow execution still requires explicit settings and authentication.
+Actions log groups and the run summary distinguish Anthropic baseline quality,
+APO-inspired evidence linkage, and project regression checks. Inspect saved evidence
+without model calls using `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`.
+These are presentation changes, not independent evaluator jobs or an APO score.
+Main pushes select added/changed projects; shared evaluator changes select the catalog.
+Each selected Skill gets at most one candidate within the shared run limits. Manual
+`--project <id>` selection is unchanged; `--changed-since <full-before-sha>` selects
+affected projects from the checked-out `--source-commit`. The two selectors are mutually
+exclusive. No affected projects means no model evaluation, not a fabricated pass.
+New automatic Skill runs retain report-bound `stage-metrics.json` attachments with
+stage completion, admitted CLI attempts, elapsed time and available usage. Unknown
+usage remains null; the Actions summary distinguishes partial measurements from
+totals and displays the recorded assessment policy. Existing result formats and
+dashboard behavior are unchanged.
+Manual Actions runs can specify `max_invocations`, `max_seconds` (up to 7200), and
+`max_ai_credits` for an explicit `project`. All its Skills share the call/time budget;
+Credit limits remain per session. Omitting overrides preserves repository defaults.
 
 ### Prepared project samples
 
@@ -103,7 +120,7 @@ execution comparisons, skill diffs, history and supported execution boundaries.
 
 ## Repository validation
 
-The **Baseline validation** GitHub Actions workflow runs offline runner tests,
+The **SkillOps validation** GitHub Actions workflow runs offline runner tests,
 real Docker positive/negative controls and checks of the historical evidence
 snapshot. Each run records the checked-out commit, Python/Docker/image versions
 and test log in its summary and `baseline-ci-<commit>` artifact.

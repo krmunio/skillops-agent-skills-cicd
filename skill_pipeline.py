@@ -9,6 +9,7 @@ import tempfile
 
 from copilot_runtime import RuntimeFailure, redact, strict_json
 import evolution_records as evolution
+from evaluation_reporting import run_stage
 from evolution_records import exact, require
 import project_checks
 import project_results
@@ -239,7 +240,7 @@ def application(runtime, model, project, files, version, name, work, sources, pl
 
 
 def evaluate_skill(runtime, model, project, bundle, skill_key, rubric, images, artifact, *,
-                   deadline=None, check_error=None):
+                   deadline=None, check_error=None, progress=None):
     project, artifact = Path(project), Path(artifact)
     artifact.mkdir(parents=True, exist_ok=False)
     project_identity = project_results.tree_hash(project)
@@ -256,7 +257,7 @@ def evaluate_skill(runtime, model, project, bundle, skill_key, rubric, images, a
     }
     def attempt(stage, function):
         try:
-            return function()
+            return run_stage(progress, stage, function)
         except (RuntimeFailure, OSError) as error:
             code = error.code if isinstance(error, RuntimeFailure) else "io_error"
             require(isinstance(code, str) and re.fullmatch(r"[a-z0-9_]{1,128}", code), "invalid_error")
@@ -321,7 +322,7 @@ def evaluate_skill(runtime, model, project, bundle, skill_key, rubric, images, a
         row["generation"]["status"] = "no_change"
     require(project_results.tree_hash(project) == project_identity
             and captured_files(project, bundle)[0] == base_version, "skill_inputs_changed")
-    row["decision"] = skill_assessments.decide(row)
+    row["decision"] = run_stage(progress, "qualification", lambda: skill_assessments.decide(row))
     (artifact / "assessment.json").write_bytes(project_results.encoded(row))
     for version, files in captures:
         stage_skill(artifact, "versions/" + version["version_id"].removeprefix("sha256:"), files)
