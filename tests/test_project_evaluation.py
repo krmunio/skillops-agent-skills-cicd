@@ -137,16 +137,27 @@ class ProjectEvaluationTests(unittest.TestCase):
         m = self.module()
         raw = Mock()
         bounded = m.BudgetRuntime(raw, {"calls": 0, "max_calls": 2, "deadline": m.time.monotonic() + 20,
-                                       "max_ai_credits": 3})
+                                       "max_ai_credits": 30})
         bounded.invoke("prompt")
-        self.assertEqual(raw.invoke.call_args.kwargs["max_ai_credits"], 3)
+        self.assertEqual(raw.invoke.call_args.kwargs["max_ai_credits"], 30)
         with patch.dict(m.os.environ, {"GITHUB_TOKEN": "test-job-token",
                                      "SKILLOPS_LIVE_EVALUATION_ENABLED": "true",
                                      "SKILLOPS_MAX_INVOCATIONS": "8", "SKILLOPS_MAX_SECONDS": "120",
-                                     "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "3"}, clear=True):
+                                     "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "30"}, clear=True):
             policy = m.policy_from_environment()
             self.assertTrue(policy["authenticated"])
-            self.assertEqual(policy["budget"]["max_ai_credits"], 3)
+            self.assertEqual(policy["budget"]["max_ai_credits"], 30)
+
+    def test_environment_rejects_credit_limits_below_pinned_cli_minimum(self):
+        m = self.module()
+        for value in ("3", "29.99", "0", "-1", "nan", "inf", "invalid"):
+            with self.subTest(value=value), patch.dict(m.os.environ, {
+                    "GITHUB_TOKEN": "test-job-token", "SKILLOPS_LIVE_EVALUATION_ENABLED": "true",
+                    "SKILLOPS_MAX_INVOCATIONS": "8", "SKILLOPS_MAX_SECONDS": "900",
+                    "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": value}, clear=True):
+                policy = m.policy_from_environment()
+                self.assertNotIn("budget", policy)
+                self.assertEqual(m.os.environ["SKILLOPS_MAX_AI_CREDITS_PER_SESSION"], value)
 
 
 if __name__ == "__main__":

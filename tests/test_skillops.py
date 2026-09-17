@@ -188,10 +188,11 @@ class RuntimeTests(unittest.TestCase):
     def test_optional_credit_limit_is_explicit_and_validated(self):
         with tempfile.TemporaryDirectory() as directory:
             runtime = self.runtime.CopilotRuntime(Path(directory))
-            command = runtime.model_command("prompt", "gpt-6-astra", "judge", max_ai_credits=2.5)
-            self.assertEqual(command[command.index("--max-ai-credits") + 1], "2.5")
+            for value in (30, 30.5):
+                command = runtime.model_command("prompt", "gpt-6-astra", "judge", max_ai_credits=value)
+                self.assertEqual(command[command.index("--max-ai-credits") + 1], str(value))
             self.assertNotIn("--max-ai-credits", runtime.model_command("prompt", "gpt-6-astra", "judge"))
-            for value in (0, -1, True, float("nan"), float("inf"), "unlimited"):
+            for value in (0, -1, 3, 29.99, True, float("nan"), float("inf"), "unlimited"):
                 with self.subTest(value=value), self.assertRaises(self.runtime.RuntimeFailure):
                     runtime.model_command("prompt", "gpt-6-astra", "judge", max_ai_credits=value)
 
