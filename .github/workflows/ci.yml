@@ -1,4 +1,4 @@
-name: Baseline validation
+name: SkillOps validation
 
 on:
   pull_request:
@@ -65,7 +65,7 @@ jobs:
           TEST_OUTCOME: ${{ steps.tests.outcome }}
         run: |
           {
-            printf '## Baseline validation\n\n'
+            printf '## SkillOps validation\n\n'
             printf 'Source commit: `%s`\n\n' "$SOURCE_SHA"
             printf 'Test step outcome: **%s**\n\n' "$TEST_OUTCOME"
             printf 'Offline CLI mocks, real Docker controls, and historical snapshot checks.\n\n'
