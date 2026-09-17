@@ -1,6 +1,7 @@
 import json
 import base64
 import os
+from hashlib import sha256
 from pathlib import Path
 import tempfile
 import unittest
@@ -146,11 +147,43 @@ class SkillPipelineTests(unittest.TestCase):
         self.assertEqual(data["records"]["sources"][0]["path"], ".github/skills/develop")
 
     def test_prior_validated_source_association_reuses_identity_without_name_guessing(self):
-        prior = [{"skills": [{"source_path": ".github/skills/review", "skill_key": "auto:existing"}]}]
-        self.assertEqual(skill_pipeline.skill_key(".github/skills/review", prior), "auto:existing")
-        self.assertNotEqual(skill_pipeline.skill_key(".claude/skills/review", prior), "auto:existing")
+        prior = [{"project_id": "sample_repo", "skills": [
+            {"source_path": ".github/skills/review", "skill_key": "auto:existing"}]}]
+        self.assertEqual(skill_pipeline.skill_key("sample_repo", ".github/skills/review", prior), "auto:existing")
+        self.assertNotEqual(skill_pipeline.skill_key("sample_repo", ".claude/skills/review", prior), "auto:existing")
         with self.assertRaises(RuntimeFailure):
-            skill_pipeline.skill_key("../outside", prior)
+            skill_pipeline.skill_key("sample_repo", "../outside", prior)
+
+    def test_same_project_path_without_history_always_produces_the_same_skill_key(self):
+        expected = "path:" + sha256(b"sample_repo\n.github/skills/develop").hexdigest()[:24]
+        first = skill_pipeline.skill_key("sample_repo", ".github/skills/develop", [])
+        second = skill_pipeline.skill_key("sample_repo", ".github/skills/develop", [])
+        self.assertEqual(first, second)
+        self.assertEqual(first, expected)
+        self.assertTrue(evolution.matches(evolution.SKILL_KEY, first))
+
+    def test_different_paths_and_projects_produce_different_skill_keys_without_history(self):
+        inputs = [("sample_repo", ".github/skills/develop"), ("sample_repo", ".claude/skills/develop"),
+                  ("project-a", ".github/skills/develop"), ("sample_repo", ".github/skills/review")]
+        keys = {skill_pipeline.skill_key(project_id, path, []) for project_id, path in inputs}
+        self.assertEqual(len(keys), len(inputs))
+
+    def test_existing_auto_and_registered_history_keys_are_preserved_without_cross_project_aliasing(self):
+        for existing in ("auto:existing", "skillops:develop"):
+            with self.subTest(existing=existing):
+                prior = [{"project_id": "sample_repo", "skills": [
+                    {"source_path": ".github/skills/develop", "skill_key": existing}]}]
+                before = json.dumps(prior, sort_keys=True)
+                self.assertEqual(skill_pipeline.skill_key("sample_repo", ".github/skills/develop", prior), existing)
+                self.assertEqual(skill_pipeline.skill_key("project-a", ".github/skills/develop", prior),
+                                 skill_pipeline.skill_key("project-a", ".github/skills/develop", []))
+                self.assertEqual(json.dumps(prior, sort_keys=True), before)
+
+    def test_deterministic_key_rejects_invalid_project_ids_and_noncanonical_paths(self):
+        for project_id, path in (("bad\nproject", "skills/develop"), ("../project", "skills/develop"),
+                                 ("sample_repo", "../outside"), ("sample_repo", "skills\\develop")):
+            with self.subTest(project_id=project_id, path=path), self.assertRaises(RuntimeFailure):
+                skill_pipeline.skill_key(project_id, path, [])
 
 
 if __name__ == "__main__":

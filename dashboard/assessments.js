@@ -82,7 +82,22 @@ function regression(checks) {
     reasons: [...reasons].sort(), regressions: [...regressions].sort() };
 }
 
-function decide(row) {
+const efficiencyPolicy = { version: 1, maximum_efficiency_regression_percent: 5 };
+
+function exceedsEfficiencyLimit(before, after) {
+  const decimal = value => {
+    const [mantissa, exponent = '0'] = value.toString().split('e');
+    return { coefficient: BigInt(mantissa.replace('.', '')),
+      exponent: Number(exponent) - (mantissa.split('.')[1]?.length ?? 0) };
+  };
+  const base = decimal(before), candidate = decimal(after);
+  const exponent = Math.min(base.exponent, candidate.exponent);
+  return candidate.coefficient * 10n ** BigInt(candidate.exponent - exponent) * 100n >
+    base.coefficient * 10n ** BigInt(base.exponent - exponent) * BigInt(100 + efficiencyPolicy.maximum_efficiency_regression_percent);
+}
+
+export function decide(row, policyVersion = efficiencyPolicy.version) {
+  check(policyVersion === null || (Number.isInteger(policyVersion) && policyVersion === efficiencyPolicy.version));
   const compared = regression(row.checks), reasons = new Set();
   let rejected = compared.status === 'rejected', improved = false;
   if (row.errors.length) reasons.add('incomplete_stage');
@@ -124,8 +139,18 @@ function decide(row) {
   const checkId = row.work?.check_id;
   if (!checkId || !failure(byId(row.checks.original?.cases || []).get(checkId)) ||
     byId(row.checks.candidate?.cases || []).get(checkId) !== 'passed') reasons.add('task_unverified');
+  if (policyVersion !== null) {
+    for (const metric of ['cost_nano_aiu', 'elapsed_seconds']) {
+      const before = row.applications.base?.measurement?.[metric], after = row.applications.candidate?.measurement?.[metric];
+      if (before === null || before === undefined || after === null || after === undefined) reasons.add('efficiency_unverified');
+      else {
+        check(numeric(before) && numeric(after));
+        if (exceedsEfficiencyLimit(before, after)) reasons.add('efficiency_regression');
+      }
+    }
+  }
   return { status: rejected ? 'rejected' : reasons.size ? 'unverified' : improved ? 'improved' : 'not_improved',
-    reasons: [...reasons].sort(), regression: compared };
+    reasons: [...reasons].sort(), regression: compared, ...(policyVersion === null ? {} : { policy_version: policyVersion }) };
 }
 
 export function validateAssessmentSummary(run) {
@@ -186,7 +211,11 @@ export async function validateAssessments(data, report, rawReport, lifecycle) {
       check(['preparation', 'discovery', 'original_checks', 'base_quality', 'generation', 'candidate_quality', 'base_application',
         'candidate_application', 'work'].includes(error.stage) && /^[a-z0-9_]{1,128}$/.test(error.code));
     }
-    check(canonical(row.decision) === canonical(decide(row)));
+    check(row.decision && typeof row.decision === 'object' && !Array.isArray(row.decision));
+    const versioned = Object.hasOwn(row.decision, 'policy_version');
+    exact(row.decision, 'status reasons regression' + (versioned ? ' policy_version' : ''));
+    if (versioned) check(Number.isInteger(row.decision.policy_version) && row.decision.policy_version === efficiencyPolicy.version);
+    check(canonical(row.decision) === canonical(decide(row, versioned ? row.decision.policy_version : null)));
   }
   return data;
 }
