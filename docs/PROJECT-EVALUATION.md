@@ -330,12 +330,24 @@ Supported test runners are unittest, pytest, `node --test`, direct Jest and `vit
 Declared npm build/lint/typecheck scripts are additional gates, not substitutes for individual
 test identities. Opaque test wrappers, shell-compound test commands, pretest/posttest hooks,
 yarn/pnpm and unsupported framework configurations remain explicit unsupported states.
+Discovery also inspects Python test syntax, without importing it, for pytest imports
+and standalone test functions. Mixed projects run recognized checks while recording
+test-named shell scripts and nested npm test packages as unexecuted error gates.
+Their relative paths remain visible in the check results. Such observations stay
+blocked even when all collected Python cases pass; zero collected cases also stay
+blocked rather than becoming a successful project evaluation.
 
 Dependencies are prepared once per project from supported manifests, without mounting project
 code in the resolver. Python accepts registry requirements and supported PEP 621 dependency groups,
 using wheels only. Node accepts supported registry dependencies and npm lockfiles v2/v3, with
 install hooks disabled. Local/VCS/URL dependencies, custom registries, npm workspaces/overrides,
 Poetry/uv locks and packages requiring install/build hooks are not supported.
+Source-tree tests may coexist with `setup.py`/`setup.cfg` only when `pyproject.toml`
+declares static project dependencies. Dynamic version/author metadata does not
+require running packaging code. Dynamic dependencies, undeclared legacy dependencies
+and unsupported lockfiles still fail explicitly. The resolver never installs the
+project itself or executes its setup script, and wheel-only installation remains
+mandatory.
 Resolution uses a restricted proxy for PyPI and npm's official registries; test/build execution
 has no network and receives no model or deployment credentials.
 
@@ -347,8 +359,15 @@ seconds and each check observation at 120 seconds. Cleanup has its own bounded o
 Arm order is varied from a run-specific hash rather than always running the baseline first.
 Unsupported or failed dependency preparation is recorded as an explicit check-stage error.
 It does not prevent independent Skill quality evaluation and candidate generation; execution
-remains unverified. In particular, importing Schedule/Superpowers does not add support for
-their legacy packaging or shell-based test harnesses.
+remains unverified. This does not provide package-building or shell-harness support.
+
+Non-model preflight on the pinned samples found that project-a's declared
+`black==20.8b1` cannot be resolved by the wheel-only preparation path. Its dependency
+configuration remains intact, with execution unverified; Skill quality evaluation
+can continue independently. For project-b, pytest collected 19 passing Python cases.
+The observation remained blocked with 32 test-named shell scripts and one nested
+Node package explicitly unexecuted. These are scoped check results, not evidence of
+Skill improvement or complete project coverage.
 
 `skill-assessments.json` is an optional, immutable, report-bound attachment for per-Skill quality,
 generation, paired application and project-check observations. It requires matching captured
