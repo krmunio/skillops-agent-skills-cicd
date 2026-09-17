@@ -3,6 +3,7 @@
 import argparse
 from contextlib import ExitStack
 from datetime import datetime, timezone
+from functools import partial
 from hashlib import sha256
 import json
 import math
@@ -17,12 +18,15 @@ import repositories
 import project_checks
 import skill_guide
 import skill_pipeline
+import evaluation_reporting
+import evaluation_telemetry
 
 
 class BudgetRuntime:
     def __init__(self, runtime, budget):
         self.runtime = runtime
         self.budget = budget
+        self.recorder = None
 
     def __getattr__(self, name):
         return getattr(self.runtime, name)
@@ -37,6 +41,8 @@ class BudgetRuntime:
         kwargs["timeout"] = min(180, remaining)
         if "max_ai_credits" in self.budget:
             kwargs["max_ai_credits"] = self.budget["max_ai_credits"]
+        if self.recorder is not None:
+            return self.recorder.invoke(self.runtime, *args, **kwargs)
         return self.runtime.invoke(*args, **kwargs)
 
 
@@ -60,7 +66,8 @@ def resolve_images(project):
     return images
 
 
-def assess_with_details(root, project, run_id, source_commit, policy, *, runtime_factory=CopilotRuntime, history=()):
+def assess_with_details(root, project, run_id, source_commit, policy, *, runtime_factory=CopilotRuntime, history=(),
+                        telemetry=None):
     root = Path(root)
     folder = root / "projects" / project["id"]
     row = {
@@ -130,10 +137,18 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
                 key = skill_pipeline.skill_key(project["id"], bundle["path"], history)
                 identifier = sha256(key.encode()).hexdigest()
                 artifact = runtime.private / "assessments" / run_id / project["id"] / identifier
+                observer = (partial(evaluation_reporting.progress, project["id"], bundle["path"])
+                            if policy.get("progress") else None)
+                if telemetry is not None:
+                    runtime.recorder = evaluation_telemetry.Recorder(observer)
+                    telemetry.append({"skill_key": key, "source_path": bundle["path"],
+                                      "stages": runtime.recorder.stages})
+                    observer = runtime.recorder
                 try:
                     evaluated.append(skill_pipeline.evaluate_skill(
                         runtime, "gpt-6-astra", folder, bundle, key, rubric, prepared, artifact,
-                        deadline=budget["deadline"], check_error=check_error))
+                        deadline=budget["deadline"], check_error=check_error,
+                        progress=observer))
                 except (RuntimeFailure, OSError) as error:
                     failure = {"source_path": bundle["path"],
                                "code": error.code if isinstance(error, RuntimeFailure) else "io_error"}
@@ -167,13 +182,14 @@ def policy_from_environment():
     policy = {
         "enabled": os.environ.get("SKILLOPS_LIVE_EVALUATION_ENABLED") == "true",
         "authenticated": bool(os.environ.get("COPILOT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")),
+        "progress": os.environ.get("SKILLOPS_ACTIONS_PROGRESS") == "true",
     }
     try:
         calls = int(os.environ.get("SKILLOPS_MAX_INVOCATIONS", ""))
         seconds = int(os.environ.get("SKILLOPS_MAX_SECONDS", ""))
     except ValueError:
         return policy
-    if 0 < calls <= 1000 and 0 < seconds <= 1200:
+    if 0 < calls <= 1000 and 0 < seconds <= 7200:
         policy["budget"] = {"calls": 0, "max_calls": calls, "deadline": time.monotonic() + seconds}
         credit = os.environ.get("SKILLOPS_MAX_AI_CREDITS_PER_SESSION")
         if credit is not None:
@@ -189,13 +205,43 @@ def policy_from_environment():
     return policy
 
 
+def changed_projects(root, projects, before, source_commit):
+    results.require(results.matches(r"[a-f0-9]{40}", before)
+                    and results.matches(r"[a-f0-9]{40}", source_commit), "invalid_change_revision")
+    identity = capture(["git", "rev-parse", "--show-toplevel", "HEAD"], cwd=root, timeout=30, limit=65536)
+    lines = identity.stdout.splitlines()
+    results.require(not identity.returncode and len(lines) == 2
+                    and Path(lines[0]).resolve() == Path(root).resolve()
+                    and lines[1] == source_commit, "change_source_mismatch")
+    if before == "0" * 40:
+        return projects
+    diff = capture([
+        "git", "diff", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv",
+        "-z", before, source_commit, "--",
+    ], cwd=root, timeout=30)
+    results.require(not diff.returncode, "change_detection_failed")
+    affected = set()
+    shared = {"project_profiles.json", "package.json", "package-lock.json",
+              ".github/workflows/project-evaluation.yml"}
+    for name in filter(None, diff.stdout.split("\0")):
+        if (name in shared or name.startswith(("eval/", "skills/"))
+                or ("/" not in name and name.endswith(".py"))):
+            return projects
+        parts = name.split("/")
+        if len(parts) >= 3 and parts[0] == "projects":
+            affected.add(parts[1])
+    return [project for project in projects if project["id"] in affected]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--source-commit", required=True)
-    parser.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
+    selection.add_argument("--changed-since", help="Evaluate projects affected since this full Git commit.")
     parser.add_argument("--history", type=Path, help="Previously validated results, used for stable Skill identity.")
     args = parser.parse_args()
     try:
@@ -205,7 +251,16 @@ def main():
         if args.project is not None:
             projects = [project for project in projects if project["id"] == args.project]
             results.require(bool(projects), "unknown_project")
+        elif args.changed_since is not None:
+            projects = changed_projects(args.root, projects, args.changed_since, args.source_commit)
         policy = policy_from_environment()
+        if policy["progress"] and os.environ.get("GITHUB_OUTPUT"):
+            with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                output.write(f"selected_projects={len(projects)}\n")
+        if not projects:
+            results.reindex(args.root, args.output)
+            print(json.dumps({"status": "not_assessed", "reason": "no_changed_projects"}))
+            return 0
         prior = {}
         if args.history is not None:
             rows = results.load_reports(args.history)
@@ -216,13 +271,17 @@ def main():
                     prior.setdefault(item["project_id"], []).append(assessments[key])
         failures = 0
         for project in projects:
+            telemetry = []
             row, lifecycle, assessment = assess_with_details(
-                args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()))
+                args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()),
+                telemetry=telemetry)
             results.store(args.output, row)
             if lifecycle is not None:
                 results.store_evolution(args.output, lifecycle)
             if assessment is not None:
                 results.store_assessments(args.output, assessment)
+            if telemetry:
+                results.store_telemetry(args.output, evaluation_telemetry.bind(row, assessment, telemetry))
             failures += any(row[part]["status"] in ("blocked", "failed") for part in ("guide", "execution"))
             print(json.dumps({"project": project["id"], "guide": row["guide"]["status"],
                               "execution": row["execution"]["status"]}))

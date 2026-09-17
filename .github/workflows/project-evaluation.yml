@@ -8,6 +8,8 @@ on:
     paths:
       - 'projects/**'
       - 'project_profiles.json'
+      - 'package.json'
+      - 'package-lock.json'
       - '*.py'
       - 'eval/**'
       - 'skills/**'
@@ -23,6 +25,18 @@ on:
         description: 'Authorize billable execution for this dispatch using configured limits'
         type: boolean
         default: false
+      max_invocations:
+        description: 'Optional project-wide CLI attempt cap (1-1000); requires project'
+        type: string
+        default: ''
+      max_seconds:
+        description: 'Optional project-wide evaluation deadline (1-7200 seconds); requires project'
+        type: string
+        default: ''
+      max_ai_credits:
+        description: 'Optional per-session Credit soft cap (minimum 30); requires project'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -83,7 +97,7 @@ jobs:
     needs: contracts
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: ${{ (inputs.max_seconds || vars.SKILLOPS_MAX_SECONDS) > 1200 && 130 || 25 }}
     permissions:
       contents: read
       copilot-requests: write
@@ -91,6 +105,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -115,21 +130,45 @@ jobs:
           docker image inspect python:3.12-slim node:22-slim --format '{{.Id}}'
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Assess projects or record explicit blocked prerequisites
+        id: assess
         env:
           SOURCE_SHA: ${{ github.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
           PROJECT_ID: ${{ inputs.project }}
+          LIMIT_OVERRIDE: ${{ inputs.max_invocations || inputs.max_seconds || inputs.max_ai_credits }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           SKILLOPS_LIVE_EVALUATION_ENABLED: ${{ vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live) }}
-          SKILLOPS_MAX_INVOCATIONS: ${{ vars.SKILLOPS_MAX_INVOCATIONS }}
-          SKILLOPS_MAX_SECONDS: ${{ vars.SKILLOPS_MAX_SECONDS }}
-          SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
+          SKILLOPS_MAX_INVOCATIONS: ${{ inputs.max_invocations || vars.SKILLOPS_MAX_INVOCATIONS }}
+          SKILLOPS_MAX_SECONDS: ${{ inputs.max_seconds || vars.SKILLOPS_MAX_SECONDS }}
+          SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ inputs.max_ai_credits || vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
+          SKILLOPS_ACTIONS_PROGRESS: 'true'
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [ -n "$LIMIT_OVERRIDE" ] && [ -z "$PROJECT_ID" ]; then
+            echo "::error::Explicit project required for limit overrides."
+            exit 2
+          fi
           args=()
-          if [ -n "$PROJECT_ID" ]; then args+=(--project "$PROJECT_ID"); fi
+          if [ "$EVENT_NAME" = "push" ]; then
+            args+=(--changed-since "$BEFORE_SHA")
+          elif [ -n "$PROJECT_ID" ]; then
+            args+=(--project "$PROJECT_ID")
+          fi
           python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
+      - name: Summarize baseline and project evaluation
+        if: always()
+        env:
+          RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+          SELECTED_PROJECTS: ${{ steps.assess.outputs.selected_projects }}
+        run: |
+          if [ "$SELECTED_PROJECTS" = "0" ]; then
+            printf '## SkillOps evaluation\n\nNo changed projects selected; no model evaluation ran and no assessment result was fabricated.\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            python3 evaluation_reporting.py --results ci-results --run-id "$RESULT_RUN" >> "$GITHUB_STEP_SUMMARY"
+          fi
       - name: Retain public-safe reports, including blocked outcomes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

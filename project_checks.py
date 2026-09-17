@@ -1,5 +1,6 @@
 """Project check observations and conservative, identity-based regression decisions."""
 
+import ast
 from hashlib import sha256
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -234,6 +235,7 @@ def dependency_manifest(root, language):
     root = Path(root)
     if language == "python":
         dependencies = []
+        static_project_dependencies = False
         for name in ("requirements.txt", "requirements-dev.txt"):
             if (root / name).exists():
                 dependencies.extend(line.split("#", 1)[0].strip() for line in
@@ -244,14 +246,24 @@ def dependency_manifest(root, language):
             except (UnicodeError, tomllib.TOMLDecodeError) as error:
                 raise RuntimeFailure("invalid_check_config", "Invalid Python dependency metadata.") from error
             project = metadata.get("project", {})
-            require(isinstance(project, dict) and not project.get("dynamic"), "unsupported_dependencies")
-            dependencies.extend(project.get("dependencies", []))
+            require(isinstance(project, dict), "unsupported_dependencies")
+            dynamic = project.get("dynamic", [])
+            require(isinstance(dynamic, list) and all(isinstance(name, str) for name in dynamic)
+                    and not {"dependencies", "optional-dependencies"}.intersection(dynamic),
+                    "unsupported_dependencies")
+            declared = project.get("dependencies", [])
+            require(isinstance(declared, list), "unsupported_dependencies")
+            static_project_dependencies = "dependencies" in project
+            dependencies.extend(declared)
             optional = project.get("optional-dependencies", {})
             require(isinstance(optional, dict), "unsupported_dependencies")
             for group in ("test", "tests", "dev"):
+                require(isinstance(optional.get(group, []), list), "unsupported_dependencies")
                 dependencies.extend(optional.get(group, []))
             require("poetry" not in metadata.get("tool", {}), "unsupported_dependencies")
-        require(not any((root / name).exists() for name in ("setup.py", "setup.cfg", "uv.lock", "poetry.lock")),
+        require(not any((root / name).exists() for name in ("uv.lock", "poetry.lock")),
+                "unsupported_dependencies")
+        require(static_project_dependencies or not any((root / name).exists() for name in ("setup.py", "setup.cfg")),
                 "unsupported_dependencies")
         dependencies = [item for item in dependencies if item]
         for item in dependencies:
@@ -494,7 +506,7 @@ def execute(root, plan, images, *, timeout=120, protected=None, deadline=None):
     end = min(started + timeout, deadline) if deadline is not None else started + timeout
     require(end > started, "time_limit")
     root = Path(root).absolute()
-    require(discover(root) == plan and plan["status"] == "supported", "invalid_check_plan")
+    require(discover(root) == plan and plan["status"] in ("supported", "partial"), "invalid_check_plan")
     require(isinstance(images, dict) and images
             and all(key in ("python", "node") and matches("sha256:" + DIGEST, value)
                     for key, value in images.items()), "missing_check_image")
@@ -505,7 +517,9 @@ def execute(root, plan, images, *, timeout=120, protected=None, deadline=None):
     protected = protected_files(root) if protected is None else protected
     before = protected_digest(root, protected)
     result = {"plan_sha256": plan["sha256"], "environment_sha256": digest(images),
-              "protected_sha256": before, "status": "completed", "cases": [], "gates": [],
+              "protected_sha256": before, "status": "blocked" if plan["exclusions"] else "completed", "cases": [],
+              "gates": [{"id": item["reason"] + ":" + item["path"], "status": "error"}
+                        for item in plan["exclusions"]],
               "elapsed_seconds": 0}
     with tempfile.TemporaryDirectory(prefix="skillops-check-") as folder:
         work = Path(folder)
@@ -565,7 +579,7 @@ def execute(root, plan, images, *, timeout=120, protected=None, deadline=None):
                 require(isinstance(case["id"], str), "invalid_check_observation")
                 result["cases"].append({"id": check["id"] + ":" + case["id"], "status": case["status"]})
             require(observed["status"] in ("completed", "failed", "blocked"), "invalid_check_observation")
-            if observed["status"] == "blocked" or result["status"] == "blocked":
+            if not observed["cases"] or observed["status"] == "blocked" or result["status"] == "blocked":
                 result["status"] = "blocked"
             elif observed["status"] == "failed":
                 result["status"] = "failed"
@@ -610,7 +624,8 @@ def discover(root):
             except UnicodeError as error:
                 raise RuntimeFailure("invalid_check_config", "Check configuration must be UTF-8.") from error
             fingerprints[name] = sha256(raw).hexdigest()
-    python_tests = any(Path(name).name.startswith("test") and name.endswith(".py") for name in files)
+    python_tests = [name for name in files if name.endswith(".py")
+                    and (Path(name).name.startswith("test") or name.endswith("_test.py"))]
     pytest = any(name in configs for name in ("pytest.ini", ".pytest.ini"))
     if "pyproject.toml" in configs:
         try:
@@ -622,6 +637,21 @@ def discover(root):
                   for name in ("requirements.txt", "requirements-dev.txt"))
     pytest |= any(section in configs.get(name, "") for name, section in
                   (("setup.cfg", "[tool:pytest]"), ("tox.ini", "[pytest]")))
+    if not pytest:
+        for name in sorted(python_tests):
+            try:
+                tree = ast.parse(read_file(root / name).decode("utf-8"))
+            except (SyntaxError, UnicodeError) as error:
+                raise RuntimeFailure("invalid_check_config", "Python test syntax could not be inspected.") from error
+            pytest |= name.endswith("_test.py") or any(
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test")
+                for node in tree.body)
+            pytest |= any(
+                (isinstance(node, ast.Import) and any(alias.name.split(".")[0] == "pytest" for alias in node.names))
+                or (isinstance(node, ast.ImportFrom) and (node.module or "").split(".")[0] == "pytest")
+                for node in ast.walk(tree))
+            if pytest:
+                break
     if python_tests or pytest:
         start = ["-s", "tests"] if (root / "tests").is_dir() else []
         checks.append({"id": "python-tests", "runner": "pytest" if pytest else "unittest",
@@ -658,8 +688,23 @@ def discover(root):
             reasons.append("unsupported_package_manager")
     elif any(name.endswith((".test.js", ".test.mjs", ".test.cjs")) for name in files):
         checks.append({"id": "node-tests", "runner": "node-test", "argv": ["node", "--test"]})
-    plan = {"schema_version": 1, "status": "unsupported" if reasons else "supported" if checks else "missing",
-            "checks": checks, "gates": gates, "config_sha256": fingerprints, "reasons": reasons}
+    exclusions = [{"path": "package.json", "reason": reason} for reason in reasons]
+    for name in sorted(files):
+        path = Path(name)
+        if path.name == "package.json" and name != "package.json":
+            raw = read_file(root / name)
+            package = strict_json(raw.decode("utf-8"))
+            require(isinstance(package, dict) and isinstance(package.get("scripts", {}), dict),
+                    "invalid_check_config")
+            if "test" in package.get("scripts", {}):
+                exclusions.append({"path": name, "reason": "unsupported_nested_node_tests"})
+                fingerprints[name] = sha256(raw).hexdigest()
+        elif path.suffix == ".sh" and "test" in path.name:
+            exclusions.append({"path": name, "reason": "unsupported_shell_tests"})
+    status = ("partial" if checks else "unsupported") if exclusions else ("supported" if checks else "missing")
+    plan = {"schema_version": 1, "status": status, "checks": checks, "gates": gates,
+            "config_sha256": fingerprints, "reasons": sorted({item["reason"] for item in exclusions}),
+            "exclusions": exclusions}
     plan["sha256"] = sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return plan
 

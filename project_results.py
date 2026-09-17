@@ -16,11 +16,13 @@ import tempfile
 from copilot_runtime import RuntimeFailure, strict_json
 import evolution_records as evolution
 import skill_assessments as assessments
+import evaluation_telemetry as telemetry
 
 
 ID = r"[a-z0-9][a-z0-9_-]{0,63}"
 RUN = r"(?:[0-9]+-[0-9]+|(?:import-|local-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})"
 LIMIT = 1024 * 1024
+EVOLUTION_LIMIT = 2 * LIMIT
 FIELDS = {
     "schema_version", "project_id", "run_id", "created_at", "origin", "purpose",
     "source_commit", "project_tree_sha256", "evaluator_sha256",
@@ -49,7 +51,7 @@ DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_pa
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
-    "skill_assessments.py", "project_checks.py", "skill_pipeline.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "evaluation_telemetry.py",
 )
 
 
@@ -78,9 +80,9 @@ def read_bytes(path, limit=LIMIT):
     return raw
 
 
-def read_json(path):
+def read_json(path, limit=LIMIT):
     try:
-        return strict_json(read_bytes(path).decode("utf-8"))
+        return strict_json(read_bytes(path, limit).decode("utf-8"))
     except UnicodeError as error:
         raise RuntimeFailure("invalid_encoding", "Expected UTF-8 JSON.") from error
 
@@ -89,10 +91,10 @@ def encoded(data):
     return (json.dumps(data, sort_keys=True, indent=2, allow_nan=False) + "\n").encode()
 
 
-def atomic_json(path, data, immutable=False):
+def atomic_json(path, data, immutable=False, *, limit=LIMIT):
     path = safe_path(path)
     payload = encoded(data)
-    require(len(payload) <= LIMIT, "output_limit")
+    require(len(payload) <= limit, "output_limit")
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".result-", dir=path.parent)
     try:
@@ -104,7 +106,7 @@ def atomic_json(path, data, immutable=False):
             try:
                 os.link(temporary, path)
             except FileExistsError:
-                require(read_bytes(path) == payload, "immutable_conflict")
+                require(read_bytes(path, limit) == payload, "immutable_conflict")
         else:
             os.replace(temporary, path)
     finally:
@@ -281,7 +283,7 @@ def store_snapshots(results, data):
     validate_snapshots(data, report)
     counterpart = safe_path(folder / "skill-evolution.json")
     if counterpart.exists():
-        validate_evolution(read_json(counterpart), report, data)
+        validate_evolution(read_json(counterpart, EVOLUTION_LIMIT), report, data)
     path = folder / "skill-snapshots.json"
     atomic_json(path, data, immutable=True)
     return path
@@ -304,28 +306,35 @@ def merge_results(root, incoming, results):
     snapshots = load_snapshots(incoming, rows)
     lifecycles = load_evolution(incoming, rows, snapshots)
     skill_assessments = load_assessments(incoming, rows, lifecycles)
+    measurements = load_telemetry(incoming, rows, skill_assessments)
     existing_rows = load_reports(results)
     existing_snapshots = load_snapshots(results, existing_rows)
     existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
     existing_assessments = load_assessments(results, existing_rows, existing_lifecycles)
+    existing_measurements = load_telemetry(results, existing_rows, existing_assessments)
     merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
     merged_snapshots = dict(existing_snapshots)
     merged_lifecycles = dict(existing_lifecycles)
     merged_assessments = dict(existing_assessments)
+    merged_measurements = dict(existing_measurements)
     for mapping, values, name in (
         (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
         (merged_snapshots, snapshots, "skill-snapshots.json"),
         (merged_lifecycles, lifecycles, "skill-evolution.json"),
         (merged_assessments, skill_assessments, "skill-assessments.json"),
+        (merged_measurements, measurements, "stage-metrics.json"),
     ):
         for key, value in values.items():
             path = safe_path(Path(results) / key[0] / key[1] / name)
-            require(not path.exists() or read_bytes(path) == encoded(value), "immutable_conflict")
+            limit = EVOLUTION_LIMIT if name == "skill-evolution.json" else LIMIT
+            require(not path.exists() or read_bytes(path, limit) == encoded(value), "immutable_conflict")
             mapping[key] = value
     for key, value in merged_lifecycles.items():
         validate_evolution(value, merged_rows[key], merged_snapshots.get(key))
     for key, value in merged_assessments.items():
         assessments.validate(value, merged_rows[key], merged_lifecycles.get(key))
+    for key, value in merged_measurements.items():
+        telemetry.validate(value, merged_rows[key], merged_assessments.get(key))
     for row in rows:
         store(results, row)
     for data in snapshots.values():
@@ -334,7 +343,37 @@ def merge_results(root, incoming, results):
         store_evolution(results, data)
     for data in skill_assessments.values():
         store_assessments(results, data)
+    for data in measurements.values():
+        store_telemetry(results, data)
     return reindex(root, results)
+
+
+def store_telemetry(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = Path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    path = safe_path(folder / "skill-assessments.json")
+    assessment = read_json(path) if path.exists() else None
+    if assessment is not None:
+        lifecycle = validate_evolution(read_json(folder / "skill-evolution.json", EVOLUTION_LIMIT), report)
+        assessments.validate(assessment, report, lifecycle)
+    telemetry.validate(data, report, assessment)
+    path = folder / "stage-metrics.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_telemetry(results, rows=None, skill_assessments=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): row for row in rows}
+    skill_assessments = load_assessments(results, rows) if skill_assessments is None else skill_assessments
+    values = {}
+    for path in sorted(results.glob("*/*/stage-metrics.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_stage_metrics")
+        values[key] = telemetry.validate(read_json(path), reports[key], skill_assessments.get(key))
+    return values
 
 
 def store_assessments(results, data):
@@ -343,7 +382,7 @@ def store_assessments(results, data):
     report = validate(read_json(folder / "report.json"))
     snapshot_path = safe_path(folder / "skill-snapshots.json")
     snapshot = read_json(snapshot_path) if snapshot_path.exists() else None
-    lifecycle = validate_evolution(read_json(folder / "skill-evolution.json"), report, snapshot)
+    lifecycle = validate_evolution(read_json(folder / "skill-evolution.json", EVOLUTION_LIMIT), report, snapshot)
     assessments.validate(data, report, lifecycle)
     path = folder / "skill-assessments.json"
     atomic_json(path, data, immutable=True)
@@ -369,7 +408,7 @@ def validate_evolution(data, report, snapshots=None):
     require(type(data["schema_version"]) is int and data["schema_version"] == 1)
     require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"])
     require(data["report_sha256"] == sha256(encoded(report)).hexdigest(), "evolution_report_mismatch")
-    require(len(encoded(data)) <= LIMIT, "output_limit")
+    require(len(encoded(data)) <= EVOLUTION_LIMIT, "output_limit")
     rows = evolution.validate_public_records(data["records"])
     versions = {item["version_id"]: item for item in rows["versions"]}
     identities = {item["skill_key"] for item in rows["identities"]}
@@ -448,7 +487,7 @@ def store_evolution(results, data):
     snapshots = read_json(snapshot_path) if snapshot_path.exists() else None
     validate_evolution(data, read_json(folder / "report.json"), snapshots)
     path = folder / "skill-evolution.json"
-    atomic_json(path, data, immutable=True)
+    atomic_json(path, data, immutable=True, limit=EVOLUTION_LIMIT)
     return path
 
 
@@ -461,7 +500,7 @@ def load_evolution(results, rows=None, snapshots=None):
     for path in sorted(results.glob("*/*/skill-evolution.json")):
         key = (path.parent.parent.name, path.parent.name)
         require(key in reports, "orphan_skill_evolution")
-        values[key] = validate_evolution(read_json(path), reports[key], snapshots.get(key))
+        values[key] = validate_evolution(read_json(path, EVOLUTION_LIMIT), reports[key], snapshots.get(key))
     return values
 
 
@@ -550,7 +589,7 @@ def import_skill_evolution(source, results, project, candidate_run, skill_key, l
     require(pending or reused, "no_matching_skill_records")
     for data in pending:
         path = safe_path(Path(results) / data["project_id"] / data["run_id"] / "skill-evolution.json")
-        require(not path.exists() or read_bytes(path) == encoded(data), "immutable_conflict")
+        require(not path.exists() or read_bytes(path, EVOLUTION_LIMIT) == encoded(data), "immutable_conflict")
     for data in pending:
         store_evolution(results, data)
     return len(pending) + reused
@@ -620,6 +659,7 @@ def reindex(root, results):
     snapshots = load_snapshots(results, all_rows)
     lifecycles = load_evolution(results, all_rows, snapshots)
     skill_assessments = load_assessments(results, all_rows, lifecycles)
+    load_telemetry(results, all_rows, skill_assessments)
     for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
@@ -724,6 +764,7 @@ def build(root, results, output):
     snapshots = load_snapshots(results, rows)
     lifecycles = load_evolution(results, rows, snapshots)
     skill_assessments = load_assessments(results, rows, lifecycles)
+    measurements = load_telemetry(results, rows, skill_assessments)
     output.mkdir(parents=True)
     modules = {}
 
@@ -755,6 +796,8 @@ def build(root, results, output):
         store_evolution(output / "results", data)
     for data in skill_assessments.values():
         store_assessments(output / "results", data)
+    for data in measurements.values():
+        store_telemetry(output / "results", data)
     return reindex(root, output / "results")
 
 
@@ -803,6 +846,7 @@ def main():
             load_snapshots(args.results)
             load_evolution(args.results)
             load_assessments(args.results)
+            load_telemetry(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)

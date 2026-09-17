@@ -464,6 +464,7 @@ class CopilotRuntime:
         except RuntimeFailure as error:
             record.update(status="contract_error", error={"code": error.code, "message": str(error)})
             record["elapsed_seconds"] = time.monotonic() - started
+            error.usage = record["usage"]
             artifact.write_text(json.dumps(record, indent=2) + "\n")
             raise
         record["elapsed_seconds"] = time.monotonic() - started
