@@ -1,0 +1,39 @@
+{
+  "created_at": "2026-09-17T11:02:00+00:00",
+  "evaluator_sha256": null,
+  "execution": {
+    "decision": null,
+    "metrics": {
+      "base_correctness_successes": 5,
+      "base_cost_nano_aiu": 100000000000,
+      "base_elapsed_seconds": 50,
+      "base_judge_score": 100,
+      "base_requested": 5,
+      "candidate_correctness_successes": 5,
+      "candidate_cost_nano_aiu": 100000000000,
+      "candidate_elapsed_seconds": 50,
+      "candidate_judge_score": 100,
+      "candidate_requested": 5
+    },
+    "reason_code": "evaluation_completed",
+    "status": "completed"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": {
+      "cli_invocations": 0,
+      "skills": 1
+    },
+    "reason_code": "evaluation_completed",
+    "status": "completed"
+  },
+  "origin": "sample",
+  "project_id": "project-a",
+  "project_tree_sha256": null,
+  "purpose": "project_assessment",
+  "run_id": "sample-20260917T110200Z-445882e0ae56",
+  "schema_version": 1,
+  "source_commit": null,
+  "source_report_sha256": null,
+  "source_schema_version": null
+}
