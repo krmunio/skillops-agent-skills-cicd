@@ -47,7 +47,8 @@ class ProjectEvaluationTests(unittest.TestCase):
                 if seconds == "7200":
                     self.assertIn("budget", policy)
                     self.assertEqual(policy["budget"], {"calls": 0, "max_calls": 96,
-                                                       "deadline": 7300, "max_ai_credits": 60})
+                                                       "deadline": 7300, "max_seconds": 7200,
+                                                       "max_ai_credits": 60})
                 else:
                     self.assertNotIn("budget", policy)
 
