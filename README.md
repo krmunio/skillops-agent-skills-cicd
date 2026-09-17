@@ -127,10 +127,55 @@ Each run stores immutable `report.json`, complete `skill-evolution.json` and
 Confirmation remains `not_run` with `confirmation_isolation_unverified` and
 approval eligibility is always false. Development improvement is not final
 confirmation, approval or verified next use. The command never updates Active.
-Iteration, approval/next-use CLI, Actions and dashboard publication are not
-connected by this adapter; publication still rejects these new sidecars.
+Development iteration is connected by the `iterate` command below.
+Approval/next-use CLI, Actions and dashboard publication remain separate;
+publication still rejects these new sidecars.
 Offline integration tests simulate only model/container boundaries and label
 their results `offline_test`, never measured model improvement.
+
+### Bounded development iteration and offline demo
+
+```bash
+python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
+  --max-rounds 2 --results <iteration-results-directory>
+```
+
+This uses the actual `run_cycle` module and the same replay persistence callback.
+The original remains the comparison baseline; only the parent candidate and
+development feedback change. Preparation, every round and optional confirmation
+share one runtime and authorized budget. The same `--live`, authentication and
+limit gates apply; the example alone makes no model calls. Confirmation is
+optional, frozen before generation and still blocked by the isolation guard.
+No candidate is approved or made Active.
+
+Each saved evaluation has its own run. A terminal `cycle.json` and aggregate
+`report.json` bind those runs; the actual loader revalidates their hashes and
+complete captures. An admitted attempt ending before persistence has null
+`run_id`, `evaluation_ref` and `decision`; unstarted rounds are not invented.
+A persistence callback failure propagates without a terminal cycle or success
+receipt, while earlier stored rounds remain unchanged. There is no automatic
+retry or recovery. Exit 0 denotes normal development termination, not final
+confirmation or adoption; budget/runtime/unverified outcomes return 2.
+
+For a **no-paid-calls terminal demo/backup**, use a clean committed integration
+checkout and a new output directory:
+
+```bash
+SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 tests/export_iteration_evidence.py \
+  --output /tmp/skillops-iterate-demo
+python3 -m json.tool /tmp/skillops-iterate-demo/manifest.json
+python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
+```
+
+The exporter runs production provider/loop/storage modules with synthetic inputs
+and simulated model/container transport. It does not copy prebuilt result
+fixtures. The manifest contains the integration SHA, scenario directories,
+cycle/run IDs and hashes for N=2 feedback, early stop, maximum rounds, budget
+exhaustion, unsaved attempts and persistence failure. All results are explicitly
+`offline_test`; confirmation stays unverified/not run. Existing outputs are never
+overwritten. Dashboard assets/data wiring and public deployment require separate
+coordination and authorization; design PR #32 is not part of this demo.
 
 ### Prepared project samples
 
