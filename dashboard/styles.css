@@ -39,6 +39,17 @@ aside h2 { font-size: 13px; margin: 0 8px 18px; }
 #demo-open[aria-pressed="true"] { border-color: var(--teal); color: var(--teal); }
 main { min-width: 0; padding: 26px 32px 36px; }
 .intro { margin-bottom: 20px; }
+.summary-scope { color: var(--muted); font-size: 12px; }
+.summary-warning { color: var(--red); font-size: 12px; }
+.project-summary { margin-bottom: 18px; }
+.project-summary h2 { margin: 0 0 12px; font-size: 17px; }
+.summary-grid { margin: 0; }
+.summary-grid > div { display: grid; grid-template-columns: minmax(120px, 180px) minmax(0, 1fr); gap: 6px 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.summary-grid dt { color: var(--muted); font-size: 12px; }
+.summary-grid dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.summary-grid small { display: block; margin-top: 4px; font-size: 11px; color: var(--muted); }
+.summary-explanation { margin-top: 14px; color: var(--muted); font-size: 12px; }
+.summary-explanation summary { color: var(--teal); }
 .route { font-size: 11px; color: var(--muted); margin: 0 0 3px; }
 .title-line { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
 h1 { margin: 0; font-size: 28px; letter-spacing: -1px; overflow-wrap: anywhere; }
@@ -209,6 +220,7 @@ footer { border-top: 1px solid var(--line); margin-top: 30px; padding-top: 17px;
   .sample-entry .eyebrow, .sample-entry p { display: none; }
   #demo-open { width: auto; font-size: 12px; }
   main { padding: 20px 16px; }
+  .summary-grid > div { grid-template-columns: minmax(0, 1fr); }
   h1 { font-size: 25px; }
   .section-nav { font-size: 12px; gap: 14px; }
   .outcome-card { padding: 14px; }
