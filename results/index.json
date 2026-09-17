@@ -1,24 +1,113 @@
 {
   "projects": [
     {
-      "current_run": "35210468940-1",
-      "history_count": 8,
+      "current_run": "35219997583-1",
+      "detected_skills": [
+        {
+          "display_name": "schedule-development",
+          "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+          "source_path": ".github/skills/schedule-development"
+        }
+      ],
+      "history_count": 12,
       "id": "project-a",
       "index": "project-a/index.json",
+      "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": "35210468940-1",
-      "history_count": 7,
+      "current_run": "35219997583-1",
+      "detected_skills": [
+        {
+          "display_name": "brainstorming",
+          "skill_key": "path:096d1d195c864df34280ab5e",
+          "source_path": "skills/brainstorming"
+        },
+        {
+          "display_name": "dispatching-parallel-agents",
+          "skill_key": "path:7664a7ade6f67077dc6dd315",
+          "source_path": "skills/dispatching-parallel-agents"
+        },
+        {
+          "display_name": "executing-plans",
+          "skill_key": "path:b4b343d655fc5fd7f179620f",
+          "source_path": "skills/executing-plans"
+        },
+        {
+          "display_name": "finishing-a-development-branch",
+          "skill_key": "path:b88c5520c5dea4dcb3931b99",
+          "source_path": "skills/finishing-a-development-branch"
+        },
+        {
+          "display_name": "receiving-code-review",
+          "skill_key": "path:52f3da32f769c50cbeff2e5c",
+          "source_path": "skills/receiving-code-review"
+        },
+        {
+          "display_name": "requesting-code-review",
+          "skill_key": "path:48c4c1bedab8d87af5af660d",
+          "source_path": "skills/requesting-code-review"
+        },
+        {
+          "display_name": "subagent-driven-development",
+          "skill_key": "path:702a93960adf4d346056da6b",
+          "source_path": "skills/subagent-driven-development"
+        },
+        {
+          "display_name": "systematic-debugging",
+          "skill_key": "path:b25940dc0fbf4bce0b96a693",
+          "source_path": "skills/systematic-debugging"
+        },
+        {
+          "display_name": "test-driven-development",
+          "skill_key": "path:402b5216cbc697c3d1d4bbea",
+          "source_path": "skills/test-driven-development"
+        },
+        {
+          "display_name": "using-git-worktrees",
+          "skill_key": "path:223a29e44d1dae6c9c2736da",
+          "source_path": "skills/using-git-worktrees"
+        },
+        {
+          "display_name": "using-superpowers",
+          "skill_key": "path:fe4a07d9ba09b23fd2a1b95d",
+          "source_path": "skills/using-superpowers"
+        },
+        {
+          "display_name": "verification-before-completion",
+          "skill_key": "path:96b20b25f537273c9033b2cc",
+          "source_path": "skills/verification-before-completion"
+        },
+        {
+          "display_name": "writing-plans",
+          "skill_key": "path:58410bf783a1dbb6a26ac858",
+          "source_path": "skills/writing-plans"
+        },
+        {
+          "display_name": "writing-skills",
+          "skill_key": "path:f0fb086390bc2ca4b5193054",
+          "source_path": "skills/writing-skills"
+        }
+      ],
+      "history_count": 11,
       "id": "project-b",
       "index": "project-b/index.json",
+      "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": "35210468940-1",
-      "history_count": 24,
+      "current_run": "35219997583-1",
+      "detected_skills": [
+        {
+          "display_name": "develop",
+          "skill_key": "auto:6a35463f3754402e8e4c78163c180479",
+          "source_path": ".github/skills/develop"
+        }
+      ],
+      "history_count": 25,
       "id": "sample_repo",
       "index": "sample_repo/index.json",
+      "skill_discovery_error": null,
       "state": "active"
     }
   ],
