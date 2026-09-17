@@ -75,6 +75,11 @@ Actions log groups and the run summary distinguish Anthropic baseline quality,
 APO-inspired evidence linkage, and project regression checks. Inspect saved evidence
 without model calls using `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`.
 These are presentation changes, not independent evaluator jobs or an APO score.
+Main pushes select added/changed projects; shared evaluator changes select the catalog.
+Each selected Skill gets at most one candidate within the shared run limits. Manual
+`--project <id>` selection is unchanged; `--changed-since <full-before-sha>` selects
+affected projects from the checked-out `--source-commit`. The two selectors are mutually
+exclusive. No affected projects means no model evaluation, not a fabricated pass.
 
 ### Prepared project samples
 

@@ -98,6 +98,7 @@ class SkillPipelineTests(unittest.TestCase):
                 self.assertEqual(assessed["decision"]["status"],
                                  "unverified" if check_error else "rejected" if regression else "improved")
                 self.assertEqual(len(calls), 2)
+                self.assertEqual(sum(call.args[2] == "generator" for call in runtime.invoke.call_args_list), 1)
                 self.assertEqual(len(captures), 2)
                 self.assertEqual(len(applications), 0 if check_error else 2)
                 if not check_error:

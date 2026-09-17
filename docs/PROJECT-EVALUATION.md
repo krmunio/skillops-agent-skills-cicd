@@ -50,9 +50,42 @@ On September 17, 2026, run `35184714110` verified this path; PR run `35184542810
 verified that privileged jobs are skipped; explicitly authorized sample-only run
 `35184191312` completed all four stages and published validated original/candidate results.
 These observations do not establish successful evaluation of the whole catalog.
-Changed-project-only selection and additional automatic-loop controls remain core
-implementation follow-ups; advanced evaluation-set selection and dashboard redesign
-are outside this CI step.
+Main pushes select changed projects as described below. Advanced evaluation-set
+selection and dashboard redesign remain outside this CI step.
+
+### Changed-project execution
+
+On a main push, the evaluate job checks out history and passes the event's `before`
+commit as `--changed-since`. The selector verifies the checkout and source commit,
+then uses a NUL-delimited Git diff with rename folding, external diff and textconv
+disabled. New projects and any changed files inside a project, including Skill
+references/scripts/assets, select that project. Cross-project moves select both
+remaining projects; deleted projects are not executed and their old results remain.
+
+Shared root Python code, `eval/`, root `skills/`, project profiles, runtime package
+manifests or the evaluation workflow select the catalog conservatively. Dashboard-only
+changes select no evaluation targets: they can publish the updated site with existing
+results, without generating candidates or inventing a new assessment. Missing or
+invalid Git revisions fail explicitly instead of silently selecting the whole catalog.
+The all-zero `before` value for an initial push selects the catalog.
+
+Each selected Skill gets at most **one generated candidate per workflow run**.
+All selected projects and Skills share the same invocation/time/credit limits.
+The result branch cannot trigger this main-only workflow, and candidate results are
+not written back to project sources. This is a bounded single-round improvement flow,
+not repeated optimization until a score improves.
+
+Manual dispatch retains its explicit project selector; omitting it selects the catalog.
+For a checked-out Git revision, the corresponding local command is:
+
+```bash
+python3 project_evaluation.py --root . --output ci-results --run-id <run-id> \
+  --source-commit <full-head-sha> --changed-since <full-before-sha>
+```
+
+`--project` and `--changed-since` are mutually exclusive. Existing live-execution
+authorization and resource limits still apply. An empty selection records a no-op
+in the Actions summary; it is not a passing Skill evaluation.
 
 ### Actions stage visibility
 
@@ -332,15 +365,18 @@ The remaining time is passed into subprocess deadlines. A CLI credit limit is no
 hard currency ceiling. Public cost/time measurements cover the individual Skill-application
 sessions only, not the complete quality/generation/check pipeline; absent usage remains null.
 
-Relevant main changes conservatively assess the catalog. A result-only update
-does not retrigger evaluation. A blocked assessment makes its evaluation job fail
+Main project changes assess only affected projects; shared evaluator changes assess
+the catalog. A result-only update does not retrigger evaluation. A blocked assessment makes its evaluation job fail
 while the writer can still persist the public blocked result. Raw run directories
 are never uploaded as Actions artifacts.
 
 Trusted-main evaluation through persistence is serialized. Validated prior data is fetched inside
 that slot to reuse Skill identities, never executed as code. GitHub concurrency can coalesce pending
 runs: every intermediate commit is not guaranteed an evaluation, while existing persisted history
-is preserved. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
+is preserved. The current selector compares the triggering push's `before` and source commits.
+If a pending evaluation is replaced, changes exclusive to that skipped push require an explicit
+project/catalog dispatch; this MVP does not provide a durable catch-up queue. Do not treat it as
+proof that every changed project has been evaluated. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
 and operational failures remain explicit non-success outcomes.
 
 Result writers validate incoming data and use bounded optimistic push retries on
