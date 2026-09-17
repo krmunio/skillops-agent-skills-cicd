@@ -1,4 +1,4 @@
-import { $, node, labels, purposes, stamp, renderReport } from './views.js';
+import { $, node, labels, purposes, stamp, renderReport, summarizeHistory, renderOverview, renderProjectSummary } from './views.js';
 import { validateEvolutionSummary, validateEvolution, renderEvolution, clearEvolution } from './evolution.js';
 import { validateAssessmentSummary, validateAssessments, renderAssessment } from './assessments.js';
 
@@ -14,6 +14,8 @@ let sample = null;
 let sampleSkill = null;
 let sampleMode = false;
 let selectedSkill = null;
+const newCache = () => ({ histories: new Map(), reports: new Map(), runs: new Map() });
+let cache = newCache();
 
 function fail(error) {
   $('error').hidden = false;
@@ -29,13 +31,116 @@ async function load(url, withRaw = false) {
   if (value.schema_version !== 1) throw new Error('Unsupported result schema');
   return withRaw ? { value, raw } : value;
 }
+function cached(store, key, read) {
+  if (!store.has(key)) store.set(key, read());
+  return store.get(key);
+}
+function loadHistory(project, store) {
+  return cached(store.histories, project.id, async () => {
+    const data = await load(`/results/${project.id}/index.json`);
+    if (!Array.isArray(data.history) || (data.project && data.project.id !== project.id)) throw new Error('Invalid history');
+    const seen = new Set();
+    for (const run of data.history) {
+      if (!run || typeof run.run_id !== 'string' || !runPattern.test(run.run_id) || seen.has(run.run_id) ||
+          !Object.hasOwn(purposes, run.purpose) || !Object.hasOwn(labels, run.execution_status) ||
+          typeof run.created_at !== 'string') throw new Error('Invalid history row');
+      seen.add(run.run_id);
+      stamp(run.created_at);
+      if (run.skill_id && (typeof run.skill_id !== 'string' || !idPattern.test(run.skill_id))) throw new Error('Invalid Skill identity');
+      if (Boolean(run.skill_id) !== Boolean(run.skill_snapshots)) throw new Error('Incomplete Skill reference');
+      if (run.skill_snapshots && run.skill_snapshots !== `${run.run_id}/skill-snapshots.json`) throw new Error('Invalid snapshot reference');
+      for (const hash of [run.base_skill_sha256, run.candidate_skill_sha256]) {
+        if (hash !== null && hash !== undefined && (typeof hash !== 'string' || !/^[a-f0-9]{64}$/.test(hash))) {
+          throw new Error('Invalid legacy version');
+        }
+      }
+      validateEvolutionSummary(run);
+      validateAssessmentSummary(run);
+    }
+    return [...data.history].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+  });
+}
+function loadReport(project, run, store) {
+  return cached(store.reports, `${project.id}/${run.run_id}`, async () => {
+    const loaded = await load(`/results/${project.id}/${run.run_id}/report.json`, true);
+    if (loaded.value.project_id !== project.id || loaded.value.run_id !== run.run_id) throw new Error('Identity mismatch');
+    return loaded;
+  });
+}
+function loadRun(project, run, store) {
+  return cached(store.runs, `${project.id}/${run.run_id}`, async () => {
+    const loaded = await loadReport(project, run, store), report = loaded.value;
+    let snapshots = null, lifecycle = null, assessments = null;
+    if (run.skill_snapshots) {
+      if (run.skill_snapshots !== `${run.run_id}/skill-snapshots.json`) throw new Error('Invalid snapshot reference');
+      snapshots = await load(`/results/${project.id}/${run.skill_snapshots}`);
+      if (snapshots.project_id !== report.project_id || snapshots.run_id !== report.run_id ||
+          snapshots.skill_id !== run.skill_id || snapshots.base?.sha256 !== run.base_skill_sha256 ||
+          (snapshots.candidate?.sha256 ?? null) !== (run.candidate_skill_sha256 ?? null)) {
+        throw new Error('Skill snapshot identity mismatch');
+      }
+    }
+    if (run.skill_evolution) {
+      const data = await load(`/results/${project.id}/${run.skill_evolution}`);
+      lifecycle = await validateEvolution(data, report, loaded.raw, run, snapshots);
+    }
+    if (run.skill_assessments) {
+      validateAssessmentSummary(run);
+      const data = await load(`/results/${project.id}/${run.skill_assessments}`);
+      assessments = await validateAssessments(data, report, loaded.raw, lifecycle);
+    }
+    return { report, snapshots, lifecycle, assessments };
+  });
+}
+function loadEvidence(project, runs, store) {
+  return Promise.all(runs.map(async run => {
+    try { return { run, bundle: await loadRun(project, run, store) }; }
+    catch (error) { return { run, error }; }
+  }));
+}
+async function showOverview() {
+  activeProject = null;
+  resetSelection(false);
+  const token = selection, store = cache;
+  $('overview-content').replaceChildren(node('p', '프로젝트 요약을 불러오는 중입니다.', 'empty'));
+  $('project-title').textContent = '프로젝트 평가';
+  const models = await Promise.all(projects.map(async project => {
+    try {
+      const runs = await loadHistory(project, store);
+      const evidence = await loadEvidence(project, runs.filter(run => run.skill_assessments).slice(0, 5), store);
+      return { project, history: runs, evidence };
+    } catch (error) { return { project, history: null, evidence: [], error }; }
+  }));
+  if (token === selection) renderOverview(models, selectProject);
+}
+async function showProjectSummary(project, runs, token, store) {
+  const latest = summarizeHistory(runs).newestCompleted;
+  const [evidence, completed] = await Promise.all([
+    loadEvidence(project, runs.filter(run => run.skill_evolution), store),
+    latest ? loadReport(project, latest, store).catch(error => ({ error })) : null,
+  ]);
+  if (token === selection && !sampleMode) renderProjectSummary(runs, evidence, completed);
+}
 function resetSelection(isSample) {
   ++selection; ++reportSelection;
   sampleMode = isSample;
   activeRun = null; history = [];
   selectedSkill = null;
   clearEvolution();
+  const overview = !isSample && !activeProject;
+  $('catalog-overview').hidden = !overview;
+  $('project-header').hidden = overview;
+  $('project-navigation').hidden = overview;
+  $('history-section').hidden = overview;
+  $('overview-back').hidden = isSample;
+  $('project-summary').hidden = true;
+  $('project-summary').replaceChildren();
   $('detail').hidden = true;
+  for (const id of ['guide', 'improvement-evidence', 'execution', 'cost-card', 'time-card', 'decision-reasons',
+    'task-results', 'skill-changes', 'quality-summary', 'run-title', 'execution-scope', 'run-time', 'all-metrics', 'provenance']) {
+    $(id).replaceChildren();
+  }
+  $('report-link').removeAttribute('href');
   $('error').hidden = true;
   $('sample-banner').hidden = !isSample;
   $('demo-open').setAttribute('aria-pressed', String(isSample));
@@ -180,35 +285,11 @@ async function selectRun(run, token) {
       if (!detail.base || (stored.candidate && !detail.candidate)) throw new Error('Sample skill version unavailable');
     } else {
       if (!runPattern.test(run.run_id)) throw new Error('Invalid run');
-      const url = `/results/${activeProject.id}/${run.run_id}/report.json`;
-      const loaded = await load(url, true);
-      report = loaded.value;
+      const project = activeProject;
+      const bundle = await loadRun(project, run, cache);
       if (request !== reportSelection || token !== selection) return;
-      if (report.project_id !== activeProject.id || report.run_id !== run.run_id) throw new Error('Identity mismatch');
-      $('report-link').href = url;
-      if (run.skill_snapshots) {
-        if (run.skill_snapshots !== `${run.run_id}/skill-snapshots.json`) throw new Error('Invalid snapshot reference');
-        snapshots = await load(`/results/${activeProject.id}/${run.skill_snapshots}`);
-        if (request !== reportSelection || token !== selection) return;
-        if (snapshots.project_id !== report.project_id || snapshots.run_id !== report.run_id ||
-            snapshots.skill_id !== run.skill_id || snapshots.base?.sha256 !== run.base_skill_sha256 ||
-            (snapshots.candidate?.sha256 ?? null) !== (run.candidate_skill_sha256 ?? null)) {
-          throw new Error('Skill snapshot identity mismatch');
-        }
-      }
-      if (run.skill_evolution) {
-        const data = await load(`/results/${activeProject.id}/${run.skill_evolution}`);
-        if (request !== reportSelection || token !== selection) return;
-        lifecycle = await validateEvolution(data, report, loaded.raw, run, snapshots);
-        if (request !== reportSelection || token !== selection) return;
-      }
-      if (run.skill_assessments) {
-        validateAssessmentSummary(run);
-        const data = await load(`/results/${activeProject.id}/${run.skill_assessments}`);
-        if (request !== reportSelection || token !== selection) return;
-        assessments = await validateAssessments(data, report, loaded.raw, lifecycle);
-        if (request !== reportSelection || token !== selection) return;
-      }
+      ({ report, snapshots, lifecycle, assessments } = bundle);
+      $('report-link').href = `/results/${project.id}/${run.run_id}/report.json`;
       const skills = runSkills(run).filter(skill => !assessments || assessments.skills.some(row => row.skill_key === skill.id));
       selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : skills[0]?.id ?? null;
       $('skill-select').value = selectedSkill || '';
@@ -228,23 +309,15 @@ async function selectRun(run, token) {
 async function selectProject(project) {
   activeProject = project;
   resetSelection(false);
-  const token = selection;
+  const token = selection, store = cache;
   $('project-title').textContent = project.id;
   $('skill-select').replaceChildren(node('option', 'Skill 정보 미기록'));
   $('skill-select').disabled = true;
+  renderProjectSummary();
   try {
-    const data = await load(`/results/${project.id}/index.json`);
+    const runs = await loadHistory(project, store);
     if (token !== selection) return;
-    if (!Array.isArray(data.history)) throw new Error('Invalid history');
-    for (const run of data.history) {
-      if (!runPattern.test(run.run_id) || !purposes[run.purpose] || !labels[run.execution_status]) throw new Error('Invalid history row');
-      stamp(run.created_at);
-      if (run.skill_id && !idPattern.test(run.skill_id)) throw new Error('Invalid Skill identity');
-      if (Boolean(run.skill_id) !== Boolean(run.skill_snapshots)) throw new Error('Incomplete Skill reference');
-      validateEvolutionSummary(run);
-      validateAssessmentSummary(run);
-    }
-    history = [...data.history].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
+    history = runs;
     const unlinked = node('option', 'Skill 미연결');
     unlinked.value = '';
     unlinked.disabled = !history.some(run => !runSkills(run).length);
@@ -255,13 +328,20 @@ async function selectProject(project) {
     }
     $('skill-select').disabled = skillGroups().length === 0;
     renderHistory();
-    if (history.length) await selectRun(history.find(row => row.guide_status === 'completed' && row.execution_status === 'completed') ||
-      history.find(row => row.purpose === 'comparison') || history[0], token);
-    else {
+    const run = history.find(row => row.guide_status === 'completed' && row.execution_status === 'completed') ||
+      history.find(row => row.purpose === 'comparison') || history[0];
+    if (!run) {
       $('origin').textContent = '미평가';
       $('selection-summary').textContent = '평가 기록이 없습니다.';
     }
-  } catch (error) { if (token === selection) fail(error); }
+    await Promise.all([showProjectSummary(project, runs, token, store), run ? selectRun(run, token) : null]);
+  } catch (error) {
+    if (token === selection) {
+      renderProjectSummary();
+      $('project-summary').lastElementChild.replaceWith(node('p', '기록 없음 · 공개 이력을 확인하지 못했습니다.', 'summary-warning'));
+      fail(error);
+    }
+  }
 }
 function selectSampleSkill(id) {
   const nextSkill = sample.skills.find(skill => skill.id === id);
@@ -307,20 +387,27 @@ async function openSample() {
 async function refresh() {
   activeProject = null;
   resetSelection(false);
+  cache = newCache();
   const token = selection;
   $('project-title').textContent = '프로젝트 평가';
   $('skill-select').replaceChildren(node('option', 'Skill 정보 미기록'));
   $('skill-select').disabled = true;
+  $('overview-content').replaceChildren(node('p', '프로젝트 목록을 불러오는 중입니다.', 'empty'));
   try {
     const index = await load('/results/index.json');
     if (token !== selection) return;
     if (!Array.isArray(index.projects)) throw new Error('Invalid catalog');
+    const ids = new Set();
+    for (const project of index.projects) {
+      if (!project || typeof project.id !== 'string' || !idPattern.test(project.id) || ids.has(project.id) ||
+          !Number.isInteger(project.history_count) || project.history_count < 0 ||
+          !['active', 'blocked', 'removed'].includes(project.state)) throw new Error('Invalid project');
+      ids.add(project.id);
+    }
     projects = index.projects;
     $('projects').replaceChildren();
     $('project-count').textContent = String(projects.length);
     for (const project of projects) {
-      if (!idPattern.test(project.id) || !Number.isInteger(project.history_count) || project.history_count < 0 ||
-          !['active', 'blocked', 'removed'].includes(project.state)) throw new Error('Invalid project');
       const button = node('button', undefined, 'project');
       button.type = 'button'; button.dataset.project = project.id;
       button.setAttribute('aria-pressed', 'false');
@@ -328,18 +415,17 @@ async function refresh() {
       button.addEventListener('click', () => selectProject(project));
       $('projects').append(button);
     }
-    if (projects.length) await selectProject(projects[0]);
-    else {
-      $('projects').append(node('p', '등록된 프로젝트가 없습니다.', 'muted'));
-      $('origin').textContent = '프로젝트 없음';
-      $('selection-summary').textContent = '프로젝트를 등록하거나 샘플 화면을 확인하세요.';
-      renderHistory();
-    }
+    await showOverview();
   } catch (error) { if (token === selection) fail(error); }
 }
 $('refresh').addEventListener('click', refresh);
 $('demo-open').addEventListener('click', openSample);
 $('exit-sample').addEventListener('click', refresh);
+$('overview-back').addEventListener('click', event => {
+  event.preventDefault();
+  showOverview();
+  $('overview-title').focus();
+});
 $('history-filter').addEventListener('change', renderHistory);
 $('skill-select').addEventListener('change', () => {
   try {

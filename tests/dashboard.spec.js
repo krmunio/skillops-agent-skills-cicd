@@ -42,6 +42,7 @@ async function comparisonPage(page, snapshots = null, metrics = {}) {
   await pageWith(page, { schema_version: 1, projects: [{
     id: 'sample_repo', state: 'active', history_count: 1, current_run: '999-1',
   }] });
+  await page.locator('#projects [data-project="sample_repo"]').click();
   await expect(page.locator('#execution')).toContainText('후보 거절');
 }
 
@@ -75,6 +76,7 @@ async function historyPage(page, reports, withSkill = false) {
   await pageWith(page, { schema_version: 1, projects: [{
     id: 'sample_repo', state: 'active', history_count: reports.length, current_run: null,
   }] });
+  await page.locator('#projects [data-project="sample_repo"]').click();
   await expect(page.locator('#detail')).toBeVisible();
 }
 
@@ -314,7 +316,10 @@ test('mobile layout remains within the viewport including sample code and histor
 
 test('an empty catalog is not a fabricated success', async ({ page }) => {
   await pageWith(page, { schema_version: 1, projects: [] });
-  await expect(page.getByText('등록된 프로젝트가 없습니다.')).toBeVisible();
+  await expect(page.locator('#catalog-overview')).toContainText('등록된 프로젝트가 없습니다.');
+  await expect(page.locator('#catalog-overview table')).toHaveCount(0);
+  await expect(page.locator('#project-summary')).toBeHidden();
+  await expect(page.locator('#detail')).toBeHidden();
 });
 
 test('failed result retrieval is visible', async ({ page }) => {
@@ -344,7 +349,7 @@ test('shows project history and clearly labels unassessed guide data', async ({ 
     id: 'sample_repo', state: 'active', history_count: 1, current_run: null,
     index: 'sample_repo/index.json',
   }] });
-  await expect(page.getByRole('button', { name: /sample_repo/ })).toBeVisible();
+  await page.locator('#projects [data-project="sample_repo"]').click();
   await expect(page.locator('#guide')).toContainText('미평가');
   await expect(page.locator('#execution')).toContainText('요청 작업');
   await expect(page.locator('body')).not.toContainText('공식 인증 완료');
@@ -376,6 +381,7 @@ test('late real-report responses cannot overwrite an active sample view', async 
     await route.fallback();
   });
   await page.getByRole('button', { name: '새로고침', exact: true }).click();
+  await page.locator('#projects [data-project="sample_repo"]').click();
   await waiting;
   await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
   await expect(page.locator('#sample-banner')).toBeVisible();
@@ -536,6 +542,7 @@ async function evolutionPage(page, fixture) {
 
   await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
     history_count: 1, current_run: null }] }, 200, origin);
+  await page.locator('#projects [data-project="sample_repo"]').click();
 }
 
 function assessmentFixture({ legacy = true } = {}) {
@@ -752,6 +759,7 @@ test('evolution late attachment cannot overwrite sample selection', async ({ pag
   const url = `https://dashboard.test/results/sample_repo/${fixture.report.run_id}/skill-evolution.json`;
   await page.route(url, async route => { arrived(); await delayed; await route.fallback(); });
   await page.getByRole('button', { name: '새로고침', exact: true }).click();
+  await page.locator('#projects [data-project="sample_repo"]').click();
   await waiting;
   await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
   const response = page.waitForResponse(url);
@@ -937,4 +945,303 @@ test('clipboard denial stays explicit and never hides the full SHA-256 title', a
   await wrapper.getByRole('button', { name: 'SHA-256 전체 값 복사', exact: true }).click();
   await expect(wrapper.getByRole('status')).toContainText('복사하지 못했습니다.');
   await expect(wrapper.locator('code')).toHaveAttribute('title', value);
+});
+
+function overviewFixture() {
+  const imported = evolutionFixture();
+  const completed = historyRun(6, 'project_assessment', 'completed', 'completed');
+  completed.source_commit = 'abcdef0123456789'.repeat(2) + 'abcdef01';
+  const legacy = historyRun(2, 'baseline', 'completed');
+  legacy.origin = 'historical_import';
+  const reports = [completed, historyRun(5, 'project_assessment', 'blocked', 'blocked'),
+    historyRun(4, 'project_assessment', 'configuration_required'), historyRun(3, 'baseline', 'blocked'), legacy];
+  const files = {}, summaries = reports.map(report => ({ ...report,
+    execution_status: report.execution.status, guide_status: report.guide.status }));
+  for (const report of reports) files[`/results/sample_repo/${report.run_id}/report.json`] = report;
+  for (const report of [completed, legacy]) {
+    const content = 'Reviewed legacy instructions\n', summary = summaries.find(row => row.run_id === report.run_id);
+    Object.assign(summary, { skill_id: 'develop', skill_snapshots: `${report.run_id}/skill-snapshots.json`,
+      base_skill_sha256: hash(content), candidate_skill_sha256: null });
+    files[`/results/sample_repo/${summary.skill_snapshots}`] = { schema_version: 1, project_id: 'sample_repo',
+      run_id: report.run_id, report_sha256: hash(JSON.stringify(report)), skill_id: 'develop',
+      base: { content, sha256: hash(content) }, candidate: null };
+  }
+  summaries.push(imported.summary);
+  files[`/results/sample_repo/${imported.report.run_id}/report.json`] = imported.report;
+  files[`/results/sample_repo/${imported.summary.skill_evolution}`] = imported.envelope;
+  files['/results/sample_repo/index.json'] = { schema_version: 1, history: summaries };
+  files['/results/waiting-project/index.json'] = { schema_version: 1, history: [] };
+  return { files, completed, imported, catalog: { schema_version: 1, projects: [
+    { id: 'sample_repo', state: 'active', current_run: completed.run_id, history_count: summaries.length },
+    { id: 'waiting-project', state: 'blocked', current_run: null, history_count: 0 },
+  ] } };
+}
+
+async function catalogPage(page, fixture) {
+  await page.route('https://dashboard.test/results/**', route => {
+    const value = fixture.files[new URL(route.request().url()).pathname];
+    return value === undefined ? route.fallback() : route.fulfill({ json: value });
+  });
+  await pageWith(page, fixture.catalog, 200, 'https://dashboard.test');
+  await expect(page.locator('#catalog-overview tbody tr')).toHaveCount(fixture.catalog.projects.length);
+}
+
+test('catalog overview opens first with one row per project and counts completed, blocked and imported history exactly', async ({ page }) => {
+  const fixture = overviewFixture(), requested = [];
+  page.on('request', request => requested.push(new URL(request.url()).pathname));
+  await catalogPage(page, fixture);
+  await expect(page.locator('#catalog-overview')).toBeVisible();
+  await expect(page.locator('#project-header')).toBeHidden();
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#projects .project[aria-pressed="true"]')).toHaveCount(0);
+  await expect(page.locator('.overview-counts')).toHaveText('프로젝트 2개완료 평가 1건차단 기록 3건');
+  await expect(page.locator('#catalog-overview th')).toHaveText([
+    '프로젝트', 'Skill', '완료 평가', '최근 완료', '차단·설정 필요', '과거 가져오기', '최근 후보 판정',
+  ]);
+  const stamp = await page.evaluate(async value => (await import('/views.js')).stamp(value), fixture.completed.created_at);
+  const cells = page.locator('#catalog-overview tr[data-project="sample_repo"] td');
+  await expect(cells).toHaveText(['sample_repo등록', '2', '1', stamp, '3', '2', '미평가']);
+  await expect(page.locator('#catalog-overview tr[data-project="waiting-project"] td'))
+    .toHaveText(['waiting-project차단', '0', '0', '없음', '0', '0', '미평가']);
+  await expect(page.locator('.overview-note')).toHaveText('완료 평가와 후보 판정은 채택 여부가 아닙니다. 채택 기록은 각 프로젝트 화면에서 확인합니다.');
+  expect(requested.filter(url => url.startsWith('/results/')).sort()).toEqual([
+    '/results/index.json', '/results/sample_repo/index.json', '/results/waiting-project/index.json',
+  ]);
+});
+
+test('projects without assessments show unevaluated decisions and no numeric candidate verdict in the project card', async ({ page }) => {
+  const fixture = overviewFixture();
+  await catalogPage(page, fixture);
+  await expect(page.locator('#catalog-overview tr[data-project="sample_repo"] td').last()).toHaveText('미평가');
+  await page.locator('#catalog-overview tr[data-project="sample_repo"]').click();
+  await expect(page.locator('#project-header + #project-summary + #project-navigation')).toHaveCount(1);
+  await expect(page.locator('#summary-decisions')).toHaveText('후보 판정 없음');
+  await expect(page.locator('#summary-decisions')).not.toHaveText(/\d/);
+  await expect(page.locator('#summary-skills')).toHaveText('Skill 2개 · 버전 3개');
+  await expect(page.locator('#summary-history')).toHaveText('평가 기록 6건 · 완료 1 · 차단 3 · 과거 가져오기 2 · 미평가 0');
+  await expect(page.locator('#summary-completed code')).toHaveText(fixture.completed.source_commit.slice(0, 12));
+  await expect(page.locator('#summary-completed code')).toHaveAttribute('title', fixture.completed.source_commit);
+  await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+  await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
+  await expect(page.locator('#project-summary details')).toHaveJSProperty('open', false);
+  await expect(page.locator('#project-summary details summary')).toHaveText('이 요약은 무엇을 세나요?');
+  await expect(page.locator('#project-summary details p')).toBeHidden();
+});
+
+test('project row selection and the all-projects link round-trip while sidebar and keyboard selection remain usable', async ({ page }) => {
+  await catalogPage(page, overviewFixture());
+  await page.locator('#catalog-overview tr[data-project="sample_repo"] td').nth(2).click();
+  await expect(page.locator('#project-title')).toHaveText('sample_repo');
+  await expect(page.locator('#catalog-overview')).toBeHidden();
+  await page.getByRole('link', { name: '← 전체 프로젝트', exact: true }).click();
+  await expect(page.locator('#catalog-overview')).toBeVisible();
+  await expect(page.locator('#overview-title')).toBeFocused();
+  await expect(page.locator('#project-summary')).toBeHidden();
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#projects .project[aria-pressed="true"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'waiting-project 프로젝트 열기', exact: true }).press('Enter');
+  await expect(page.locator('#project-title')).toHaveText('waiting-project');
+  await expect(page.locator('#summary-completed')).toHaveText('없음');
+  await page.locator('#projects [data-project="sample_repo"]').click();
+  await expect(page.locator('#project-title')).toHaveText('sample_repo');
+  await expect(page.locator('#projects [data-project="sample_repo"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('sample remains opt-in and returning to the overview never adds synthetic projects or summary evidence', async ({ page }) => {
+  const sample = JSON.parse(fs.readFileSync('dashboard/sample-data.json', 'utf8'));
+  await catalogPage(page, overviewFixture());
+  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  await expect(page.locator('#sample-banner')).toBeVisible();
+  await expect(page.locator('#catalog-overview')).toBeHidden();
+  await expect(page.locator('#project-summary')).toBeHidden();
+  await expect(page.locator('#quality-summary')).toHaveText('선택 Skill · 합성 평가 예시');
+  await page.getByRole('button', { name: '실제 기록으로 돌아가기', exact: true }).click();
+  await expect(page.locator('#catalog-overview tbody tr')).toHaveCount(2);
+  await expect(page.locator('#catalog-overview')).toBeVisible();
+  await expect(page.locator('#sample-banner')).toBeHidden();
+  await expect(page.locator('#catalog-overview')).not.toContainText(sample.project_id);
+  await expect(page.locator('#projects')).not.toContainText(sample.project_id);
+  await expect(page.locator('#guide')).toBeEmpty();
+  await expect(page.locator('#project-summary')).toBeEmpty();
+  await expect(page.locator('#detail')).toBeHidden();
+});
+
+test('the overview scrolls its table internally at 390px and the project summary does not overflow the viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await catalogPage(page, overviewFixture());
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const widths = await page.locator('.overview-table').evaluate(element => ({ client: element.clientWidth, scroll: element.scrollWidth }));
+  expect(widths.scroll).toBeGreaterThan(widths.client);
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-history')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test('overlapping history categories use a union for unevaluated rows instead of subtracting overlapping counts', async ({ page }) => {
+  const fixture = overviewFixture();
+  const history = fixture.files['/results/sample_repo/index.json'].history;
+  history.find(row => row.run_id === fixture.completed.run_id).origin = 'historical_import';
+  const unassessed = historyRun(7, 'baseline', 'not_assessed');
+  history.push({ ...unassessed, guide_status: 'not_assessed', execution_status: 'not_assessed' });
+  fixture.catalog.projects[0].history_count = history.length;
+  await catalogPage(page, fixture);
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-history')).toHaveText('평가 기록 7건 · 완료 1 · 차단 3 · 과거 가져오기 3 · 미평가 1');
+});
+
+test('project adoption counts include only validated non-unknown observations and never derive adoption from a verdict', async ({ page }) => {
+  const fixture = overviewFixture(), records = fixture.imported.envelope.records;
+  const known = { ...records.adoptions[0], state: 'entrypoint_pin_observed', observed_at: '2026-09-15T05:00:00Z',
+    evidence_kind: 'registry_snapshot', registry_sha256: hash('reviewed registry'),
+    entrypoint_sha256: records.versions[0].files[0].sha256, version_id: records.versions[0].version_id };
+  records.adoptions.push(known);
+  await catalogPage(page, fixture);
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-adoptions')).toHaveText('1건');
+  await expect(page.locator('#summary-decisions')).toHaveText('후보 판정 없음');
+  await expect(page.locator('#project-summary')).not.toContainText('채택 완료');
+});
+
+test('an unreadable project index remains an explicit missing row and cannot contribute invented zero totals', async ({ page }) => {
+  const fixture = overviewFixture();
+  fixture.files['/results/waiting-project/index.json'].schema_version = 2;
+  await catalogPage(page, fixture);
+  const cells = page.locator('#catalog-overview tr[data-project="waiting-project"] td');
+  await expect(cells).toHaveText(['waiting-project차단', '기록 없음', '기록 없음', '기록 없음', '기록 없음', '기록 없음', '미평가']);
+  await expect(page.locator('.overview-counts')).toHaveText('프로젝트 2개완료 평가: 기록 없음차단 기록: 기록 없음');
+  await expect(page.locator('#catalog-overview .summary-warning')).toBeVisible();
+  await page.getByRole('button', { name: 'waiting-project 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#project-summary')).toContainText('기록 없음');
+  await expect(page.locator('#detail')).toBeHidden();
+});
+
+test('late overview responses cannot reopen real summaries over an active sample view', async ({ page }) => {
+  const fixture = overviewFixture();
+  let release, arrived;
+  const pending = new Promise(resolve => { release = resolve; });
+  const requested = new Promise(resolve => { arrived = resolve; });
+  await page.route('https://dashboard.test/results/**', async route => {
+    const name = new URL(route.request().url()).pathname;
+    if (name === '/results/sample_repo/index.json') { arrived(); await pending; }
+    const value = fixture.files[name];
+    return value === undefined ? route.fallback() : route.fulfill({ json: value });
+  });
+  await pageWith(page, fixture.catalog, 200, 'https://dashboard.test');
+  await requested;
+  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  await expect(page.locator('#sample-banner')).toBeVisible();
+  const response = page.waitForResponse('https://dashboard.test/results/sample_repo/index.json');
+  release(); await response;
+  await expect(page.locator('#catalog-overview')).toBeHidden();
+  await expect(page.locator('#project-summary')).toBeHidden();
+  await expect(page.locator('#project-title')).toContainText('샘플');
+  await expect(page.locator('#origin')).toHaveText('합성 샘플');
+});
+
+function assessmentCatalog(count, { legacy = true } = {}) {
+  const initial = assessmentFixture({ legacy }), fixtures = [], files = {};
+  for (let index = 0; index < count; index++) {
+    const fixture = JSON.parse(JSON.stringify(initial));
+    const run = `${800 + index}-1`, created = new Date(Date.UTC(2026, 8, 17, 6, index)).toISOString();
+    Object.assign(fixture.report, { run_id: run, created_at: created });
+    for (const document of [fixture.envelope, fixture.details]) {
+      document.run_id = run; document.report_sha256 = hash(JSON.stringify(fixture.report));
+    }
+    Object.assign(fixture.summary, { run_id: run, created_at: created,
+      skill_evolution: `${run}/skill-evolution.json`, skill_assessments: `${run}/skill-assessments.json` });
+    files[`/results/sample_repo/${run}/report.json`] = fixture.report;
+    files[`/results/sample_repo/${run}/skill-evolution.json`] = fixture.envelope;
+    files[`/results/sample_repo/${run}/skill-assessments.json`] = fixture.details;
+    fixtures.push(fixture);
+  }
+  files['/results/sample_repo/index.json'] = { schema_version: 1, history: fixtures.map(fixture => fixture.summary) };
+  return { fixtures, files, catalog: { schema_version: 1, projects: [
+    { id: 'sample_repo', state: 'active', current_run: null, history_count: count },
+  ] } };
+}
+
+test('catalog assessment reads are capped at the five newest referenced runs and validated evidence is reused on selection', async ({ page }) => {
+  const fixture = assessmentCatalog(7), requested = [];
+  page.on('request', request => requested.push(new URL(request.url()).pathname));
+  await catalogPage(page, fixture);
+  const newest = fixture.fixtures.slice(2);
+  for (const name of ['report.json', 'skill-evolution.json', 'skill-assessments.json']) {
+    expect(requested.filter(url => url.endsWith(`/${name}`)).sort())
+      .toEqual(newest.map(item => `/results/sample_repo/${item.report.run_id}/${name}`).sort());
+  }
+  await expect(page.locator('#catalog-overview td').last()).toHaveText('품질 점수 상승 · 회귀 없음');
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-decisions')).toHaveText('상승 7 · 변화 없음 0 · 검증 불충분 0 · 거절 0');
+  await expect(page.locator('#skill-select')).toHaveValue('skillops:develop');
+  expect(requested.filter(url => url.endsWith('/skill-assessments.json'))).toHaveLength(7);
+  expect(requested.filter(url => url === '/results/sample_repo/index.json')).toHaveLength(1);
+  await page.getByRole('link', { name: '← 전체 프로젝트', exact: true }).click();
+  await expect(page.locator('#catalog-overview tbody tr')).toHaveCount(1);
+  expect(requested.filter(url => url.endsWith('/skill-assessments.json'))).toHaveLength(7);
+});
+
+test('project assessment summaries count stored decisions and compare only the newest Skill rather than summing usage', async ({ page }) => {
+  const fixture = assessmentCatalog(4), rows = fixture.fixtures.map(item => item.details.skills[0]);
+  rows[1].quality.candidate = JSON.parse(JSON.stringify(rows[1].quality.base));
+  rows[1].decision.status = 'not_improved';
+  rows[2].quality.candidate.dimensions[0].score = 1;
+  Object.assign(rows[2].decision, { status: 'rejected', reasons: ['quality_regression'] });
+  rows[3].errors.push({ stage: 'work', code: 'incomplete_fixture' });
+  Object.assign(rows[3].decision, { status: 'unverified', reasons: ['incomplete_stage'] });
+  for (const row of rows) {
+    row.applications.base.measurement = { cost_nano_aiu: 100e9, elapsed_seconds: 10000 };
+    row.applications.candidate.measurement = { cost_nano_aiu: 1e9, elapsed_seconds: 1 };
+  }
+  rows[3].applications.base.measurement = { cost_nano_aiu: 1e9, elapsed_seconds: 100 };
+  rows[3].applications.candidate.measurement = { cost_nano_aiu: 1.16e9, elapsed_seconds: 132 };
+  await catalogPage(page, fixture);
+  await expect(page.locator('#catalog-overview td').last()).toHaveText('검증 불충분');
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-decisions')).toHaveText('상승 1 · 변화 없음 1 · 검증 불충분 1 · 거절 1');
+  await expect(page.locator('#summary-usage')).toContainText('기존 → 후보 비용 +16% / 시간 +32% (현장 계산)');
+  await expect(page.locator('#summary-usage small')).toContainText(rows[3].skill_key);
+  await expect(page.locator('#summary-usage')).not.toContainText('합계');
+  await expect(page.locator('#cost-card .big-number')).toHaveText('+16%');
+  await expect(page.locator('#time-card .big-number')).toHaveText('+32%');
+  await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+});
+
+test('project assessment summary changes stay missing for absent measurements or a zero baseline', async ({ page }) => {
+  const fixture = assessmentCatalog(1), row = fixture.fixtures[0].details.skills[0];
+  row.applications.base.measurement = { cost_nano_aiu: 0, elapsed_seconds: 100 };
+  row.applications.candidate.measurement = { cost_nano_aiu: 1e9, elapsed_seconds: null };
+  await catalogPage(page, fixture);
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-usage')).toContainText('기존 → 후보 비용 미기록 / 시간 미기록');
+  await expect(page.locator('#summary-usage')).not.toContainText('현장 계산');
+  await expect(page.locator('#summary-usage')).not.toContainText('%');
+});
+
+test('a forged newest assessment stays unevaluated instead of borrowing an older candidate decision or usage', async ({ page }) => {
+  const fixture = assessmentCatalog(2);
+  fixture.fixtures[1].details.report_sha256 = '0'.repeat(64);
+  await catalogPage(page, fixture);
+  await expect(page.locator('#catalog-overview td').last()).toHaveText('미평가');
+  await expect(page.locator('#catalog-overview .summary-warning')).toBeVisible();
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-decisions')).toHaveText('상승 1 · 변화 없음 0 · 검증 불충분 0 · 거절 0');
+  await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
+  await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#detail')).toBeHidden();
+});
+
+test('summary views preserve a policy-stamped assessment verdict rather than relabelling an efficiency regression as improved', async ({ page }) => {
+  const fixture = assessmentCatalog(1, { legacy: false }), row = fixture.fixtures[0].details.skills[0];
+  row.applications.base.measurement = { cost_nano_aiu: 1e9, elapsed_seconds: 100 };
+  row.applications.candidate.measurement = { cost_nano_aiu: 1.16e9, elapsed_seconds: 132 };
+  Object.assign(row.decision, { status: 'unverified', reasons: ['efficiency_regression'] });
+  expect(row.decision.policy_version).toBeTruthy();
+  await catalogPage(page, fixture);
+  await expect(page.locator('#catalog-overview td').last()).toHaveText('검증 불충분');
+  await page.getByRole('button', { name: 'sample_repo 프로젝트 열기', exact: true }).click();
+  await expect(page.locator('#summary-decisions')).toHaveText('상승 0 · 변화 없음 0 · 검증 불충분 1 · 거절 0');
+  await expect(page.locator('#summary-usage')).toContainText('기존 → 후보 비용 +16% / 시간 +32% (현장 계산)');
+  await expect(page.locator('#execution .decision-title')).toHaveText('검증 불충분');
 });

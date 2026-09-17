@@ -32,7 +32,14 @@
         <span>화면 설명을 위해 만든 예시입니다. 실제 평가·개선 성과·채택 근거가 아닙니다.</span>
         <button id="exit-sample" type="button">실제 기록으로 돌아가기</button>
       </div>
-      <section class="intro">
+      <section id="catalog-overview" aria-labelledby="overview-title">
+        <p class="route">프로젝트 / 전체 요약</p>
+        <h1 id="overview-title" tabindex="-1">전체 프로젝트</h1>
+        <p class="section-description">공개 이력에서 완료 평가와 후보 판정을 확인합니다. 프로젝트를 선택하면 상세 기록을 확인할 수 있습니다.</p>
+        <div id="overview-content"><p class="empty" role="status">프로젝트 요약을 불러오는 중입니다.</p></div>
+      </section>
+      <section id="project-header" class="intro" hidden>
+        <a id="overview-back" href="#catalog-overview">← 전체 프로젝트</a>
         <p class="route">프로젝트 / 평가 결과</p>
         <div class="title-line"><h1 id="project-title">프로젝트 평가</h1><span id="origin" class="badge">프로젝트 선택</span></div>
         <div class="selection-line">
@@ -42,7 +49,8 @@
         </div>
         <p id="freshness" class="freshness">평가 당시의 버전과 현재 소스의 일치 여부를 구분합니다.</p>
       </section>
-      <nav class="section-nav" aria-label="평가 영역">
+      <section id="project-summary" class="panel project-summary" aria-labelledby="project-summary-title" hidden></section>
+      <nav id="project-navigation" class="section-nav" aria-label="평가 영역" hidden>
         <a href="#quality-section">스킬 품질·개선 근거</a>
         <a href="#execution-section">프로젝트 실행</a>
         <a href="#changes-section">Skill 변경</a>
@@ -94,7 +102,7 @@
           <article id="skill-changes" class="panel"></article>
         </section>
       </div>
-      <section id="history-section" class="history-section" data-section="history" aria-labelledby="history-title">
+      <section id="history-section" class="history-section" data-section="history" aria-labelledby="history-title" hidden>
         <div class="section-heading">
           <h2 id="history-title">프로젝트 이력</h2>
         </div>
