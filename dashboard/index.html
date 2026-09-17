@@ -11,21 +11,21 @@
 <body>
   <a class="skip" href="#main">평가 결과로 이동</a>
   <header class="site-header">
-    <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">▦</span> Self-Evolving Agent SkillOps</a>
+    <a class="brand" href="/" aria-label="Self-Evolving Agent SkillOps"><span class="brand-mark" aria-hidden="true">▦</span><span class="brand-full" aria-hidden="true">Self-Evolving Agent SkillOps</span><span class="brand-short" aria-hidden="true">SkillOps</span></a>
     <span class="header-caption">자가 진화 에이전트 스킬옵스</span>
     <div class="header-actions"><span class="readonly">공개 기록 · 읽기 전용</span><button id="refresh" type="button">새로고침</button></div>
   </header>
   <div class="workspace">
     <aside aria-label="프로젝트 선택">
-      <h2>프로젝트 <span id="project-count"></span></h2>
-      <div id="projects"><p class="muted">목록을 불러오는 중입니다.</p></div>
+      <h2>프로젝트 <span id="project-count"></span><span class="project-scroll-hint" aria-hidden="true" hidden>옆으로 이동 →</span></h2>
+      <div class="project-picker"><div id="projects"><p class="muted">목록을 불러오는 중입니다.</p></div></div>
       <div class="sample-entry">
         <span class="eyebrow">화면 둘러보기</span>
         <button id="demo-open" type="button" aria-pressed="false">샘플 화면 보기</button>
         <p>가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
       </div>
     </aside>
-    <main id="main">
+    <main id="main" tabindex="-1">
       <div id="error" role="alert" hidden></div>
       <div id="sample-banner" role="status" hidden>
         <strong>샘플 · 합성 데이터</strong>
@@ -44,10 +44,11 @@
       </section>
       <section id="project-summary" class="panel project-summary" aria-labelledby="project-summary-title" hidden></section>
       <nav class="section-nav" aria-label="평가 영역">
-        <a href="#quality-section">스킬 품질·개선 근거</a>
-        <a href="#execution-section">프로젝트 실행</a>
-        <a href="#changes-section">Skill 변경</a>
-        <a href="#history-section">평가 이력</a>
+        <span class="section-nav-label" aria-hidden="true">이 페이지</span>
+        <a href="#quality-section"><span aria-hidden="true">01</span>스킬 품질·개선 근거</a>
+        <a href="#execution-section"><span aria-hidden="true">02</span>프로젝트 실행</a>
+        <a href="#changes-section"><span aria-hidden="true">03</span>Skill 변경</a>
+        <a href="#history-section"><span aria-hidden="true">04</span>평가 이력</a>
       </nav>
       <div id="detail" hidden>
         <section id="quality-section" class="evaluation-section" data-section="quality" aria-labelledby="quality-title">

@@ -389,7 +389,10 @@ async function refresh() {
       const button = node('button', undefined, 'project');
       button.type = 'button'; button.dataset.project = project.id;
       button.setAttribute('aria-pressed', 'false');
-      button.append(node('strong', project.id), node('small', `평가 이력 ${project.history_count}건`));
+      button.setAttribute('aria-label', `${project.id} 평가 이력 ${project.history_count}건`);
+      const count = node('small');
+      count.append(node('span', '평가 이력 ', 'project-count-label'), node('span', '이력 ', 'project-count-short'), `${project.history_count}건`);
+      button.append(node('strong', project.id), count);
       button.addEventListener('click', () => selectProject(project));
       $('projects').append(button);
     }
@@ -434,4 +437,55 @@ $('improvement-evidence').addEventListener('click', event => {
   if (run) selectRun(run, selection);
   else fail(new Error('Evidence run unavailable'));
 });
+function setupNavigation() {
+  const navigation = document.querySelector('.section-nav');
+  const links = [...navigation.querySelectorAll('a')];
+  const sections = links.map(link => $(link.hash.slice(1)));
+  const projectList = $('projects');
+  const scrollHint = document.querySelector('.project-scroll-hint');
+  let frame = null, selectedProject = null, projectWidth = 0;
+  const reveal = (container, item) => {
+    const bounds = container.getBoundingClientRect(), target = item.getBoundingClientRect();
+    if (target.left < bounds.left + 4) container.scrollLeft += target.left - bounds.left - 4;
+    else if (target.right > bounds.right - 4) container.scrollLeft += target.right - bounds.right + 4;
+  };
+  const update = () => {
+    frame = null;
+    const visible = sections.filter(section => section.getClientRects().length);
+    for (const [index, link] of links.entries()) {
+      const hidden = !visible.includes(sections[index]);
+      if (link.hidden !== hidden) link.hidden = hidden;
+    }
+    const bounds = navigation.getBoundingClientRect();
+    document.documentElement.style.setProperty('--section-offset', `${Math.ceil(bounds.height) + 20}px`);
+    const atBottom = window.scrollY > 0 && window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+    const current = atBottom ? visible.at(-1) :
+      visible.filter(section => section.getBoundingClientRect().top <= bounds.bottom + 24).at(-1) || visible[0];
+    for (const [index, link] of links.entries()) {
+      if (sections[index] === current) {
+        if (!link.hasAttribute('aria-current')) {
+          link.setAttribute('aria-current', 'location');
+          reveal(navigation, link);
+        }
+      } else link.removeAttribute('aria-current');
+    }
+    const selected = projectList.querySelector('[aria-pressed="true"]');
+    if (selected && (selected !== selectedProject || projectList.clientWidth !== projectWidth)) reveal(projectList, selected);
+    selectedProject = selected;
+    projectWidth = projectList.clientWidth;
+    scrollHint.hidden = projectList.scrollWidth <= projectList.clientWidth + 1;
+    const atEnd = projectList.scrollLeft + projectList.clientWidth >= projectList.scrollWidth - 2;
+    scrollHint.textContent = atEnd ? '← 이전' : '옆으로 이동 →';
+  };
+  const schedule = () => { if (frame === null) frame = requestAnimationFrame(update); };
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  projectList.addEventListener('scroll', schedule, { passive: true });
+  const layout = new ResizeObserver(schedule);
+  for (const element of [$('main'), navigation, projectList]) layout.observe(element);
+  new MutationObserver(schedule).observe($('main'), { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
+  new MutationObserver(schedule).observe(projectList, { subtree: true, childList: true, attributes: true, attributeFilter: ['aria-pressed'] });
+  update();
+}
+setupNavigation();
 refresh();

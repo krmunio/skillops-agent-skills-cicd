@@ -282,6 +282,16 @@ Skills, invents missing measurements, or treats completion or a candidate verdic
 as a pass, adoption, installation or deployment. Synthetic sample data stays separate
 and does not receive a real-project summary card.
 
+The summary gives candidate decisions and adoption records visual priority, while
+Skill/version counts, history counts and their scope caveat remain visible. The
+`최근 평가·비용·집계 상세` disclosure contains the latest completed evaluation,
+source commit, scoped cost/time comparison and aggregation explanation. This changes
+presentation only, not which records are counted or how measurements are calculated.
+On narrower screens, project selection moves above the content and the mobile brand
+shortens to SkillOps while retaining the full accessible name. The sticky section
+index indicates the current reading position; it remains separate from the history
+tabs. Missing evidence uses compact, neutral panels rather than large metric values.
+
 Keep these evidence scopes distinct:
 
 - **Baseline validation workflow:** regression tests of the evaluator, container
