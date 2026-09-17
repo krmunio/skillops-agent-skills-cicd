@@ -66,6 +66,12 @@ h1 { margin: 0; font-size: 28px; letter-spacing: -1px; overflow-wrap: anywhere; 
 .section-description { font-size: 12px; color: var(--muted); margin: 7px 0 16px; max-width: 90ch; }
 .two-column { display: grid; grid-template-columns: 1.05fr 1fr; gap: 18px; }
 .panel { padding: 22px; background: white; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+#evidence-trace { overflow-wrap: anywhere; }
+#evidence-trace h2 { margin: 0 0 12px; font-size: 19px; }
+#evidence-trace section { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+#evidence-trace p { font-size: 12px; }
+.trace-round { border-left: 3px solid var(--line); padding-left: 14px; margin: 16px 0; }
+#improvement-evidence, #task-results { overflow-wrap: anywhere; }
 h3 { margin: 0 0 12px; font-size: 15px; }
 .method-description { font-size: 12px; color: var(--muted); margin: 0 0 18px; line-height: 1.8; }
 .muted, .reason { color: var(--muted); }
