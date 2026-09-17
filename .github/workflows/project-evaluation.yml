@@ -14,6 +14,15 @@ on:
       - 'dashboard/**'
       - '.github/workflows/project-evaluation.yml'
   workflow_dispatch:
+    inputs:
+      project:
+        description: 'Optional catalog project ID; empty evaluates the entire catalog'
+        type: string
+        default: ''
+      live:
+        description: 'Authorize billable execution for this dispatch using configured limits'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -26,6 +35,8 @@ jobs:
   contracts:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      SKILLOPS_CONTAINER_TESTS: '1'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -33,8 +44,40 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - run: python3 -m unittest discover -s tests -p 'test_project_*.py' -v
+      - name: Prepare pinned Python image for actual container controls
+        run: |
+          docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+          docker tag python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea python:3.12-slim
+          docker pull node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+          docker tag node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 node:22-slim
+      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - run: python3 project_results.py catalog
+      - name: Verify actual sample reports with model execution disabled
+        env:
+          SKILLOPS_LIVE_EVALUATION_ENABLED: 'false'
+        run: |
+          cp -R results ci-sample-results
+          set +e
+          python3 project_evaluation.py --output ci-sample-results --run-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --source-commit "$(git rev-parse HEAD)"
+          assessment_status=$?
+          set -e
+          test "$assessment_status" -eq 2
+          python3 project_results.py validate --results ci-sample-results
+          SKILLOPS_SAMPLE_REPORTS_DIR=ci-sample-results python3 -m unittest discover -s tests -p 'test_project_sample_integration.py' -v
+          printf 'Sample report contracts verified. Guide assessment remains blocked; live model execution was disabled.\n' >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain validated non-model onboarding evidence separately
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: sample-onboarding-results
+          path: |
+            ci-sample-results/index.json
+            ci-sample-results/*/index.json
+            ci-sample-results/*/*/report.json
+            ci-sample-results/*/*/skill-snapshots.json
+            ci-sample-results/*/*/skill-evolution.json
+            ci-sample-results/*/*/skill-assessments.json
+          if-no-files-found: error
+          retention-days: 30
 
   evaluate:
     needs: contracts
@@ -62,7 +105,7 @@ jobs:
           path: .prior-results
           persist-credentials: false
       - name: Install pinned runtime only for enabled live evaluation
-        if: vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true'
+        if: vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live)
         run: |
           npm ci --no-audit --no-fund
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
@@ -75,15 +118,18 @@ jobs:
         env:
           SOURCE_SHA: ${{ github.sha }}
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+          PROJECT_ID: ${{ inputs.project }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
-          SKILLOPS_LIVE_EVALUATION_ENABLED: ${{ vars.SKILLOPS_LIVE_EVALUATION_ENABLED }}
+          SKILLOPS_LIVE_EVALUATION_ENABLED: ${{ vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live) }}
           SKILLOPS_MAX_INVOCATIONS: ${{ vars.SKILLOPS_MAX_INVOCATIONS }}
           SKILLOPS_MAX_SECONDS: ${{ vars.SKILLOPS_MAX_SECONDS }}
           SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results
+          args=()
+          if [ -n "$PROJECT_ID" ]; then args+=(--project "$PROJECT_ID"); fi
+          python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
       - name: Retain public-safe reports, including blocked outcomes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

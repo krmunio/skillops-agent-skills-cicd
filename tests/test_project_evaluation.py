@@ -1,6 +1,7 @@
 import importlib
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +10,26 @@ from unittest.mock import patch, MagicMock
 
 
 class ProjectEvaluationTests(unittest.TestCase):
+    def test_cli_selects_one_project_and_rejects_unknown_ids_before_assessment(self):
+        m = self.module()
+        root = Path(m.__file__).resolve().parent
+        for identifier in ("sample_repo", "unknown-project", "../outside"):
+            with self.subTest(project=identifier), tempfile.TemporaryDirectory() as folder:
+                output = Path(folder) / "results"
+                result = subprocess.run([
+                    m.sys.executable, str(root / "project_evaluation.py"), "--root", str(root),
+                    "--output", str(output), "--run-id", "109-1", "--source-commit", "a" * 40,
+                    "--project", identifier,
+                ], env={**m.os.environ, "SKILLOPS_LIVE_EVALUATION_ENABLED": "false"},
+                    capture_output=True, text=True, timeout=30)
+                self.assertEqual(result.returncode, 2)
+                if identifier == "sample_repo":
+                    self.assertEqual([path.relative_to(output).as_posix()
+                                      for path in output.glob("*/*/report.json")], ["sample_repo/109-1/report.json"])
+                else:
+                    self.assertEqual(json.loads(result.stderr)["code"], "unknown_project")
+                    self.assertFalse(output.exists())
+
     def module(self):
         self.assertIsNotNone(importlib.util.find_spec("project_evaluation"), "orchestrator is missing")
         return importlib.import_module("project_evaluation")
