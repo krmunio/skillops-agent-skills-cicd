@@ -19,6 +19,7 @@ from uuid import uuid4
 
 TOKEN_KEYS = ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
 PROMPT_LIMIT = 100000
+MIN_AI_CREDITS = 30
 
 
 class RuntimeFailure(Exception):
@@ -367,8 +368,9 @@ class CopilotRuntime:
         if role not in ("developer", "judge", "generator") or not isinstance(model, str) or not model:
             raise RuntimeFailure("invalid_role", "An explicit model and supported role are required.")
         if max_ai_credits is not None and (
-                type(max_ai_credits) not in (int, float) or not math.isfinite(max_ai_credits) or max_ai_credits <= 0):
-            raise RuntimeFailure("invalid_limit", "AI credit limit must be a positive finite number.")
+                type(max_ai_credits) not in (int, float) or not math.isfinite(max_ai_credits)
+                or max_ai_credits < MIN_AI_CREDITS):
+            raise RuntimeFailure("invalid_limit", f"AI credit limit must be finite and at least {MIN_AI_CREDITS}.")
         return self.command(
             "--no-custom-instructions", "--disable-builtin-mcps", "--no-ask-user", "--no-color",
             "--available-tools=skill", *(["--excluded-tools=skill"] if role != "developer" else []),
