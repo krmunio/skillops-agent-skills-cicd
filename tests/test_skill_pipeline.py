@@ -16,6 +16,44 @@ from copilot_runtime import RuntimeFailure
 
 
 class SkillPipelineTests(unittest.TestCase):
+    def test_all_project_b_bundles_fit_with_maximum_synthetic_candidate_bodies(self):
+        """Capacity check only: fixture scores are not model evaluation evidence."""
+        import copy
+        import project_results
+        from test_skill_assessments import fixture
+        project = Path(__file__).resolve().parents[1] / "projects/project-b"
+        report, _, template = fixture()
+        report["project_id"] = "project-b"
+        evaluated = []
+        for bundle in skill_guide.discover(project):
+            original, files = skill_pipeline.captured_files(project, bundle)
+            candidate = skill_pipeline.candidate_files(files, {
+                "instructions": "x" * 16000, "addressed_findings": [],
+                "hypothesis": "Synthetic capacity check only.",
+            })
+            version, _ = evolution.capture_version(
+                candidate, capture_scope="complete_bundle", complete_inventory=list(candidate))
+            row = copy.deepcopy(template["skills"][0])
+            row.update(skill_key=skill_pipeline.skill_key("project-b", bundle["path"], []),
+                       source_path=bundle["path"], base_version_id=original["version_id"],
+                       candidate_version_id=version["version_id"])
+            for arm, captured in (("base", original), ("candidate", version)):
+                row["applications"][arm].update(
+                    version_id=captured["version_id"], staged_version_id=captured["version_id"])
+            row["decision"] = skill_assessments.decide(row)
+            evaluated.append((row, [(original, files), (version, candidate)]))
+        self.assertEqual(len(evaluated), 14)
+        with patch.object(project_results, "EVOLUTION_LIMIT", project_results.LIMIT), self.assertRaises(RuntimeFailure):
+            skill_pipeline.attachments(report, evaluated)
+        lifecycle, details = skill_pipeline.attachments(report, evaluated)
+        self.assertGreater(len(project_results.encoded(lifecycle)), project_results.LIMIT)
+        self.assertLessEqual(len(project_results.encoded(lifecycle)), project_results.EVOLUTION_LIMIT)
+        with tempfile.TemporaryDirectory() as output:
+            project_results.store(output, report)
+            project_results.store_evolution(output, lifecycle)
+            project_results.store_assessments(output, details)
+            self.assertEqual(len(project_results.load_assessments(output)[("project-b", "123-1")]["skills"]), 14)
+
     def test_actual_skill_versions_drive_paired_outputs_and_regression_decision(self):
         for regression, check_error in ((False, None), (True, None), (False, "unsupported_dependencies")):
             with self.subTest(regression=regression, check_error=check_error), tempfile.TemporaryDirectory() as folder:
