@@ -51,10 +51,17 @@ jobs:
     timeout-minutes: 10
     env:
       SKILLOPS_CONTAINER_TESTS: '1'
+      SKILLOPS_LIVE_EVALUATION_ENABLED: 'false'
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
+      - name: Verify exact contract source identity
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          printf 'Contract source: %s; live model evaluation disabled.\n' "$SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'

@@ -92,6 +92,91 @@ project-a·b의 일반 평가 이력에 화면 구성용 개선·유지·악화 
 실평가의 과거 근거 및 현재 버전 검증에서는 제외합니다. 모델 호출·원본 변경·채택은 하지 않습니다.
 배포 시 publisher가 `merge-samples`로 결과 브랜치에 추가하고, 정적 빌드는 저장된 결과만 읽습니다.
 
+### 기록된 개발 작업의 단일 재평가
+
+Opt-in 어댑터는 기록된 development WorkItem과 고정된 원본 Skill을 기준으로
+후보 1개를 평가합니다. 기존 자동 단일 후보 경로는 변경하지 않습니다.
+
+```bash
+python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --results <replay-results-directory>
+```
+
+`--live`를 명시하고 환경에 `SKILLOPS_LIVE_EVALUATION_ENABLED=true`,
+인증(`COPILOT_GITHUB_TOKEN` 또는 `GITHUB_TOKEN`), 승인된
+`SKILLOPS_MAX_INVOCATIONS`, `SKILLOPS_MAX_SECONDS`,
+`SKILLOPS_MAX_AI_CREDITS_PER_SESSION`을 제공하지 않으면 **모델 호출 전에 차단**합니다.
+활성화 전 프로젝트·Skill·한도에 대한 별도 승인을 받아야 합니다.
+Credit은 세션별 soft cap이며 전체 금액의 보장된 상한이 아닙니다.
+모든 단계는 하나의 호출·시간 예산을 공유합니다. 프로젝트는 `projects/` 아래에 있어야 하며,
+비공개 WorkItem은 실제 Git 커밋·요청·소스 해시·보호된 검사를 고정합니다.
+스키마와 재사용 콜백은 [replay 계약](docs/HACKATHON-CONTRACTS.md)을 참고하세요.
+
+실행마다 불변 `report.json`, 전체 번들의 `skill-evolution.json`,
+`replay-evaluation.json`을 저장하고 CLI가 정확한 근거 참조를 반환합니다.
+Confirmation은 `not_run` 및 `confirmation_isolation_unverified`로 남고 승인 가능 여부는 항상 false입니다.
+개발 평가의 개선은 최종 확인·승인·다음 실행의 검증된 사용을 뜻하지 않으며 Active는 변경하지 않습니다.
+개발 반복은 아래 `iterate` 명령으로 연결했습니다.
+승인/다음 실행 CLI와 실제 반복 평가 Actions는 별도 연결 범위입니다.
+공식 게시 경로는 이제 검증된 replay/cycle 근거를 보존하지만 adoption 게시는 계속 차단합니다.
+오프라인 통합 테스트는 모델·컨테이너 경계만 대체하고
+결과를 `offline_test`로 표시하며 실측 모델 개선으로 표시하지 않습니다.
+
+### 제한된 개발 반복과 오프라인 데모
+
+```bash
+python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
+  --max-rounds 2 --results <iteration-results-directory>
+```
+
+실제 `run_cycle`과 기존 replay 저장 콜백을 사용합니다. 비교 기준은 처음 원본으로 고정하고,
+부모 후보와 development 피드백만 다음 라운드로 연결합니다.
+준비·모든 라운드·선택적 최종 확인은 같은 runtime과 승인된 예산을 공유합니다.
+단일 replay와 같은 `--live`·인증·한도 조건이 필요하므로 위 예제만으로 모델을 호출하지 않습니다.
+Confirmation 입력은 선택 사항이며 생성 전에 고정하지만 격리 검증 차단은 유지합니다.
+후보를 승인하거나 Active로 바꾸지 않습니다.
+
+저장된 평가마다 별도 run을 만들고 종료 `cycle.json`과 집계 `report.json`으로 연결합니다.
+실제 loader가 참조 해시와 전체 캡처를 다시 검증합니다. 시작한 시도가 저장 전에 끝나면
+`run_id`·`evaluation_ref`·`decision`은 null이며, 시작하지 않은 라운드를 만들지 않습니다.
+저장 콜백 자체의 실패는 예외로 전파하고 종료 cycle·성공 영수증을 만들지 않습니다.
+이미 저장된 라운드는 보존하며 자동 재시도·복구는 하지 않습니다.
+종료 코드 0은 정상적인 개발 반복 종료일 뿐 최종 확인·승인이 아닙니다.
+예산·runtime·미검증 종료는 코드 2를 반환합니다.
+
+**유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.
+
+```bash
+SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 tests/export_iteration_evidence.py \
+  --output /tmp/skillops-iterate-demo
+python3 -m json.tool /tmp/skillops-iterate-demo/manifest.json
+python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
+```
+
+생성기는 실제 provider·반복·저장 모듈을 사용하며 입력 프로젝트와 모델·컨테이너 응답만 합성합니다.
+미리 작성한 결과 fixture를 복사하지 않습니다. Manifest에는 통합 SHA, 시나리오 경로,
+cycle/run ID와 해시가 남습니다. N=2 피드백, 조기 종료, 최대 라운드, 예산 소진,
+미저장 시도와 저장 실패를 확인할 수 있습니다.
+모든 결과는 `offline_test`이며 confirmation은 미검증·미실행 상태입니다.
+기존 경로는 덮어쓰지 않습니다. 공식 빌드에는 `trace.js`와 해시로 검증한 replay/cycle 연결이 포함됩니다.
+공개 배포는 여전히 별도 승인이 필요하며 디자인 PR #32는 이번 데모에 포함하지 않습니다.
+
+읽기 전용 로컬 화면은 검토한 과거 실제 보고서와 생성된 `n2-feedback`을 새 결과 경로에 합친 뒤
+공식 빌드로 준비합니다. 비공개 runtime 디렉터리를 통째로 복사하지 마세요.
+
+```bash
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
+```
+
+로컬 서버의 `/?project=<project>&run=<exact-cycle-id>&skill=<skill-key>`로 시작합니다.
+정확한 cycle/run ID는 생성기 manifest에 있습니다. 화면은 `offline_test`를 비실측으로 구분하고
+최종 확인·승인 미완료를 유지합니다. 과거 실제 보고서의 본문·판정·수치는 변경하지 않습니다.
+서버 없이 열 수 있는 스크린샷 갤러리를 백업으로 보관하세요.
+
 ### 준비된 프로젝트 샘플
 
 - `projects/sample_repo`: 원래 이슈 관리 소스를 보존하고 개발 스킬을 명시적으로 추가했습니다.
