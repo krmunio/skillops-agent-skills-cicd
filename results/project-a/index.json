@@ -1,6 +1,25 @@
 {
   "history": [
     {
+      "created_at": "2026-09-17T09:14:24.714940+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:984ea5638db62ae5029c1a1cec74be94e9a29f229459c8301463ba14e2663454",
+          "candidate_version_id": "sha256:1347b2f3bb5b33a16c5f7bbfaf43511f57d918900b5a023b809aa3699d1e10fc",
+          "display_name": "schedule-development",
+          "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35203851697-1/report.json",
+      "run_id": "35203851697-1",
+      "skill_assessments": "35203851697-1/skill-assessments.json",
+      "skill_evolution": "35203851697-1/skill-evolution.json"
+    },
+    {
       "created_at": "2026-09-17T08:41:12.198063+00:00",
       "execution_status": "blocked",
       "guide_status": "blocked",
@@ -56,8 +75,8 @@
     }
   ],
   "project": {
-    "current_run": "35200869031-1",
-    "history_count": 6,
+    "current_run": "35203851697-1",
+    "history_count": 7,
     "id": "project-a",
     "index": "project-a/index.json",
     "state": "active"
