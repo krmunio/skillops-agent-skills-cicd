@@ -348,6 +348,128 @@ class ApprovalTests(unittest.TestCase):
             self.a.record_execution(self.root, approval=approved, receipt=receipt)
         self.assertIsNone(self.active())
 
+    def test_post_replace_fsync_failure_cannot_be_acknowledged_by_retry(self):
+        approved = self.approve()
+        receipt = self.receipt(approved)
+        sync = self.a._fsync_directory
+        def fail(path):
+            if Path(path) == self.root / ".skillops" and (Path(path) / "active.json").exists():
+                raise OSError("Synthetic directory fsync failure after replace")
+            sync(path)
+        with patch.object(self.a, "_fsync_directory", side_effect=fail):
+            with self.assertRaises(RuntimeFailure):
+                self.a.record_execution(self.root, approval=approved, receipt=receipt)
+            self.assertTrue((self.root / ".skillops/active.json").is_file())
+            with self.assertRaises(RuntimeFailure):
+                self.a.record_execution(self.root, approval=approved, receipt=receipt)
+            with self.assertRaises(RuntimeFailure):
+                self.active()
+        # A retry may acknowledge an existing matching pointer only after syncing it.
+        self.assertEqual(self.a.record_execution(self.root, approval=approved, receipt=receipt), receipt)
+
+    def test_environment_change_during_evidence_validation_blocks_approval_and_resolution(self):
+        environment = self.root / ".skillops/environment.json"
+        changes = 0
+        def change_environment(*args, **kwargs):
+            nonlocal changes
+            changes += 1
+            data = results.read_json(environment)
+            data["environment_id"] = f"replaced-environment-{changes}"
+            environment.write_bytes(results.encoded(data))
+            return deepcopy(self.replays)
+        with patch.object(results, "load_replays", side_effect=change_environment):
+            with self.assertRaises(RuntimeFailure):
+                self.approve()
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+        approved = self.approve()
+        with patch.object(results, "load_replays", side_effect=change_environment):
+            with self.assertRaises(RuntimeFailure):
+                self.resolve(approved)
+
+    def test_environment_removed_after_receipt_blocks_pointer_write(self):
+        approved = self.approve()
+        receipt = self.receipt(approved)
+        sync = self.a._fsync_directory
+        def remove_environment(path):
+            sync(path)
+            if Path(path) == self.root / ".skillops/executions":
+                (self.root / ".skillops/environment.json").unlink(missing_ok=True)
+        with patch.object(self.a, "_fsync_directory", side_effect=remove_environment):
+            with self.assertRaises(RuntimeFailure):
+                self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        self.assertTrue((self.root / ".skillops/executions/execution-fixture.json").exists())
+        self.assertFalse((self.root / ".skillops/active.json").exists())
+
+    def test_existing_active_approval_is_blocked_until_pointer_revision_contract(self):
+        approved = self.approve()
+        self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.approve(expected_active_version_id=approved["candidate_version_id"])
+        self.assertEqual(caught.exception.code, "active_revision_unavailable")
+        self.assertEqual(len(list((self.root / ".skillops/approvals").glob("*.json"))), 1)
+
+    def test_nonnull_predecessor_records_cannot_bypass_revision_block(self):
+        approved = self.approve()
+        binding = {key: value for key, value in approved.items() if key not in ("approval_id", "approved_at")}
+        binding["previous_active_version_id"] = self.candidate[0]["version_id"]
+        pending = {**binding, "approval_id": "approval-" + digest(binding)[:48],
+                   "approved_at": approved["approved_at"]}
+        results.atomic_json(self.root / ".skillops/approvals" / (pending["approval_id"] + ".json"), pending)
+        for action in (lambda: self.resolve(pending),
+                       lambda: self.a.record_execution(self.root, approval=pending, receipt=self.receipt(pending))):
+            with self.assertRaises(RuntimeFailure) as caught:
+                action()
+            self.assertEqual(caught.exception.code, "active_revision_unavailable")
+        self.assertIsNone(self.active())
+
+    def test_receipt_directory_sync_failure_leaves_active_unset(self):
+        approved = self.approve()
+        sync = self.a._fsync_directory
+        def fail(path):
+            if Path(path) == self.root / ".skillops/executions":
+                raise OSError("Synthetic receipt durability failure")
+            sync(path)
+        with patch.object(self.a, "_fsync_directory", side_effect=fail):
+            with self.assertRaises(RuntimeFailure):
+                self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+        self.assertIsNone(self.active())
+
+    def test_actual_pointer_replace_failure_preserves_originals(self):
+        approved = self.approve()
+        replace = os.replace
+        def fail(source, target):
+            if Path(target) == self.root / ".skillops/active.json":
+                raise OSError("Synthetic pointer replacement failure")
+            return replace(source, target)
+        with patch("project_results.os.replace", side_effect=fail):
+            with self.assertRaises(RuntimeFailure):
+                self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+        self.assertIsNone(self.active())
+        self.assertEqual(self.original_bytes, {path: path.read_bytes() for path in self.original_bytes})
+
+    def test_approval_storage_failure_never_returns_an_approval(self):
+        atomic = results.atomic_json
+        def fail(path, *args, **kwargs):
+            if Path(path).parent.name == "approvals":
+                raise OSError("Synthetic approval storage failure")
+            return atomic(path, *args, **kwargs)
+        with patch.object(results, "atomic_json", side_effect=fail):
+            with self.assertRaises(RuntimeFailure):
+                self.approve()
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+        self.assertIsNone(self.active())
+
+    def test_environment_sync_failure_does_not_become_success_on_retries(self):
+        sync = self.a._fsync_directory
+        def fail(path):
+            if Path(path) == self.root / ".skillops":
+                raise OSError("Synthetic environment durability failure")
+            sync(path)
+        with patch.object(self.a, "_fsync_directory", side_effect=fail):
+            for attempt in range(3):
+                with self.subTest(attempt=attempt), self.assertRaises(RuntimeFailure):
+                    self.approve()
+
     def test_active_reader_rejects_modified_or_missing_receipt(self):
         approved = self.approve()
         receipt = self.receipt(approved)
