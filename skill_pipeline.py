@@ -369,6 +369,7 @@ def evaluate_candidate(runtime, model, context, candidate, artifact, *, deadline
     candidate = deepcopy(candidate)
     _complete_capture(candidate)
     original = context["original"]
+    require(candidate[0]["version_id"] != original[0]["version_id"], "unchanged_candidate")
     # Replay candidates can replace only the body, including when supplied rather than generated.
     before, after = original[1], candidate[1]
     require(set(before) == set(after) and all(before[key] == after[key] for key in before if key != "SKILL.md")
