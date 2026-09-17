@@ -624,30 +624,38 @@ candidate and comparison records receive attachments. No current-file fallback
 or rewriting of original report.json is allowed. Guide and calibration records
 without appropriate Skill evidence remain unlinked.
 
-The **샘플 프로젝트** selector offers project-a/project-b examples when their
-detected inventory is available, plus the existing layout example. Select a project
-and open **샘플 화면 보기**. Changing the sample project while viewing a sample
-loads that project's examples.
+### Native layout-development results
 
-The static build generates `sample-project-a.json` and `sample-project-b.json`
-using `dashboard_samples.py`, outside `results/`. Each project has three rounds:
-improved, unchanged and regressed. Every detected Skill has one synthetic original
-and three distinct candidate examples, one per round. With the current inventory,
-this is **6 project rounds, 45 Skill comparisons and 45 synthetic candidates**
-(project-a: 1 Skill; project-b: 14). These are not 45 model-generated candidates.
-Each comparison contains seven baseline/candidate quality dimensions, generation
-status and a unified diff, observation/hypothesis/change/reevaluation examples,
-and five synthetic project tasks with illustrative correctness, Judge, cost and time.
+Project-a and project-b each have three checked-in result rounds: improved,
+unchanged and regressed. They are stored at `results/<project>/sample-<run>/`
+with normal `report.json`, `skill-assessments.json` and `skill-evolution.json`
+contracts. The ordinary project/Skill history opens these records with no separate
+example mode or badge. Original and candidate instructions, bounded diffs,
+generation evidence, seven baseline/candidate quality dimensions, and five
+project check cases per Skill use the existing renderer and validators.
+The current inventory yields **6 project rounds and 45 candidate examples**
+(project-a: 1 Skill; project-b: 14), not 45 model-generated candidates.
 
-Only names and paths come from actual discovery. Instruction bodies, timestamps,
-scores, tasks and measurements are deliberately synthetic and labelled as such.
-All candidates remain **not adopted / explicit approval required**; no model is
-called, source Skill overwritten or approval action performed. The sample files
-retain the ordinary 1 MiB JSON bound. Actual immutable report/assessment/evolution
-files, history counts and qualification decisions are unchanged. Samples are never
-publisher inputs or evidence for real improvement or adoption.
+`origin: sample` remains in the report and inspectable provenance. Sample-prefixed
+run IDs require this origin; provenance fields for real source commits/evaluators
+are null, CLI invocation counts are zero and adoption decisions are absent.
+Names and paths come from discovery, but instruction bodies, timestamps,
+checks, scores and usage measurements are layout fixtures, not observed execution.
+Samples never become the catalog's current measured run or enter live assessment
+history. Qualification within a fixture describes its scenario, not evidence
+that a real Skill improved. Candidate qualification is never adoption.
 
-The existing layout choice opens `dashboard/sample-data.json`, a bundled,
+`python3 dashboard_samples.py --results <directory>` deterministically generates
+the fixture set through normal immutable stores. Changes to its content produce
+new content-derived run IDs rather than rewriting existing results.
+`python3 project_results.py merge-samples --results <directory>` validates and
+appends only checked-in sample-origin records. The trusted publisher runs this
+before appending Actions reports, so `evaluation-results` and the deployed
+dashboard retain the same result files. Build remains a read-only projection
+of its supplied results and never generates evaluation records. Ordinary JSON
+and evolution bounds remain 1 MiB and 2 MiB respectively.
+
+The legacy **샘플 화면 보기** control still opens `dashboard/sample-data.json`, a bundled,
 invented layout example with two Skills and three records. Its banner, labels,
 source panels and history identify synthetic content. It is opt-in and separate
 from `results/`, catalog counts, real assessment APIs and candidate adoption.

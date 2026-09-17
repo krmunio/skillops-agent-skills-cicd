@@ -1,0 +1,3354 @@
+{
+  "project_id": "project-b",
+  "report_sha256": "3b9e30ceff7d2c57f7de4e0f6c4dd3b594466e2a8015daaebfff5b73a9d2c75f",
+  "run_id": "sample-20260917T110200Z-652ca760d82f",
+  "schema_version": 1,
+  "skills": [
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "61dc8a1dd012c0302c1a9d6430d80a90ef3d55770986ac8bc351e438ef936dc6",
+          "staged_version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+          "work_sha256": "907ff8aa419239acd7f3b2b84008387e137dad24f4de384373c8a5c014891f90"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "44bb0fcef4aa25f5701266f06679dd6821cf014973d7205406a989581924bd8e",
+          "staged_version_id": "sha256:26be25ba6372001bd7178dd2580244fa57aa0c81f5349b284b414fe1f8c1d7b8",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:26be25ba6372001bd7178dd2580244fa57aa0c81f5349b284b414fe1f8c1d7b8",
+          "work_sha256": "907ff8aa419239acd7f3b2b84008387e137dad24f4de384373c8a5c014891f90"
+        }
+      },
+      "base_version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+      "candidate_version_id": "sha256:26be25ba6372001bd7178dd2580244fa57aa0c81f5349b284b414fe1f8c1d7b8",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "768825798323b18e95449629a9b22bdb4f38d89aedfe6b5bff1ecdad44a7475f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "768825798323b18e95449629a9b22bdb4f38d89aedfe6b5bff1ecdad44a7475f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:096d1d195c864df34280ab5e",
+      "source_path": "skills/brainstorming",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "907ff8aa419239acd7f3b2b84008387e137dad24f4de384373c8a5c014891f90"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "a6dd7007f54967228656ea76a1b16e56c4a6f24ae82210335e01f43dd68c5e31",
+          "staged_version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+          "work_sha256": "92bdfef1a3bec16608187709e1d7f0e64a2c700d34eb7d38f6660accc14d9b39"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "35a01bcdf11e7c2230cf2028c0ddee4f5e940b3fb7af412fc2d7c9f68d09beb3",
+          "staged_version_id": "sha256:e417b4b401224c52e0e5141cb923d35287c21af08bfa17200e0231158687e954",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:e417b4b401224c52e0e5141cb923d35287c21af08bfa17200e0231158687e954",
+          "work_sha256": "92bdfef1a3bec16608187709e1d7f0e64a2c700d34eb7d38f6660accc14d9b39"
+        }
+      },
+      "base_version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+      "candidate_version_id": "sha256:e417b4b401224c52e0e5141cb923d35287c21af08bfa17200e0231158687e954",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "c1279cf680c50a11d2922ec5558fe64d5b29887a10598dc63cc1136b84445eab",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "c1279cf680c50a11d2922ec5558fe64d5b29887a10598dc63cc1136b84445eab",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:7664a7ade6f67077dc6dd315",
+      "source_path": "skills/dispatching-parallel-agents",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "92bdfef1a3bec16608187709e1d7f0e64a2c700d34eb7d38f6660accc14d9b39"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "e3bdfce78722c4aca3b9f11f81bd96bb93708864f19a1c7ae7eac937d208f7fe",
+          "staged_version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+          "work_sha256": "e56a25d88abefffb2ccf44e5cff96dcb689260b0d3ed5d54ffde60f68dac41fd"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "92b5f0c8a2789c63a54bdbed9bc7affb79c2c5e85d0c3f11163ddde41d933db7",
+          "staged_version_id": "sha256:d93aea400d08c49a2ad30c3cce3b77b69e8cb91e8c58bd5ef0df8d04b66fba59",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:d93aea400d08c49a2ad30c3cce3b77b69e8cb91e8c58bd5ef0df8d04b66fba59",
+          "work_sha256": "e56a25d88abefffb2ccf44e5cff96dcb689260b0d3ed5d54ffde60f68dac41fd"
+        }
+      },
+      "base_version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+      "candidate_version_id": "sha256:d93aea400d08c49a2ad30c3cce3b77b69e8cb91e8c58bd5ef0df8d04b66fba59",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "fdef8e1c3468cd7fcd8b287391352846bbea7b7b0a3537cee44241c183a1c59f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "fdef8e1c3468cd7fcd8b287391352846bbea7b7b0a3537cee44241c183a1c59f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:b4b343d655fc5fd7f179620f",
+      "source_path": "skills/executing-plans",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "e56a25d88abefffb2ccf44e5cff96dcb689260b0d3ed5d54ffde60f68dac41fd"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "359ebb8c790d13d5fb82d0bfc66fae8f77129068d0655107716abdc924733ca0",
+          "staged_version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+          "work_sha256": "c33b8db456105bb9636ae44c7f40de227f3ac555b646f7e680f0a9765db775d0"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "50e047fed2820a3eae9578c1e2b3280f8286981b182b01adb420cc6ff6de3ad7",
+          "staged_version_id": "sha256:7fb8c9640535f482f11e69ef30cb620172487df58ae66d11f2bf68c4e6c5de4c",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:7fb8c9640535f482f11e69ef30cb620172487df58ae66d11f2bf68c4e6c5de4c",
+          "work_sha256": "c33b8db456105bb9636ae44c7f40de227f3ac555b646f7e680f0a9765db775d0"
+        }
+      },
+      "base_version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+      "candidate_version_id": "sha256:7fb8c9640535f482f11e69ef30cb620172487df58ae66d11f2bf68c4e6c5de4c",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "e0adda79719cc46a870817e48ed63cc94f59700c258ae00dcb8374a8aa180ad4",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "e0adda79719cc46a870817e48ed63cc94f59700c258ae00dcb8374a8aa180ad4",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:b88c5520c5dea4dcb3931b99",
+      "source_path": "skills/finishing-a-development-branch",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "c33b8db456105bb9636ae44c7f40de227f3ac555b646f7e680f0a9765db775d0"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "d98a8a26df5ef480cb5be0c48f516063681e7957c91267005fcf00757618a101",
+          "staged_version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+          "work_sha256": "f864ece80e6b5ed47f81912a85fcce345f6f2d8d09fed1ca9ece05b92ce6273e"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "384b3559e1cb45f16e826a7032584d7ed5b35ca827d66b31d691ee06184cec59",
+          "staged_version_id": "sha256:015c498ab872f21b1313e1a539f20a624c96a3c7fa80540a2d220dcd0bf31540",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:015c498ab872f21b1313e1a539f20a624c96a3c7fa80540a2d220dcd0bf31540",
+          "work_sha256": "f864ece80e6b5ed47f81912a85fcce345f6f2d8d09fed1ca9ece05b92ce6273e"
+        }
+      },
+      "base_version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+      "candidate_version_id": "sha256:015c498ab872f21b1313e1a539f20a624c96a3c7fa80540a2d220dcd0bf31540",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "a35829d8906536c0d42cbdf616a14d78bd4002c5ce7c9f48c5ec6e1eb0db1853",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "a35829d8906536c0d42cbdf616a14d78bd4002c5ce7c9f48c5ec6e1eb0db1853",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:52f3da32f769c50cbeff2e5c",
+      "source_path": "skills/receiving-code-review",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "f864ece80e6b5ed47f81912a85fcce345f6f2d8d09fed1ca9ece05b92ce6273e"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "8e4c35a79fbba1c6b06ec9e02b56284394f37a3efabbab407744184234af37e3",
+          "staged_version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+          "work_sha256": "a27bfee64d839317804f9b07f91433664005351abd2e1b630c6d195577b64379"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "a37f3dd4f9cbc1ed1e3a4b07f8b39273921218bddc6866b79d9c1afb829fb7a8",
+          "staged_version_id": "sha256:d920adbd46c8ae4562591b4957277335b35d6ff5ce9a1511ab9e6da55eeb6b06",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:d920adbd46c8ae4562591b4957277335b35d6ff5ce9a1511ab9e6da55eeb6b06",
+          "work_sha256": "a27bfee64d839317804f9b07f91433664005351abd2e1b630c6d195577b64379"
+        }
+      },
+      "base_version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+      "candidate_version_id": "sha256:d920adbd46c8ae4562591b4957277335b35d6ff5ce9a1511ab9e6da55eeb6b06",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "7345cb32e6c359b3c3adb295e0bc77f5ab067ad68520c8899915c7b7f2dd611f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "7345cb32e6c359b3c3adb295e0bc77f5ab067ad68520c8899915c7b7f2dd611f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:48c4c1bedab8d87af5af660d",
+      "source_path": "skills/requesting-code-review",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "a27bfee64d839317804f9b07f91433664005351abd2e1b630c6d195577b64379"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "a56d35c729f33979adc3b022737a84e8f42f896d26b2899e9fb95da410204049",
+          "staged_version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+          "work_sha256": "5c61d78ea59450983b450b5c663bbb72a7a1eb60ef1aa352ea6315c878290f44"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "6b86297dc3bc2987258d5004cadf36985c8a5017e1818c56aefeeeeb1faad3be",
+          "staged_version_id": "sha256:3fc4d0ec792025ccc4ecd10ec31b7f3d48bbb129f870182b0c7d345dcf3bace0",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:3fc4d0ec792025ccc4ecd10ec31b7f3d48bbb129f870182b0c7d345dcf3bace0",
+          "work_sha256": "5c61d78ea59450983b450b5c663bbb72a7a1eb60ef1aa352ea6315c878290f44"
+        }
+      },
+      "base_version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+      "candidate_version_id": "sha256:3fc4d0ec792025ccc4ecd10ec31b7f3d48bbb129f870182b0c7d345dcf3bace0",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "a7f3814bd646135e8a1027ed97d8ccd1b021c5408f6fb82a602d6e8c06bf543f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "a7f3814bd646135e8a1027ed97d8ccd1b021c5408f6fb82a602d6e8c06bf543f",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:702a93960adf4d346056da6b",
+      "source_path": "skills/subagent-driven-development",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "5c61d78ea59450983b450b5c663bbb72a7a1eb60ef1aa352ea6315c878290f44"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "48dd104782d676f5cbe1cee6e69e873bfbe4dd7dfef5190cbd7d634d36d42e3a",
+          "staged_version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+          "work_sha256": "91eca4fa053611b502f171d3417375925e58aad167d2f7570cb98a7aff8444a7"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "554c23752e9abb9982c1485b791c25b28c360b29307535bbe880729e2662c2d4",
+          "staged_version_id": "sha256:bd01115fe94e13b830eb0277233804ad9f7f667a0db4b0319d3465f4c3f6c832",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:bd01115fe94e13b830eb0277233804ad9f7f667a0db4b0319d3465f4c3f6c832",
+          "work_sha256": "91eca4fa053611b502f171d3417375925e58aad167d2f7570cb98a7aff8444a7"
+        }
+      },
+      "base_version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+      "candidate_version_id": "sha256:bd01115fe94e13b830eb0277233804ad9f7f667a0db4b0319d3465f4c3f6c832",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "37f49b19734d41b37c8d68c166bf5a256c8a2264a3bad00a4742499002f460cb",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "37f49b19734d41b37c8d68c166bf5a256c8a2264a3bad00a4742499002f460cb",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:b25940dc0fbf4bce0b96a693",
+      "source_path": "skills/systematic-debugging",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "91eca4fa053611b502f171d3417375925e58aad167d2f7570cb98a7aff8444a7"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "aa74784f5dd627e6c96d4ff9b4d8a0e0ba11695e31a81acabcd42da83d590cfe",
+          "staged_version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+          "work_sha256": "4129ab0c8bc7fe3431440ea657254a68ab58134072d8be6fefe3e166c59cc1dd"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "11cbaa0f246d09c9433a6518c057935b1cb2df8fd97ed93dfef3bed6728a881b",
+          "staged_version_id": "sha256:24a8b13d7c3f200cc0090b686da1c9d843689c9ca1f5d162eced8c891aaeeb93",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:24a8b13d7c3f200cc0090b686da1c9d843689c9ca1f5d162eced8c891aaeeb93",
+          "work_sha256": "4129ab0c8bc7fe3431440ea657254a68ab58134072d8be6fefe3e166c59cc1dd"
+        }
+      },
+      "base_version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+      "candidate_version_id": "sha256:24a8b13d7c3f200cc0090b686da1c9d843689c9ca1f5d162eced8c891aaeeb93",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "b4f1c5b10c8696fb35b7fd6a9ced92d45a67ccd2006f1910bbf80c94c6b7e110",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "b4f1c5b10c8696fb35b7fd6a9ced92d45a67ccd2006f1910bbf80c94c6b7e110",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:402b5216cbc697c3d1d4bbea",
+      "source_path": "skills/test-driven-development",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "4129ab0c8bc7fe3431440ea657254a68ab58134072d8be6fefe3e166c59cc1dd"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "2881ee60519a6b786593d1b82379e03bf6df85ed10cb2b708e8755da91ac8fa6",
+          "staged_version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+          "work_sha256": "4dea2d7d2c2b23abd38b0a38a8bddd620d910eb96b7eae68deb94f3146fee870"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "7b873007f0af654659a34c56b184791619d51fa061778d47fd5fdeb77cc31229",
+          "staged_version_id": "sha256:5bd448d5110b9574f7e1e6a3346e858a29eb718ab1b4b716ac2c4b50d166a41e",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:5bd448d5110b9574f7e1e6a3346e858a29eb718ab1b4b716ac2c4b50d166a41e",
+          "work_sha256": "4dea2d7d2c2b23abd38b0a38a8bddd620d910eb96b7eae68deb94f3146fee870"
+        }
+      },
+      "base_version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+      "candidate_version_id": "sha256:5bd448d5110b9574f7e1e6a3346e858a29eb718ab1b4b716ac2c4b50d166a41e",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "05d0d2e945a3167866b6ef8c24b2f173e8df1803112f1bc3cfde2b34dbf9eee5",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "05d0d2e945a3167866b6ef8c24b2f173e8df1803112f1bc3cfde2b34dbf9eee5",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:223a29e44d1dae6c9c2736da",
+      "source_path": "skills/using-git-worktrees",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "4dea2d7d2c2b23abd38b0a38a8bddd620d910eb96b7eae68deb94f3146fee870"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "7498763628a3c91c3b69229ab4668cd7e122c543ea3bf8e5393631aa611a8585",
+          "staged_version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+          "work_sha256": "c8a7712735e8cb54bec891620ab2d3a3011d36717b010715412d8375efac7f5a"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "20689c55a9be2295a63dd901ba1b9605356cf85625c927993a2650071bbd45dd",
+          "staged_version_id": "sha256:63045d74307d91408e861b89b54d12bbfe83da461c684cb8de5cd2b9ecd16235",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:63045d74307d91408e861b89b54d12bbfe83da461c684cb8de5cd2b9ecd16235",
+          "work_sha256": "c8a7712735e8cb54bec891620ab2d3a3011d36717b010715412d8375efac7f5a"
+        }
+      },
+      "base_version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+      "candidate_version_id": "sha256:63045d74307d91408e861b89b54d12bbfe83da461c684cb8de5cd2b9ecd16235",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "1d2fe1a5b13d82bde837ad1aa19e478a321c779ed3fab9d19ec9ff4a4887953b",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "1d2fe1a5b13d82bde837ad1aa19e478a321c779ed3fab9d19ec9ff4a4887953b",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:fe4a07d9ba09b23fd2a1b95d",
+      "source_path": "skills/using-superpowers",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "c8a7712735e8cb54bec891620ab2d3a3011d36717b010715412d8375efac7f5a"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "0ad08b29b924d966a8d03853ae220d4106537c8d6dee2e6946912ca0faf01379",
+          "staged_version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+          "work_sha256": "76344ee65ca831e1ae3bf128bbf9b48307b5aafa4f431420131469e4e8301adc"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "1dcf9b0e2bf99de1b61586654e8077c1b7c0f97c505994fa3082aafc31753f21",
+          "staged_version_id": "sha256:fb9becc6c8f710d8c01139c3d4eb0e49bb353f064a282a4b5931f771a57e365b",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:fb9becc6c8f710d8c01139c3d4eb0e49bb353f064a282a4b5931f771a57e365b",
+          "work_sha256": "76344ee65ca831e1ae3bf128bbf9b48307b5aafa4f431420131469e4e8301adc"
+        }
+      },
+      "base_version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+      "candidate_version_id": "sha256:fb9becc6c8f710d8c01139c3d4eb0e49bb353f064a282a4b5931f771a57e365b",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "a6db82d83a626ad6b00e7ac85df21f194a8bca5556b4e3b20dc5f5a5214818d6",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "a6db82d83a626ad6b00e7ac85df21f194a8bca5556b4e3b20dc5f5a5214818d6",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:96b20b25f537273c9033b2cc",
+      "source_path": "skills/verification-before-completion",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "76344ee65ca831e1ae3bf128bbf9b48307b5aafa4f431420131469e4e8301adc"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "5fb644d9bcf4a8037cc1e8b7a0238f0952fcb49a20c1217589a3ffb7ce22cb78",
+          "staged_version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+          "work_sha256": "891e47e34b3120f84bbeb200b96997bfa21206354ae0f17db05e0c9aab88f5f9"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "ae543afbc7694cff30bc6a0bc988bb80683c3b231952f6010b3564dc97a6f75f",
+          "staged_version_id": "sha256:83f4ddb9df3da1a11e02304fa26fe185fb3217e689442e791238ace3b5153512",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:83f4ddb9df3da1a11e02304fa26fe185fb3217e689442e791238ace3b5153512",
+          "work_sha256": "891e47e34b3120f84bbeb200b96997bfa21206354ae0f17db05e0c9aab88f5f9"
+        }
+      },
+      "base_version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+      "candidate_version_id": "sha256:83f4ddb9df3da1a11e02304fa26fe185fb3217e689442e791238ace3b5153512",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "3e12ca82423d61b423533f3dd22c2eed235636f415a1fb8bb133698c4bfce1fb",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "3e12ca82423d61b423533f3dd22c2eed235636f415a1fb8bb133698c4bfce1fb",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:58410bf783a1dbb6a26ac858",
+      "source_path": "skills/writing-plans",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "891e47e34b3120f84bbeb200b96997bfa21206354ae0f17db05e0c9aab88f5f9"
+      }
+    },
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "365eb962d44a5759fbae6e80aa233b1c6421a7f8b15c059920c95bad826d0b21",
+          "staged_version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+          "work_sha256": "40bebc26005087ccdde8cac27493bfb07d68cd6d0c18b8cc3990a3e960d22e79"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "f9955f73abaefbd15f79fee924a7c924f41dca4ad42fbf237cc332e9585cbffb",
+          "staged_version_id": "sha256:d4f24858a97f7786274ae03d0ea217a33cea2a627a540e9bf105547321d2aec5",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:d4f24858a97f7786274ae03d0ea217a33cea2a627a540e9bf105547321d2aec5",
+          "work_sha256": "40bebc26005087ccdde8cac27493bfb07d68cd6d0c18b8cc3990a3e960d22e79"
+        }
+      },
+      "base_version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+      "candidate_version_id": "sha256:d4f24858a97f7786274ae03d0ea217a33cea2a627a540e9bf105547321d2aec5",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "50a3aa2af796e1018229bc7f4b88a8030c245f6719da458bf053998dc7988007",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "e3f782a3a4cd71568c891aa5fd2e07e55fffafa7e5165bf91574c9b48e606fcb",
+          "protected_sha256": "048be69a8c6291b4b45e381708aa667d5d0423cc8abe7f462870be5ec0b76e4c",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "eac124907da7ac71f0f13ecd327bcb51585349fca4ba1a4c4f19cab0714ab89e",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "eac124907da7ac71f0f13ecd327bcb51585349fca4ba1a4c4f19cab0714ab89e",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:f0fb086390bc2ca4b5193054",
+      "source_path": "skills/writing-skills",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "40bebc26005087ccdde8cac27493bfb07d68cd6d0c18b8cc3990a3e960d22e79"
+      }
+    }
+  ]
+}

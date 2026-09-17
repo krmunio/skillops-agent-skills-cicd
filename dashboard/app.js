@@ -3,7 +3,7 @@ import { validateEvolutionSummary, validateEvolution, renderEvolution, clearEvol
 import { validateAssessmentSummary, validateAssessments, renderAssessment } from './assessments.js';
 
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
-const runPattern = /^(?:[0-9]+-[0-9]+|(?:import-|local-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})$/;
+const runPattern = /^(?:[0-9]+-[0-9]+|(?:import-|local-|sample-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})$/;
 let projects = [];
 let selection = 0;
 let reportSelection = 0;
@@ -81,7 +81,7 @@ function renderHistory() {
     const button = node('button', undefined, 'run');
     button.type = 'button'; button.dataset.run = run.run_id;
     button.setAttribute('aria-pressed', String(run.run_id === activeRun));
-    const title = node('span', sampleMode && run.round_label ? `${run.round_label} · ${purposes[run.purpose]}` : purposes[run.purpose]);
+    const title = node('span', purposes[run.purpose]);
     title.append(node('small', sampleMode ? '합성 샘플 · 실제 평가 아님' :
       run.origin === 'historical_import' ? '과거 로컬 이력' : '프로젝트 평가'));
     const state = run.execution_status;
@@ -149,7 +149,7 @@ function renderSkillHistory() {
     const button = node('button', undefined, 'skill-run');
     button.type = 'button'; button.dataset.run = run.run_id;
     button.setAttribute('aria-pressed', String(run.run_id === activeRun));
-    const title = node('span', sampleMode && run.round_label ? `${run.round_label} · ${purposes[run.purpose]}` : purposes[run.purpose]);
+    const title = node('span', purposes[run.purpose]);
     title.append(node('small', stamp(run.created_at)));
     button.append(title, node('span', labels[run.execution_status], `badge ${run.execution_status}`));
     button.addEventListener('click', () => selectRun(run, selection));
@@ -240,7 +240,7 @@ async function selectRun(run, token) {
     renderReport(report, activeProject, detail, snapshots);
     clearEvolution();
     if (lifecycle) renderEvolution(lifecycle, selectedSkill, history, next => selectRun(next, selection));
-    if (assessments) renderAssessment(assessments, selectedSkill);
+    if (assessments) renderAssessment(assessments, selectedSkill, report.origin);
     activeRun = run.run_id;
     $('detail').hidden = false;
     renderHistory();
@@ -309,20 +309,17 @@ function selectSampleSkill(id) {
   if (history.length) selectRun(history[0], selection);
 }
 async function openSample() {
-  const identifier = $('sample-project-select').value;
   resetSelection(true);
   $('skill-select').disabled = true;
   $('skill-select').replaceChildren(node('option', '샘플 Skill을 불러오는 중입니다.'));
   const token = selection;
   $('project-title').textContent = '샘플 화면';
   try {
-    if (identifier && !['project-a', 'project-b'].includes(identifier)) throw new Error('Invalid sample project');
-    const loaded = await load(identifier ? `/sample-${identifier}.json` : '/sample-data.json');
+    const loaded = await load('/sample-data.json');
     if (token !== selection) return;
     if (loaded.synthetic !== true || !Array.isArray(loaded.skills) || !loaded.skills.length ||
         loaded.skills.length > 256 || !idPattern.test(loaded.project_id) ||
-        projects.some(project => project.id === loaded.project_id) ||
-        (identifier && (loaded.source_project_id !== identifier || loaded.project_id !== `sample-${identifier}`))) {
+        projects.some(project => project.id === loaded.project_id)) {
       throw new Error('Invalid synthetic sample boundary');
     }
     sample = loaded;
@@ -350,9 +347,6 @@ async function refresh() {
     if (!Array.isArray(index.projects)) throw new Error('Invalid catalog');
     projects = index.projects;
     $('projects').replaceChildren();
-    const legacySample = node('option', '기존 화면 예시');
-    legacySample.value = '';
-    $('sample-project-select').replaceChildren(legacySample);
     $('project-count').textContent = String(projects.length);
     for (const project of projects) {
       if (!idPattern.test(project.id) || !Number.isInteger(project.history_count) || project.history_count < 0 ||
@@ -369,12 +363,6 @@ async function refresh() {
               /[\\\u0000-\u001f\u007f]/.test(skill.source_path) ||
               keys.has(skill.skill_key) || paths.has(skill.source_path)) throw new Error('Invalid Skill inventory');
           keys.add(skill.skill_key); paths.add(skill.source_path);
-        }
-        if (['project-a', 'project-b'].includes(project.id) &&
-            project.detected_skills?.length && !project.skill_discovery_error) {
-          const option = node('option', `${project.id} · 3회분`);
-          option.value = project.id;
-          $('sample-project-select').append(option);
         }
       }
       const button = node('button', undefined, 'project');
@@ -395,7 +383,6 @@ async function refresh() {
 }
 $('refresh').addEventListener('click', refresh);
 $('demo-open').addEventListener('click', openSample);
-$('sample-project-select').addEventListener('change', () => { if (sampleMode) openSample(); });
 $('exit-sample').addEventListener('click', refresh);
 $('history-filter').addEventListener('change', renderHistory);
 $('skill-select').addEventListener('change', () => {
