@@ -1,6 +1,297 @@
 {
   "history": [
     {
+      "created_at": "2026-09-17T11:03:00+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+          "candidate_version_id": "sha256:9b5f2ec3696b90f12ab99fe77dc58781305a3f9495583aba6f1202362f52d6a8",
+          "display_name": "brainstorming",
+          "skill_key": "path:096d1d195c864df34280ab5e"
+        },
+        {
+          "base_version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+          "candidate_version_id": "sha256:e048a95571f02ebfb019044c52b13db9eb9a82dc52ab11ad6d1b03dcbdbce598",
+          "display_name": "dispatching-parallel-agents",
+          "skill_key": "path:7664a7ade6f67077dc6dd315"
+        },
+        {
+          "base_version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+          "candidate_version_id": "sha256:25f95c3031981d674c2dc515e71a54f10a900ea3daf7c6a54b75b34772773e9f",
+          "display_name": "executing-plans",
+          "skill_key": "path:b4b343d655fc5fd7f179620f"
+        },
+        {
+          "base_version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+          "candidate_version_id": "sha256:1acbf6f9ee8d4326b10a3e94b150d9556cc92c1b6aca4166499b0a70b5e9c02e",
+          "display_name": "finishing-a-development-branch",
+          "skill_key": "path:b88c5520c5dea4dcb3931b99"
+        },
+        {
+          "base_version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+          "candidate_version_id": "sha256:0d4b42c8fd29a60e27212706aab35b629996e925952a9f71f14ec11352284800",
+          "display_name": "receiving-code-review",
+          "skill_key": "path:52f3da32f769c50cbeff2e5c"
+        },
+        {
+          "base_version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+          "candidate_version_id": "sha256:78c49ca2ee5a5a72c610332e062bb07169147221340f6ab63d9cd299bcb69557",
+          "display_name": "requesting-code-review",
+          "skill_key": "path:48c4c1bedab8d87af5af660d"
+        },
+        {
+          "base_version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+          "candidate_version_id": "sha256:3c4a78582f4bb8fd38ebaf1ec7b98cad3194e4905b31d9650c7273fb445449cd",
+          "display_name": "subagent-driven-development",
+          "skill_key": "path:702a93960adf4d346056da6b"
+        },
+        {
+          "base_version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+          "candidate_version_id": "sha256:62c19b86df37dc52557c44526107e361079230d2b392ad3667e1addc142336fc",
+          "display_name": "systematic-debugging",
+          "skill_key": "path:b25940dc0fbf4bce0b96a693"
+        },
+        {
+          "base_version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+          "candidate_version_id": "sha256:21bfeac3f5e4f4afbd13da68f8d63a93786069a7545b34293009f13ff7904d4f",
+          "display_name": "test-driven-development",
+          "skill_key": "path:402b5216cbc697c3d1d4bbea"
+        },
+        {
+          "base_version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+          "candidate_version_id": "sha256:a0aa132a9bb738736cf709a36313406f781243a116c3525baf66ce9b190639ce",
+          "display_name": "using-git-worktrees",
+          "skill_key": "path:223a29e44d1dae6c9c2736da"
+        },
+        {
+          "base_version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+          "candidate_version_id": "sha256:52970312cd8d71dc164805d85d589e4a3823cd1dc4cb78cc1d9e7cf1d47d96e9",
+          "display_name": "using-superpowers",
+          "skill_key": "path:fe4a07d9ba09b23fd2a1b95d"
+        },
+        {
+          "base_version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+          "candidate_version_id": "sha256:0ff859ff282d34146f3cfbb29fa766fbac2942ac97faa7e57275d9e16cac9417",
+          "display_name": "verification-before-completion",
+          "skill_key": "path:96b20b25f537273c9033b2cc"
+        },
+        {
+          "base_version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+          "candidate_version_id": "sha256:5bb9b471e107059ba2327cadd90a6e759d213ebead4a8b0609f1bc79733d81b6",
+          "display_name": "writing-plans",
+          "skill_key": "path:58410bf783a1dbb6a26ac858"
+        },
+        {
+          "base_version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+          "candidate_version_id": "sha256:588d2bc0d5a54fd689317e9d8ac8c449c225698ce903c5695d2f074faeee54ff",
+          "display_name": "writing-skills",
+          "skill_key": "path:f0fb086390bc2ca4b5193054"
+        }
+      ],
+      "execution_status": "completed",
+      "guide_status": "completed",
+      "origin": "sample",
+      "purpose": "project_assessment",
+      "report": "sample-20260917T110300Z-e2dbaf833666/report.json",
+      "run_id": "sample-20260917T110300Z-e2dbaf833666",
+      "skill_assessments": "sample-20260917T110300Z-e2dbaf833666/skill-assessments.json",
+      "skill_evolution": "sample-20260917T110300Z-e2dbaf833666/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-17T11:02:00+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+          "candidate_version_id": "sha256:26be25ba6372001bd7178dd2580244fa57aa0c81f5349b284b414fe1f8c1d7b8",
+          "display_name": "brainstorming",
+          "skill_key": "path:096d1d195c864df34280ab5e"
+        },
+        {
+          "base_version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+          "candidate_version_id": "sha256:e417b4b401224c52e0e5141cb923d35287c21af08bfa17200e0231158687e954",
+          "display_name": "dispatching-parallel-agents",
+          "skill_key": "path:7664a7ade6f67077dc6dd315"
+        },
+        {
+          "base_version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+          "candidate_version_id": "sha256:d93aea400d08c49a2ad30c3cce3b77b69e8cb91e8c58bd5ef0df8d04b66fba59",
+          "display_name": "executing-plans",
+          "skill_key": "path:b4b343d655fc5fd7f179620f"
+        },
+        {
+          "base_version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+          "candidate_version_id": "sha256:7fb8c9640535f482f11e69ef30cb620172487df58ae66d11f2bf68c4e6c5de4c",
+          "display_name": "finishing-a-development-branch",
+          "skill_key": "path:b88c5520c5dea4dcb3931b99"
+        },
+        {
+          "base_version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+          "candidate_version_id": "sha256:015c498ab872f21b1313e1a539f20a624c96a3c7fa80540a2d220dcd0bf31540",
+          "display_name": "receiving-code-review",
+          "skill_key": "path:52f3da32f769c50cbeff2e5c"
+        },
+        {
+          "base_version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+          "candidate_version_id": "sha256:d920adbd46c8ae4562591b4957277335b35d6ff5ce9a1511ab9e6da55eeb6b06",
+          "display_name": "requesting-code-review",
+          "skill_key": "path:48c4c1bedab8d87af5af660d"
+        },
+        {
+          "base_version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+          "candidate_version_id": "sha256:3fc4d0ec792025ccc4ecd10ec31b7f3d48bbb129f870182b0c7d345dcf3bace0",
+          "display_name": "subagent-driven-development",
+          "skill_key": "path:702a93960adf4d346056da6b"
+        },
+        {
+          "base_version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+          "candidate_version_id": "sha256:bd01115fe94e13b830eb0277233804ad9f7f667a0db4b0319d3465f4c3f6c832",
+          "display_name": "systematic-debugging",
+          "skill_key": "path:b25940dc0fbf4bce0b96a693"
+        },
+        {
+          "base_version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+          "candidate_version_id": "sha256:24a8b13d7c3f200cc0090b686da1c9d843689c9ca1f5d162eced8c891aaeeb93",
+          "display_name": "test-driven-development",
+          "skill_key": "path:402b5216cbc697c3d1d4bbea"
+        },
+        {
+          "base_version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+          "candidate_version_id": "sha256:5bd448d5110b9574f7e1e6a3346e858a29eb718ab1b4b716ac2c4b50d166a41e",
+          "display_name": "using-git-worktrees",
+          "skill_key": "path:223a29e44d1dae6c9c2736da"
+        },
+        {
+          "base_version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+          "candidate_version_id": "sha256:63045d74307d91408e861b89b54d12bbfe83da461c684cb8de5cd2b9ecd16235",
+          "display_name": "using-superpowers",
+          "skill_key": "path:fe4a07d9ba09b23fd2a1b95d"
+        },
+        {
+          "base_version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+          "candidate_version_id": "sha256:fb9becc6c8f710d8c01139c3d4eb0e49bb353f064a282a4b5931f771a57e365b",
+          "display_name": "verification-before-completion",
+          "skill_key": "path:96b20b25f537273c9033b2cc"
+        },
+        {
+          "base_version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+          "candidate_version_id": "sha256:83f4ddb9df3da1a11e02304fa26fe185fb3217e689442e791238ace3b5153512",
+          "display_name": "writing-plans",
+          "skill_key": "path:58410bf783a1dbb6a26ac858"
+        },
+        {
+          "base_version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+          "candidate_version_id": "sha256:d4f24858a97f7786274ae03d0ea217a33cea2a627a540e9bf105547321d2aec5",
+          "display_name": "writing-skills",
+          "skill_key": "path:f0fb086390bc2ca4b5193054"
+        }
+      ],
+      "execution_status": "completed",
+      "guide_status": "completed",
+      "origin": "sample",
+      "purpose": "project_assessment",
+      "report": "sample-20260917T110200Z-652ca760d82f/report.json",
+      "run_id": "sample-20260917T110200Z-652ca760d82f",
+      "skill_assessments": "sample-20260917T110200Z-652ca760d82f/skill-assessments.json",
+      "skill_evolution": "sample-20260917T110200Z-652ca760d82f/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-17T11:01:00+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+          "candidate_version_id": "sha256:a59733c2e1ee5fab344a3acdf07cb338a0d2a3566eb4b213558dc83b72bc26c2",
+          "display_name": "brainstorming",
+          "skill_key": "path:096d1d195c864df34280ab5e"
+        },
+        {
+          "base_version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+          "candidate_version_id": "sha256:824ec43d24eb2c9c01d47ecd28b14432423ae3ea909192cdb8e855efc83a7ae0",
+          "display_name": "dispatching-parallel-agents",
+          "skill_key": "path:7664a7ade6f67077dc6dd315"
+        },
+        {
+          "base_version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+          "candidate_version_id": "sha256:7fcd4e2b30887ed6d00db9a2fd081eb822bf9eec74caadb5839bca841fd3d2fb",
+          "display_name": "executing-plans",
+          "skill_key": "path:b4b343d655fc5fd7f179620f"
+        },
+        {
+          "base_version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+          "candidate_version_id": "sha256:f34e7cf9c5d33087b05cd55bed81f0d35d24cf561c9eedea6d5123b967b4f5f9",
+          "display_name": "finishing-a-development-branch",
+          "skill_key": "path:b88c5520c5dea4dcb3931b99"
+        },
+        {
+          "base_version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+          "candidate_version_id": "sha256:6afaad3368e6eb933baf9a10394b68118427701f09e56aaf404dd8372b6b3f5d",
+          "display_name": "receiving-code-review",
+          "skill_key": "path:52f3da32f769c50cbeff2e5c"
+        },
+        {
+          "base_version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+          "candidate_version_id": "sha256:d259589a2bb1d1c9763311c65b69a986e301430e942908d33433188dfde3ff38",
+          "display_name": "requesting-code-review",
+          "skill_key": "path:48c4c1bedab8d87af5af660d"
+        },
+        {
+          "base_version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+          "candidate_version_id": "sha256:7d08941570e9b9292adc587dfa51d0739a77a057e9da1eba1ecde11f236a1b21",
+          "display_name": "subagent-driven-development",
+          "skill_key": "path:702a93960adf4d346056da6b"
+        },
+        {
+          "base_version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+          "candidate_version_id": "sha256:cc5e50fb590bacc099478ba509e32bef2184fce303719d79e7445628046aebbe",
+          "display_name": "systematic-debugging",
+          "skill_key": "path:b25940dc0fbf4bce0b96a693"
+        },
+        {
+          "base_version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+          "candidate_version_id": "sha256:a844736751ae000d13444c8ec2a7dfb01fe44cca6f7c084123743945c3617634",
+          "display_name": "test-driven-development",
+          "skill_key": "path:402b5216cbc697c3d1d4bbea"
+        },
+        {
+          "base_version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+          "candidate_version_id": "sha256:50c7bd235732f6ef54921cf8e056d7cccc6bc9d89840cee78b00064b96bedb87",
+          "display_name": "using-git-worktrees",
+          "skill_key": "path:223a29e44d1dae6c9c2736da"
+        },
+        {
+          "base_version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+          "candidate_version_id": "sha256:1334641d75fccb04a1dbf9f497c5887c44f03e720cab3145671df59e3f63d31e",
+          "display_name": "using-superpowers",
+          "skill_key": "path:fe4a07d9ba09b23fd2a1b95d"
+        },
+        {
+          "base_version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+          "candidate_version_id": "sha256:51d8941f4dd9a6f055cbbbd0c57b644b65d0371f233ed91fb49a8f0eb92f4321",
+          "display_name": "verification-before-completion",
+          "skill_key": "path:96b20b25f537273c9033b2cc"
+        },
+        {
+          "base_version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+          "candidate_version_id": "sha256:d7ec651f81f85df25e925cbff2d49b9d1b81c5ffd1eb30f5d18b669d9f6ddbb5",
+          "display_name": "writing-plans",
+          "skill_key": "path:58410bf783a1dbb6a26ac858"
+        },
+        {
+          "base_version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+          "candidate_version_id": "sha256:53f930ac1a6e24a8f42e332000f9923bb7c1468aca04082a31bfc476f640f371",
+          "display_name": "writing-skills",
+          "skill_key": "path:f0fb086390bc2ca4b5193054"
+        }
+      ],
+      "execution_status": "failed",
+      "guide_status": "completed",
+      "origin": "sample",
+      "purpose": "project_assessment",
+      "report": "sample-20260917T110100Z-d8cd4b8c1cf8/report.json",
+      "run_id": "sample-20260917T110100Z-d8cd4b8c1cf8",
+      "skill_assessments": "sample-20260917T110100Z-d8cd4b8c1cf8/skill-assessments.json",
+      "skill_evolution": "sample-20260917T110100Z-d8cd4b8c1cf8/skill-evolution.json"
+    },
+    {
       "created_at": "2026-09-16T08:14:03.664875+00:00",
       "execution_status": "configuration_required",
       "guide_status": "blocked",
@@ -11,10 +302,83 @@
     }
   ],
   "project": {
-    "current_run": "35072620142-1",
-    "history_count": 1,
+    "current_run": null,
+    "detected_skills": [
+      {
+        "display_name": "brainstorming",
+        "skill_key": "path:096d1d195c864df34280ab5e",
+        "source_path": "skills/brainstorming"
+      },
+      {
+        "display_name": "dispatching-parallel-agents",
+        "skill_key": "path:7664a7ade6f67077dc6dd315",
+        "source_path": "skills/dispatching-parallel-agents"
+      },
+      {
+        "display_name": "executing-plans",
+        "skill_key": "path:b4b343d655fc5fd7f179620f",
+        "source_path": "skills/executing-plans"
+      },
+      {
+        "display_name": "finishing-a-development-branch",
+        "skill_key": "path:b88c5520c5dea4dcb3931b99",
+        "source_path": "skills/finishing-a-development-branch"
+      },
+      {
+        "display_name": "receiving-code-review",
+        "skill_key": "path:52f3da32f769c50cbeff2e5c",
+        "source_path": "skills/receiving-code-review"
+      },
+      {
+        "display_name": "requesting-code-review",
+        "skill_key": "path:48c4c1bedab8d87af5af660d",
+        "source_path": "skills/requesting-code-review"
+      },
+      {
+        "display_name": "subagent-driven-development",
+        "skill_key": "path:702a93960adf4d346056da6b",
+        "source_path": "skills/subagent-driven-development"
+      },
+      {
+        "display_name": "systematic-debugging",
+        "skill_key": "path:b25940dc0fbf4bce0b96a693",
+        "source_path": "skills/systematic-debugging"
+      },
+      {
+        "display_name": "test-driven-development",
+        "skill_key": "path:402b5216cbc697c3d1d4bbea",
+        "source_path": "skills/test-driven-development"
+      },
+      {
+        "display_name": "using-git-worktrees",
+        "skill_key": "path:223a29e44d1dae6c9c2736da",
+        "source_path": "skills/using-git-worktrees"
+      },
+      {
+        "display_name": "using-superpowers",
+        "skill_key": "path:fe4a07d9ba09b23fd2a1b95d",
+        "source_path": "skills/using-superpowers"
+      },
+      {
+        "display_name": "verification-before-completion",
+        "skill_key": "path:96b20b25f537273c9033b2cc",
+        "source_path": "skills/verification-before-completion"
+      },
+      {
+        "display_name": "writing-plans",
+        "skill_key": "path:58410bf783a1dbb6a26ac858",
+        "source_path": "skills/writing-plans"
+      },
+      {
+        "display_name": "writing-skills",
+        "skill_key": "path:f0fb086390bc2ca4b5193054",
+        "source_path": "skills/writing-skills"
+      }
+    ],
+    "history_count": 4,
     "id": "project-b",
     "index": "project-b/index.json",
+    "skill_discovery_error": null,
     "state": "active"
   },
   "schema_version": 1
