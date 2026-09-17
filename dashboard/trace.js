@@ -301,17 +301,17 @@ export async function loadTrace({ project, run, skill, history, loadBundle, read
         exact(round, 'round_id round_number run_id parent_version_id candidate_version_id input_sha256 reference_sha256 ' +
           'feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason');
         check(round.round_number === index + 1 && round.round_id === `${identifier}-r${index + 1}` &&
-          matches(runId, round.run_id) && round.run_id !== identifier && !runIds.has(round.run_id) &&
+          (round.run_id === null || matches(runId, round.run_id) && round.run_id !== identifier && !runIds.has(round.run_id)) &&
           round.parent_version_id === parent && round.input_sha256 === data.input_sha256 &&
           round.reference_sha256 === data.reference_sha256 && matches(hash, round.feedback_sha256) &&
           round.feedback_source_round_id === (index ? data.rounds[index - 1].round_id : null));
-        runIds.add(round.run_id);
+        if (round.run_id !== null) runIds.add(round.run_id);
         check(round.candidate_version_id === null || matches(version, round.candidate_version_id));
         check(round.candidate_version_id === null || round.candidate_version_id !== round.parent_version_id);
         check(round.stop_reason === null || stops.includes(round.stop_reason));
         check(index === data.rounds.length - 1 ? round.stop_reason === data.stop_reason : round.stop_reason === null);
         if (round.evaluation_ref !== null) {
-          check(round.evaluation_ref.run_id === round.run_id && round.candidate_version_id !== null);
+          check(round.run_id !== null && round.evaluation_ref.run_id === round.run_id && round.candidate_version_id !== null);
           const evaluated = (await resolve(round.evaluation_ref, 'replay_evaluation')).value;
           const row = evaluated.evaluation, generation = evaluated.generation;
           check(evaluated.execution_mode === data.execution_mode && generation &&
@@ -335,7 +335,7 @@ export async function loadTrace({ project, run, skill, history, loadBundle, read
           if (round.stop_reason === 'max_rounds') check(index + 1 === data.max_rounds &&
             ['rejected', 'not_improved'].includes(row.decision.status));
         } else {
-          check(round.decision === null && round.stop_reason !== null &&
+          check(round.run_id === null && round.decision === null && round.stop_reason !== null &&
             !['improved', 'max_rounds'].includes(round.stop_reason));
         }
         if (round.candidate_version_id) parent = round.candidate_version_id;
