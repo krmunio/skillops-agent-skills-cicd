@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 import time
 
-from copilot_runtime import CopilotRuntime, RuntimeFailure, capture
+from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture
 import project_results as results
 import repositories
 import project_checks
@@ -182,7 +182,7 @@ def policy_from_environment():
             except ValueError:
                 policy.pop("budget")
                 return policy
-            if not math.isfinite(credit) or credit <= 0:
+            if not math.isfinite(credit) or credit < MIN_AI_CREDITS:
                 policy.pop("budget")
                 return policy
             policy["budget"]["max_ai_credits"] = credit
