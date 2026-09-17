@@ -489,6 +489,8 @@ or cryptographically authenticated human identity.
 `sample` must be visibly labeled and excluded from approval and measured-quality
 claims. Keep existing report `origin` unchanged in meaning: samples still use
 `origin: sample`; a test-local report is not therefore a live model observation.
+Sample replay references retain null `source_commit`, `project_tree_sha256` and
+`evaluator_sha256`, matching the sample report; never invent measured identities.
 Publish only explicitly reviewed projections; never copy private roots wholesale.
 
 The existing project history index gains optional keys
@@ -553,6 +555,47 @@ Session 1 wires existing `merge`, `validate`, `index`, `build`, evaluator
 fingerprinting, publication allowlists and optional history links for all three
 attachments before consumers rely on them. Missing providers remain an explicit
 blocked integration point, not a placeholder returning success.
+
+#### Common foundation implementation handoff (PR #26)
+
+The foundation implements `validate_work_item`, `validate_replay`,
+`decide_replay`, `validate_development_feedback`, `load_replays`, `load_cycles`,
+`validate_cycle` and `budget_limits`. These are validators/readers/cap snapshots,
+not the replay provider, local approval implementation or operational adapters.
+`project_results.py validate` also checks replay/cycle sidecars.
+Until lossless publishing is connected, `merge` and `build` explicitly fail with
+`replay_publication_pending` on replay/cycle/adoption attachments rather than
+silently dropping their evidence. Legacy publication remains unchanged.
+
+The reusable fixture is `tests/hackathon_fixtures.py`; invariant tests are
+`tests/test_hackathon_contracts.py`. Every generated fixture is `offline_test`,
+including its synthetic confirmation result. No provider issuance, model
+execution or semantic confirmation isolation is established by these fixtures.
+`validate_work_item` checks the supplied full commit against the WorkItem and
+verifies the actual project bytes/plan; the caller must independently verify
+that the supplied commit identifies its checkout. It does not execute Git or tests.
+`validate_development_feedback` is pure validation, never the private issuance
+registry described below.
+
+Minimal offline calls from the repository root with `PYTHONPATH=tests:.`:
+
+```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import project_results as results
+import skill_assessments as assessments
+from hackathon_fixtures import fixture, write_results
+
+with TemporaryDirectory() as folder:
+    data = fixture(Path(folder))
+    assessments.validate_work_item(data["work_item"], project=data["project"], source_commit="a" * 40)
+    for item in data["evaluations"].values():
+        assessments.validate_replay(item["replay"], report=item["report"], lifecycle=item["lifecycle"])
+    results.validate_cycle(data["cycle"], report=data["cycle_report"], evaluations=data["evaluations"])
+    directory = write_results(Path(folder) / "results", data)
+    assert len(results.load_replays(directory)) == 3
+    assert len(results.load_cycles(directory)) == 1
+```
 
 ### Session 2: single-candidate primitives
 
