@@ -1,6 +1,63 @@
 {
   "history": [
     {
+      "created_at": "2026-09-17T11:03:00+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+          "candidate_version_id": "sha256:e4825cf1968ed875f4d51a50263079c50f63da21fa0420000495b8c9b80c63d3",
+          "display_name": "schedule-development",
+          "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+        }
+      ],
+      "execution_status": "completed",
+      "guide_status": "completed",
+      "origin": "sample",
+      "purpose": "project_assessment",
+      "report": "sample-20260917T110300Z-45259eeb4a88/report.json",
+      "run_id": "sample-20260917T110300Z-45259eeb4a88",
+      "skill_assessments": "sample-20260917T110300Z-45259eeb4a88/skill-assessments.json",
+      "skill_evolution": "sample-20260917T110300Z-45259eeb4a88/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-17T11:02:00+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+          "candidate_version_id": "sha256:6b667e4482b09fbc72dca356a915e7ede9b1a9152fa1090386aa2f212781894d",
+          "display_name": "schedule-development",
+          "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+        }
+      ],
+      "execution_status": "completed",
+      "guide_status": "completed",
+      "origin": "sample",
+      "purpose": "project_assessment",
+      "report": "sample-20260917T110200Z-445882e0ae56/report.json",
+      "run_id": "sample-20260917T110200Z-445882e0ae56",
+      "skill_assessments": "sample-20260917T110200Z-445882e0ae56/skill-assessments.json",
+      "skill_evolution": "sample-20260917T110200Z-445882e0ae56/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-17T11:01:00+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+          "candidate_version_id": "sha256:f62de428e0ef6d874d22d9023e511906e262401d3f6342bee3713c077f872f32",
+          "display_name": "schedule-development",
+          "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+        }
+      ],
+      "execution_status": "failed",
+      "guide_status": "completed",
+      "origin": "sample",
+      "purpose": "project_assessment",
+      "report": "sample-20260917T110100Z-dd5eeaba972a/report.json",
+      "run_id": "sample-20260917T110100Z-dd5eeaba972a",
+      "skill_assessments": "sample-20260917T110100Z-dd5eeaba972a/skill-assessments.json",
+      "skill_evolution": "sample-20260917T110100Z-dd5eeaba972a/skill-evolution.json"
+    },
+    {
       "created_at": "2026-09-16T08:14:03.661039+00:00",
       "execution_status": "configuration_required",
       "guide_status": "blocked",
@@ -11,10 +68,18 @@
     }
   ],
   "project": {
-    "current_run": "35072620142-1",
-    "history_count": 1,
+    "current_run": null,
+    "detected_skills": [
+      {
+        "display_name": "schedule-development",
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+        "source_path": ".github/skills/schedule-development"
+      }
+    ],
+    "history_count": 4,
     "id": "project-a",
     "index": "project-a/index.json",
+    "skill_discovery_error": null,
     "state": "active"
   },
   "schema_version": 1

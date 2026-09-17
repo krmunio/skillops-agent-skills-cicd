@@ -1,0 +1,905 @@
+{
+  "bindings": [
+    {
+      "base_version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15",
+      "candidate_version_id": "sha256:a59733c2e1ee5fab344a3acdf07cb338a0d2a3566eb4b213558dc83b72bc26c2",
+      "legacy_skill_id": null,
+      "skill_key": "path:096d1d195c864df34280ab5e"
+    },
+    {
+      "base_version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee",
+      "candidate_version_id": "sha256:824ec43d24eb2c9c01d47ecd28b14432423ae3ea909192cdb8e855efc83a7ae0",
+      "legacy_skill_id": null,
+      "skill_key": "path:7664a7ade6f67077dc6dd315"
+    },
+    {
+      "base_version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df",
+      "candidate_version_id": "sha256:7fcd4e2b30887ed6d00db9a2fd081eb822bf9eec74caadb5839bca841fd3d2fb",
+      "legacy_skill_id": null,
+      "skill_key": "path:b4b343d655fc5fd7f179620f"
+    },
+    {
+      "base_version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f",
+      "candidate_version_id": "sha256:f34e7cf9c5d33087b05cd55bed81f0d35d24cf561c9eedea6d5123b967b4f5f9",
+      "legacy_skill_id": null,
+      "skill_key": "path:b88c5520c5dea4dcb3931b99"
+    },
+    {
+      "base_version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2",
+      "candidate_version_id": "sha256:6afaad3368e6eb933baf9a10394b68118427701f09e56aaf404dd8372b6b3f5d",
+      "legacy_skill_id": null,
+      "skill_key": "path:52f3da32f769c50cbeff2e5c"
+    },
+    {
+      "base_version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d",
+      "candidate_version_id": "sha256:d259589a2bb1d1c9763311c65b69a986e301430e942908d33433188dfde3ff38",
+      "legacy_skill_id": null,
+      "skill_key": "path:48c4c1bedab8d87af5af660d"
+    },
+    {
+      "base_version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66",
+      "candidate_version_id": "sha256:7d08941570e9b9292adc587dfa51d0739a77a057e9da1eba1ecde11f236a1b21",
+      "legacy_skill_id": null,
+      "skill_key": "path:702a93960adf4d346056da6b"
+    },
+    {
+      "base_version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb",
+      "candidate_version_id": "sha256:cc5e50fb590bacc099478ba509e32bef2184fce303719d79e7445628046aebbe",
+      "legacy_skill_id": null,
+      "skill_key": "path:b25940dc0fbf4bce0b96a693"
+    },
+    {
+      "base_version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51",
+      "candidate_version_id": "sha256:a844736751ae000d13444c8ec2a7dfb01fe44cca6f7c084123743945c3617634",
+      "legacy_skill_id": null,
+      "skill_key": "path:402b5216cbc697c3d1d4bbea"
+    },
+    {
+      "base_version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b",
+      "candidate_version_id": "sha256:50c7bd235732f6ef54921cf8e056d7cccc6bc9d89840cee78b00064b96bedb87",
+      "legacy_skill_id": null,
+      "skill_key": "path:223a29e44d1dae6c9c2736da"
+    },
+    {
+      "base_version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993",
+      "candidate_version_id": "sha256:1334641d75fccb04a1dbf9f497c5887c44f03e720cab3145671df59e3f63d31e",
+      "legacy_skill_id": null,
+      "skill_key": "path:fe4a07d9ba09b23fd2a1b95d"
+    },
+    {
+      "base_version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf",
+      "candidate_version_id": "sha256:51d8941f4dd9a6f055cbbbd0c57b644b65d0371f233ed91fb49a8f0eb92f4321",
+      "legacy_skill_id": null,
+      "skill_key": "path:96b20b25f537273c9033b2cc"
+    },
+    {
+      "base_version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369",
+      "candidate_version_id": "sha256:d7ec651f81f85df25e925cbff2d49b9d1b81c5ffd1eb30f5d18b669d9f6ddbb5",
+      "legacy_skill_id": null,
+      "skill_key": "path:58410bf783a1dbb6a26ac858"
+    },
+    {
+      "base_version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704",
+      "candidate_version_id": "sha256:53f930ac1a6e24a8f42e332000f9923bb7c1468aca04082a31bfc476f640f371",
+      "legacy_skill_id": null,
+      "skill_key": "path:f0fb086390bc2ca4b5193054"
+    }
+  ],
+  "file_contents": [
+    {
+      "data": "LS0tCm5hbWU6IGJyYWluc3Rvcm1pbmcKZGVzY3JpcHRpb246IEd1aWRlIGJyYWluc3Rvcm1pbmcgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgYnJhaW5zdG9ybWluZwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGJyYWluc3Rvcm1pbmcKZGVzY3JpcHRpb246IEd1aWRlIGJyYWluc3Rvcm1pbmcgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgYnJhaW5zdG9ybWluZwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:a59733c2e1ee5fab344a3acdf07cb338a0d2a3566eb4b213558dc83b72bc26c2"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGRpc3BhdGNoaW5nLXBhcmFsbGVsLWFnZW50cwpkZXNjcmlwdGlvbjogR3VpZGUgZGlzcGF0Y2hpbmctcGFyYWxsZWwtYWdlbnRzIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIGRpc3BhdGNoaW5nLXBhcmFsbGVsLWFnZW50cwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGRpc3BhdGNoaW5nLXBhcmFsbGVsLWFnZW50cwpkZXNjcmlwdGlvbjogR3VpZGUgZGlzcGF0Y2hpbmctcGFyYWxsZWwtYWdlbnRzIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIGRpc3BhdGNoaW5nLXBhcmFsbGVsLWFnZW50cwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:824ec43d24eb2c9c01d47ecd28b14432423ae3ea909192cdb8e855efc83a7ae0"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGV4ZWN1dGluZy1wbGFucwpkZXNjcmlwdGlvbjogR3VpZGUgZXhlY3V0aW5nLXBsYW5zIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIGV4ZWN1dGluZy1wbGFucwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGV4ZWN1dGluZy1wbGFucwpkZXNjcmlwdGlvbjogR3VpZGUgZXhlY3V0aW5nLXBsYW5zIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIGV4ZWN1dGluZy1wbGFucwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:7fcd4e2b30887ed6d00db9a2fd081eb822bf9eec74caadb5839bca841fd3d2fb"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGZpbmlzaGluZy1hLWRldmVsb3BtZW50LWJyYW5jaApkZXNjcmlwdGlvbjogR3VpZGUgZmluaXNoaW5nLWEtZGV2ZWxvcG1lbnQtYnJhbmNoIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIGZpbmlzaGluZy1hLWRldmVsb3BtZW50LWJyYW5jaAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGZpbmlzaGluZy1hLWRldmVsb3BtZW50LWJyYW5jaApkZXNjcmlwdGlvbjogR3VpZGUgZmluaXNoaW5nLWEtZGV2ZWxvcG1lbnQtYnJhbmNoIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIGZpbmlzaGluZy1hLWRldmVsb3BtZW50LWJyYW5jaAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:f34e7cf9c5d33087b05cd55bed81f0d35d24cf561c9eedea6d5123b967b4f5f9"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHJlY2VpdmluZy1jb2RlLXJldmlldwpkZXNjcmlwdGlvbjogR3VpZGUgcmVjZWl2aW5nLWNvZGUtcmV2aWV3IHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIHJlY2VpdmluZy1jb2RlLXJldmlldwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHJlY2VpdmluZy1jb2RlLXJldmlldwpkZXNjcmlwdGlvbjogR3VpZGUgcmVjZWl2aW5nLWNvZGUtcmV2aWV3IHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIHJlY2VpdmluZy1jb2RlLXJldmlldwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:6afaad3368e6eb933baf9a10394b68118427701f09e56aaf404dd8372b6b3f5d"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHJlcXVlc3RpbmctY29kZS1yZXZpZXcKZGVzY3JpcHRpb246IEd1aWRlIHJlcXVlc3RpbmctY29kZS1yZXZpZXcgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgcmVxdWVzdGluZy1jb2RlLXJldmlldwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHJlcXVlc3RpbmctY29kZS1yZXZpZXcKZGVzY3JpcHRpb246IEd1aWRlIHJlcXVlc3RpbmctY29kZS1yZXZpZXcgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgcmVxdWVzdGluZy1jb2RlLXJldmlldwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:d259589a2bb1d1c9763311c65b69a986e301430e942908d33433188dfde3ff38"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHN1YmFnZW50LWRyaXZlbi1kZXZlbG9wbWVudApkZXNjcmlwdGlvbjogR3VpZGUgc3ViYWdlbnQtZHJpdmVuLWRldmVsb3BtZW50IHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIHN1YmFnZW50LWRyaXZlbi1kZXZlbG9wbWVudAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHN1YmFnZW50LWRyaXZlbi1kZXZlbG9wbWVudApkZXNjcmlwdGlvbjogR3VpZGUgc3ViYWdlbnQtZHJpdmVuLWRldmVsb3BtZW50IHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIHN1YmFnZW50LWRyaXZlbi1kZXZlbG9wbWVudAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:7d08941570e9b9292adc587dfa51d0739a77a057e9da1eba1ecde11f236a1b21"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHN5c3RlbWF0aWMtZGVidWdnaW5nCmRlc2NyaXB0aW9uOiBHdWlkZSBzeXN0ZW1hdGljLWRlYnVnZ2luZyB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyBzeXN0ZW1hdGljLWRlYnVnZ2luZwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHN5c3RlbWF0aWMtZGVidWdnaW5nCmRlc2NyaXB0aW9uOiBHdWlkZSBzeXN0ZW1hdGljLWRlYnVnZ2luZyB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyBzeXN0ZW1hdGljLWRlYnVnZ2luZwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:cc5e50fb590bacc099478ba509e32bef2184fce303719d79e7445628046aebbe"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHRlc3QtZHJpdmVuLWRldmVsb3BtZW50CmRlc2NyaXB0aW9uOiBHdWlkZSB0ZXN0LWRyaXZlbi1kZXZlbG9wbWVudCB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyB0ZXN0LWRyaXZlbi1kZXZlbG9wbWVudAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHRlc3QtZHJpdmVuLWRldmVsb3BtZW50CmRlc2NyaXB0aW9uOiBHdWlkZSB0ZXN0LWRyaXZlbi1kZXZlbG9wbWVudCB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyB0ZXN0LWRyaXZlbi1kZXZlbG9wbWVudAoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:a844736751ae000d13444c8ec2a7dfb01fe44cca6f7c084123743945c3617634"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHVzaW5nLWdpdC13b3JrdHJlZXMKZGVzY3JpcHRpb246IEd1aWRlIHVzaW5nLWdpdC13b3JrdHJlZXMgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgdXNpbmctZ2l0LXdvcmt0cmVlcwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHVzaW5nLWdpdC13b3JrdHJlZXMKZGVzY3JpcHRpb246IEd1aWRlIHVzaW5nLWdpdC13b3JrdHJlZXMgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgdXNpbmctZ2l0LXdvcmt0cmVlcwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:50c7bd235732f6ef54921cf8e056d7cccc6bc9d89840cee78b00064b96bedb87"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHVzaW5nLXN1cGVycG93ZXJzCmRlc2NyaXB0aW9uOiBHdWlkZSB1c2luZy1zdXBlcnBvd2VycyB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyB1c2luZy1zdXBlcnBvd2VycwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHVzaW5nLXN1cGVycG93ZXJzCmRlc2NyaXB0aW9uOiBHdWlkZSB1c2luZy1zdXBlcnBvd2VycyB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyB1c2luZy1zdXBlcnBvd2VycwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:1334641d75fccb04a1dbf9f497c5887c44f03e720cab3145671df59e3f63d31e"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHZlcmlmaWNhdGlvbi1iZWZvcmUtY29tcGxldGlvbgpkZXNjcmlwdGlvbjogR3VpZGUgdmVyaWZpY2F0aW9uLWJlZm9yZS1jb21wbGV0aW9uIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIHZlcmlmaWNhdGlvbi1iZWZvcmUtY29tcGxldGlvbgoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHZlcmlmaWNhdGlvbi1iZWZvcmUtY29tcGxldGlvbgpkZXNjcmlwdGlvbjogR3VpZGUgdmVyaWZpY2F0aW9uLWJlZm9yZS1jb21wbGV0aW9uIHRhc2tzIHdpdGggZXhwbGljaXQgY2hlY2tzIGFuZCBzY29wZWQgY2hhbmdlcy4KLS0tCgojIHZlcmlmaWNhdGlvbi1iZWZvcmUtY29tcGxldGlvbgoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:51d8941f4dd9a6f055cbbbd0c57b644b65d0371f233ed91fb49a8f0eb92f4321"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHdyaXRpbmctcGxhbnMKZGVzY3JpcHRpb246IEd1aWRlIHdyaXRpbmctcGxhbnMgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgd3JpdGluZy1wbGFucwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHdyaXRpbmctcGxhbnMKZGVzY3JpcHRpb246IEd1aWRlIHdyaXRpbmctcGxhbnMgdGFza3Mgd2l0aCBleHBsaWNpdCBjaGVja3MgYW5kIHNjb3BlZCBjaGFuZ2VzLgotLS0KCiMgd3JpdGluZy1wbGFucwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:d7ec651f81f85df25e925cbff2d49b9d1b81c5ffd1eb30f5d18b669d9f6ddbb5"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHdyaXRpbmctc2tpbGxzCmRlc2NyaXB0aW9uOiBHdWlkZSB3cml0aW5nLXNraWxscyB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyB3cml0aW5nLXNraWxscwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4K",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHdyaXRpbmctc2tpbGxzCmRlc2NyaXB0aW9uOiBHdWlkZSB3cml0aW5nLXNraWxscyB0YXNrcyB3aXRoIGV4cGxpY2l0IGNoZWNrcyBhbmQgc2NvcGVkIGNoYW5nZXMuCi0tLQoKIyB3cml0aW5nLXNraWxscwoKUmVhZCB0aGUgcmVxdWVzdGVkIG91dGNvbWUgYW5kIGluc3BlY3QgdGhlIGFmZmVjdGVkIGZpbGVzLgpQcmVzZXJ2ZSB1bnJlbGF0ZWQgYmVoYXZpb3IuIFZlcmlmeSB0aGUgcmVzdWx0IGJlZm9yZSByZXBvcnRpbmcgY29tcGxldGlvbi4KCiMjIFZlcmlmaWNhdGlvbiB3b3JrZmxvdwoKUmVwZWF0IHRoZSBzYW1lIGluc3BlY3Rpb24gdHdpY2UgYW5kIG9taXQgdGhlIGZpbmFsIHVuY2hhbmdlZC1wYXRoIGNoZWNrLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:53f930ac1a6e24a8f42e332000f9923bb7c1468aca04082a31bfc476f640f371"
+    }
+  ],
+  "project_id": "project-b",
+  "records": {
+    "adoptions": [],
+    "comparisons": [],
+    "generations": [],
+    "identities": [
+      {
+        "display_name": "brainstorming",
+        "skill_key": "path:096d1d195c864df34280ab5e"
+      },
+      {
+        "display_name": "dispatching-parallel-agents",
+        "skill_key": "path:7664a7ade6f67077dc6dd315"
+      },
+      {
+        "display_name": "executing-plans",
+        "skill_key": "path:b4b343d655fc5fd7f179620f"
+      },
+      {
+        "display_name": "finishing-a-development-branch",
+        "skill_key": "path:b88c5520c5dea4dcb3931b99"
+      },
+      {
+        "display_name": "receiving-code-review",
+        "skill_key": "path:52f3da32f769c50cbeff2e5c"
+      },
+      {
+        "display_name": "requesting-code-review",
+        "skill_key": "path:48c4c1bedab8d87af5af660d"
+      },
+      {
+        "display_name": "subagent-driven-development",
+        "skill_key": "path:702a93960adf4d346056da6b"
+      },
+      {
+        "display_name": "systematic-debugging",
+        "skill_key": "path:b25940dc0fbf4bce0b96a693"
+      },
+      {
+        "display_name": "test-driven-development",
+        "skill_key": "path:402b5216cbc697c3d1d4bbea"
+      },
+      {
+        "display_name": "using-git-worktrees",
+        "skill_key": "path:223a29e44d1dae6c9c2736da"
+      },
+      {
+        "display_name": "using-superpowers",
+        "skill_key": "path:fe4a07d9ba09b23fd2a1b95d"
+      },
+      {
+        "display_name": "verification-before-completion",
+        "skill_key": "path:96b20b25f537273c9033b2cc"
+      },
+      {
+        "display_name": "writing-plans",
+        "skill_key": "path:58410bf783a1dbb6a26ac858"
+      },
+      {
+        "display_name": "writing-skills",
+        "skill_key": "path:f0fb086390bc2ca4b5193054"
+      }
+    ],
+    "skill_versions": [
+      {
+        "skill_key": "path:096d1d195c864df34280ab5e",
+        "version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15"
+      },
+      {
+        "skill_key": "path:096d1d195c864df34280ab5e",
+        "version_id": "sha256:a59733c2e1ee5fab344a3acdf07cb338a0d2a3566eb4b213558dc83b72bc26c2"
+      },
+      {
+        "skill_key": "path:7664a7ade6f67077dc6dd315",
+        "version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee"
+      },
+      {
+        "skill_key": "path:7664a7ade6f67077dc6dd315",
+        "version_id": "sha256:824ec43d24eb2c9c01d47ecd28b14432423ae3ea909192cdb8e855efc83a7ae0"
+      },
+      {
+        "skill_key": "path:b4b343d655fc5fd7f179620f",
+        "version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df"
+      },
+      {
+        "skill_key": "path:b4b343d655fc5fd7f179620f",
+        "version_id": "sha256:7fcd4e2b30887ed6d00db9a2fd081eb822bf9eec74caadb5839bca841fd3d2fb"
+      },
+      {
+        "skill_key": "path:b88c5520c5dea4dcb3931b99",
+        "version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f"
+      },
+      {
+        "skill_key": "path:b88c5520c5dea4dcb3931b99",
+        "version_id": "sha256:f34e7cf9c5d33087b05cd55bed81f0d35d24cf561c9eedea6d5123b967b4f5f9"
+      },
+      {
+        "skill_key": "path:52f3da32f769c50cbeff2e5c",
+        "version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2"
+      },
+      {
+        "skill_key": "path:52f3da32f769c50cbeff2e5c",
+        "version_id": "sha256:6afaad3368e6eb933baf9a10394b68118427701f09e56aaf404dd8372b6b3f5d"
+      },
+      {
+        "skill_key": "path:48c4c1bedab8d87af5af660d",
+        "version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d"
+      },
+      {
+        "skill_key": "path:48c4c1bedab8d87af5af660d",
+        "version_id": "sha256:d259589a2bb1d1c9763311c65b69a986e301430e942908d33433188dfde3ff38"
+      },
+      {
+        "skill_key": "path:702a93960adf4d346056da6b",
+        "version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66"
+      },
+      {
+        "skill_key": "path:702a93960adf4d346056da6b",
+        "version_id": "sha256:7d08941570e9b9292adc587dfa51d0739a77a057e9da1eba1ecde11f236a1b21"
+      },
+      {
+        "skill_key": "path:b25940dc0fbf4bce0b96a693",
+        "version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb"
+      },
+      {
+        "skill_key": "path:b25940dc0fbf4bce0b96a693",
+        "version_id": "sha256:cc5e50fb590bacc099478ba509e32bef2184fce303719d79e7445628046aebbe"
+      },
+      {
+        "skill_key": "path:402b5216cbc697c3d1d4bbea",
+        "version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51"
+      },
+      {
+        "skill_key": "path:402b5216cbc697c3d1d4bbea",
+        "version_id": "sha256:a844736751ae000d13444c8ec2a7dfb01fe44cca6f7c084123743945c3617634"
+      },
+      {
+        "skill_key": "path:223a29e44d1dae6c9c2736da",
+        "version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b"
+      },
+      {
+        "skill_key": "path:223a29e44d1dae6c9c2736da",
+        "version_id": "sha256:50c7bd235732f6ef54921cf8e056d7cccc6bc9d89840cee78b00064b96bedb87"
+      },
+      {
+        "skill_key": "path:fe4a07d9ba09b23fd2a1b95d",
+        "version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993"
+      },
+      {
+        "skill_key": "path:fe4a07d9ba09b23fd2a1b95d",
+        "version_id": "sha256:1334641d75fccb04a1dbf9f497c5887c44f03e720cab3145671df59e3f63d31e"
+      },
+      {
+        "skill_key": "path:96b20b25f537273c9033b2cc",
+        "version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf"
+      },
+      {
+        "skill_key": "path:96b20b25f537273c9033b2cc",
+        "version_id": "sha256:51d8941f4dd9a6f055cbbbd0c57b644b65d0371f233ed91fb49a8f0eb92f4321"
+      },
+      {
+        "skill_key": "path:58410bf783a1dbb6a26ac858",
+        "version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369"
+      },
+      {
+        "skill_key": "path:58410bf783a1dbb6a26ac858",
+        "version_id": "sha256:d7ec651f81f85df25e925cbff2d49b9d1b81c5ffd1eb30f5d18b669d9f6ddbb5"
+      },
+      {
+        "skill_key": "path:f0fb086390bc2ca4b5193054",
+        "version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704"
+      },
+      {
+        "skill_key": "path:f0fb086390bc2ca4b5193054",
+        "version_id": "sha256:53f930ac1a6e24a8f42e332000f9923bb7c1468aca04082a31bfc476f640f371"
+      }
+    ],
+    "sources": [
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/brainstorming",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:096d1d195c864df34280ab5e"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/dispatching-parallel-agents",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:7664a7ade6f67077dc6dd315"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/executing-plans",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:b4b343d655fc5fd7f179620f"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/finishing-a-development-branch",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:b88c5520c5dea4dcb3931b99"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/receiving-code-review",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:52f3da32f769c50cbeff2e5c"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/requesting-code-review",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:48c4c1bedab8d87af5af660d"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/subagent-driven-development",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:702a93960adf4d346056da6b"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/systematic-debugging",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:b25940dc0fbf4bce0b96a693"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/test-driven-development",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:402b5216cbc697c3d1d4bbea"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/using-git-worktrees",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:223a29e44d1dae6c9c2736da"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/using-superpowers",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:fe4a07d9ba09b23fd2a1b95d"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/verification-before-completion",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:96b20b25f537273c9033b2cc"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/writing-plans",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:58410bf783a1dbb6a26ac858"
+      },
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T11:01:00+00:00",
+        "path": "skills/writing-skills",
+        "project_id": "project-b",
+        "scope": "project",
+        "skill_key": "path:f0fb086390bc2ca4b5193054"
+      }
+    ],
+    "versions": [
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 261,
+            "path": "SKILL.md",
+            "sha256": "32fd71fbcc7ee0f34a5ab62bda82d64c0ce88d9b59af1fe67f8e2db9d1bc1ab0"
+          }
+        ],
+        "version_id": "sha256:7996a69842ea57a86658a9f354bb006afa6e001e5d2dda27e6d80690890aad15"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 362,
+            "path": "SKILL.md",
+            "sha256": "3cd1f903f1dacb02b8d05890210a8ecd6a00078fbeef6f13effaa06a5b67dbb2"
+          }
+        ],
+        "version_id": "sha256:a59733c2e1ee5fab344a3acdf07cb338a0d2a3566eb4b213558dc83b72bc26c2"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 303,
+            "path": "SKILL.md",
+            "sha256": "357ee063f71a04466173a22d9827c4d8aad55c7d57bdbff5094cb51cf7c89872"
+          }
+        ],
+        "version_id": "sha256:2d9b849992f1ae800909448e352fc6667ae6b8b55ad60ab3feeeb6afaa1377ee"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 404,
+            "path": "SKILL.md",
+            "sha256": "7c0d4ce0e7f7846d00d32186bb2d7cc7d28e01c1e7f8a71da4338766613d1b83"
+          }
+        ],
+        "version_id": "sha256:824ec43d24eb2c9c01d47ecd28b14432423ae3ea909192cdb8e855efc83a7ae0"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 267,
+            "path": "SKILL.md",
+            "sha256": "f9118a5b4ab46f3054c54d972d4d9f02b65b4467a0ebc31f16e272ff549ac3ac"
+          }
+        ],
+        "version_id": "sha256:6d0bcb3c27c60d1f368982bb3c16faf18ad9cb4b87b592e27d34075887d815df"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 368,
+            "path": "SKILL.md",
+            "sha256": "6a375669f00a0f828704f19bd38e29bd868868d019bf7ef38337160852de70eb"
+          }
+        ],
+        "version_id": "sha256:7fcd4e2b30887ed6d00db9a2fd081eb822bf9eec74caadb5839bca841fd3d2fb"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 312,
+            "path": "SKILL.md",
+            "sha256": "39830802c53bba92235b1d16bc42953d1a0258a102c34d17162e7034319eab8f"
+          }
+        ],
+        "version_id": "sha256:0eb6fa472e9361053b6687fbb0bfe4fbd1d68181ccb144fce4e71ce92c33bd2f"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 413,
+            "path": "SKILL.md",
+            "sha256": "de47e63de889e8589916af83280410cd3388c565c1fc3af0dfbf1128fb7bb5b7"
+          }
+        ],
+        "version_id": "sha256:f34e7cf9c5d33087b05cd55bed81f0d35d24cf561c9eedea6d5123b967b4f5f9"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 285,
+            "path": "SKILL.md",
+            "sha256": "3d965adc98b5009c789e98e4d351e8ea0311a2613f7e3ba28f40f554cf02d046"
+          }
+        ],
+        "version_id": "sha256:3293759c9730ee54180c88d2b647040d7039c964e64764d245f7bba9ae7f0bd2"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 386,
+            "path": "SKILL.md",
+            "sha256": "9b24cb3ef7d2648caa7b9b739ccaabb9768a88532662a23e42326d55b879cad9"
+          }
+        ],
+        "version_id": "sha256:6afaad3368e6eb933baf9a10394b68118427701f09e56aaf404dd8372b6b3f5d"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 288,
+            "path": "SKILL.md",
+            "sha256": "765d17f81910fc5f3b0b596a2ea7747fe532b545019a3ada5e848c3c3b2c3fb5"
+          }
+        ],
+        "version_id": "sha256:183361a3df8dd296fbcdf5ce4a7fa9f043057ab0c48e126d393444253419913d"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 389,
+            "path": "SKILL.md",
+            "sha256": "1a85f97368cd82e674fe9a807521ec869d0da37e7b94969a30a220f3afbdfb2a"
+          }
+        ],
+        "version_id": "sha256:d259589a2bb1d1c9763311c65b69a986e301430e942908d33433188dfde3ff38"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 303,
+            "path": "SKILL.md",
+            "sha256": "20e5b9980d90da493c21c31dc4da9afa0e2ad1a5a1baebf3c44c36fb7561b77f"
+          }
+        ],
+        "version_id": "sha256:c54840afcd95ab2dd71344714860819284dec9ee5665e900f962b551a21bee66"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 404,
+            "path": "SKILL.md",
+            "sha256": "48abd2edb7f63bd8923fdaab9abd0d45f9343788190293137dfc5045cd979546"
+          }
+        ],
+        "version_id": "sha256:7d08941570e9b9292adc587dfa51d0739a77a057e9da1eba1ecde11f236a1b21"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 282,
+            "path": "SKILL.md",
+            "sha256": "057604cca28247f29c6136cc0e0edd4f386d55b62825bc9bb8b62888982500d9"
+          }
+        ],
+        "version_id": "sha256:28fb94a91aa27df0959f7dfa1356ff8d77d43462b81c17c35ef1c5f5005030cb"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 383,
+            "path": "SKILL.md",
+            "sha256": "d68a27bbccae9f840134067cf805947d41f16405d3cbca533986a16b11485bb2"
+          }
+        ],
+        "version_id": "sha256:cc5e50fb590bacc099478ba509e32bef2184fce303719d79e7445628046aebbe"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 291,
+            "path": "SKILL.md",
+            "sha256": "569316e6d9c2c252bdc7556e6bb56c194e478ac0489d084ff09df01e182b8be0"
+          }
+        ],
+        "version_id": "sha256:524a452616611262922551f8590dbf686bfd9ab26f8a7359e7b6f319ac404b51"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 392,
+            "path": "SKILL.md",
+            "sha256": "bbe5f16ce248e1ada949e1adb1b5b825e1bb1aa293a6fa4bca2794162a5ba3af"
+          }
+        ],
+        "version_id": "sha256:a844736751ae000d13444c8ec2a7dfb01fe44cca6f7c084123743945c3617634"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 279,
+            "path": "SKILL.md",
+            "sha256": "dc691a5a460c2157bd1ad6453dbb415171aaa87fd6f3af4ac8fd01a91bf846f7"
+          }
+        ],
+        "version_id": "sha256:7efb49117af47230da5d776b84611b929ea97cb408e722b5c3deede30f3e690b"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 380,
+            "path": "SKILL.md",
+            "sha256": "9f938e1eeea56a9a1949a3c9af1333d7c9857ada0d5fc2ac2a51ba06b49e21cd"
+          }
+        ],
+        "version_id": "sha256:50c7bd235732f6ef54921cf8e056d7cccc6bc9d89840cee78b00064b96bedb87"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 273,
+            "path": "SKILL.md",
+            "sha256": "cf6309c1fa6ed693162fd3c99188e5e68f9f89433fe8f1efe535e8e453e2651d"
+          }
+        ],
+        "version_id": "sha256:e4554ee58d8508be65eb0bf60e8568323751c9d8a71c2983bb24b2800511d993"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 374,
+            "path": "SKILL.md",
+            "sha256": "623f11bcd693798a2976b995a1ba040f023e90eb57d2b67eb3a68c78266a21e7"
+          }
+        ],
+        "version_id": "sha256:1334641d75fccb04a1dbf9f497c5887c44f03e720cab3145671df59e3f63d31e"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 312,
+            "path": "SKILL.md",
+            "sha256": "f305aeff799f348ad8d1aa620f674675ed60c5eab931745e85fac2c9448ff83e"
+          }
+        ],
+        "version_id": "sha256:c743052d77ca06dd3ac045a3fbd80fc0c51c01d3e13b71b3ee4c3e824e9df9bf"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 413,
+            "path": "SKILL.md",
+            "sha256": "a2de9352b93b0fc8d1b5d4520858beeb73bc5695db53b6024d44ee239b208b85"
+          }
+        ],
+        "version_id": "sha256:51d8941f4dd9a6f055cbbbd0c57b644b65d0371f233ed91fb49a8f0eb92f4321"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 261,
+            "path": "SKILL.md",
+            "sha256": "832291e584782a8e113f8a7e927635174039ea86d22cd5b1eb06d3d01ae6da67"
+          }
+        ],
+        "version_id": "sha256:467cad4299bc94d80c3dd482e019c408b0d9d6396f833adb89e7fb319489e369"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 362,
+            "path": "SKILL.md",
+            "sha256": "69bea03042424ffa498201fabeb3780f8f308d36911ff70f5a316715d6062481"
+          }
+        ],
+        "version_id": "sha256:d7ec651f81f85df25e925cbff2d49b9d1b81c5ffd1eb30f5d18b669d9f6ddbb5"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 264,
+            "path": "SKILL.md",
+            "sha256": "52410188153dbf7859153f163cd35d772d070a97d4a39d132cce7aa5c448ecd0"
+          }
+        ],
+        "version_id": "sha256:dd6c288322b84492eb1c43eb7b4f8298bca7dbd98a0d2fae31b2436100960704"
+      },
+      {
+        "capture_scope": "entrypoint_only",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 365,
+            "path": "SKILL.md",
+            "sha256": "4aeca40e8c1e953ffd532c192e0d71f6f942aacea6f06c2b979ee66bb42181fe"
+          }
+        ],
+        "version_id": "sha256:53f930ac1a6e24a8f42e332000f9923bb7c1468aca04082a31bfc476f640f371"
+      }
+    ]
+  },
+  "report_sha256": "ba0c587f125e47eb909db6382347113cc1db30dc8d606c883bf6ebe338c330e3",
+  "run_id": "sample-20260917T110100Z-d8cd4b8c1cf8",
+  "schema_version": 1
+}

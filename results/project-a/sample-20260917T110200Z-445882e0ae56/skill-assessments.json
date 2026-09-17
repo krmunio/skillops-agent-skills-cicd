@@ -1,0 +1,247 @@
+{
+  "project_id": "project-a",
+  "report_sha256": "de5cfd4dd485c3b0f736607aff6fbc13e00f85188eb3682ad2d62a0556bb89fa",
+  "run_id": "sample-20260917T110200Z-445882e0ae56",
+  "schema_version": 1,
+  "skills": [
+    {
+      "applications": {
+        "base": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "8feb9a0678e24740ad32f69f5db2595489063d760c66fdd81fc3891e9098f3c3",
+          "staged_version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+          "work_sha256": "76a743b8080b622c8c8260db078bdb90f4307e1dbb4d5641dcea6efd8f98fc36"
+        },
+        "candidate": {
+          "activated": true,
+          "changed": true,
+          "measurement": {
+            "cost_nano_aiu": 100000000000,
+            "elapsed_seconds": 50
+          },
+          "output_sha256": "e89aa1dca178ba2f0511d9199b2dd74ac7f5a4f25d8ce42272df597f4876a74e",
+          "staged_version_id": "sha256:6b667e4482b09fbc72dca356a915e7ede9b1a9152fa1090386aa2f212781894d",
+          "task_outcome": "satisfied",
+          "version_id": "sha256:6b667e4482b09fbc72dca356a915e7ede9b1a9152fa1090386aa2f212781894d",
+          "work_sha256": "76a743b8080b622c8c8260db078bdb90f4307e1dbb4d5641dcea6efd8f98fc36"
+        }
+      },
+      "base_version_id": "sha256:d225bd49789f56a46f95dbb45092f4f40da6e46b33c2d0027929424a72b0f157",
+      "candidate_version_id": "sha256:6b667e4482b09fbc72dca356a915e7ede9b1a9152fa1090386aa2f212781894d",
+      "checks": {
+        "base": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "d807de7bbb748a130ad0e17e2fe7cf91ce4936d1166afaf4ed1edf7551903938",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "764fd411b9251f3d7cc7c67b4c25876a6f1d95e52e6120648d25b32c85f253d8",
+          "protected_sha256": "6cff052cb57c13d95d1dcf8f2bdfd48d096511cb23d00f833167677b1a173385",
+          "status": "completed"
+        },
+        "candidate": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "d807de7bbb748a130ad0e17e2fe7cf91ce4936d1166afaf4ed1edf7551903938",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "764fd411b9251f3d7cc7c67b4c25876a6f1d95e52e6120648d25b32c85f253d8",
+          "protected_sha256": "6cff052cb57c13d95d1dcf8f2bdfd48d096511cb23d00f833167677b1a173385",
+          "status": "completed"
+        },
+        "original": {
+          "cases": [
+            {
+              "id": "workflow::case_1",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_2",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_3",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_4",
+              "status": "passed"
+            },
+            {
+              "id": "workflow::case_5",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 50,
+          "environment_sha256": "d807de7bbb748a130ad0e17e2fe7cf91ce4936d1166afaf4ed1edf7551903938",
+          "gates": [
+            {
+              "id": "consistency",
+              "status": "passed"
+            }
+          ],
+          "plan_sha256": "764fd411b9251f3d7cc7c67b4c25876a6f1d95e52e6120648d25b32c85f253d8",
+          "protected_sha256": "6cff052cb57c13d95d1dcf8f2bdfd48d096511cb23d00f833167677b1a173385",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "errors": [],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "\uba85\ud655\ud55c \uc0ac\uc6a9 \uc870\uac74\uacfc \uac80\uc99d \uc21c\uc11c\ub97c \uc9c0\uce68\uc5d0 \uba85\uc2dc\ud558\uba74 \ub204\ub77d\uacfc \ubc18\ubcf5 \uc791\uc5c5\uc744 \uc904\uc77c \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "146be1d83159d95b27442b03c29edc8d2c273a0076224d3850d4e4c7d87b6eaa",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "146be1d83159d95b27442b03c29edc8d2c273a0076224d3850d4e4c7d87b6eaa",
+          "dimensions": [
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            },
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 3
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 3
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "c2b9645ecd6e6a0bcdb15af27fa9e33cdfa4a18b51744e78082e5b8d1d76fa50",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+      "source_path": ".github/skills/schedule-development",
+      "work": {
+        "check_id": "workflow::case_5",
+        "provenance": "generated",
+        "sha256": "76a743b8080b622c8c8260db078bdb90f4307e1dbb4d5641dcea6efd8f98fc36"
+      }
+    }
+  ]
+}

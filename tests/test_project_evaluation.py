@@ -12,6 +12,30 @@ from unittest.mock import patch, MagicMock
 
 
 class ProjectEvaluationTests(unittest.TestCase):
+    def test_live_history_ignores_examples_but_retains_real_assessments(self):
+        from hashlib import sha256
+        import dashboard_samples
+        from test_skill_assessments import fixture
+        m = self.module()
+        root = Path(m.__file__).resolve().parent
+        with tempfile.TemporaryDirectory() as folder:
+            history, output = Path(folder) / "history", Path(folder) / "output"
+            dashboard_samples.seed(root, history)
+            report, lifecycle, assessment = fixture()
+            report["project_id"] = lifecycle["project_id"] = assessment["project_id"] = "project-a"
+            lifecycle["report_sha256"] = assessment["report_sha256"] = sha256(m.results.encoded(report)).hexdigest()
+            m.results.store(history, report)
+            m.results.store_evolution(history, lifecycle)
+            m.results.store_assessments(history, assessment)
+            args = ["project_evaluation.py", "--root", str(root), "--output", str(output),
+                    "--history", str(history), "--project", "project-a", "--run-id", "999-1",
+                    "--source-commit", "a" * 40]
+            with patch.object(m.sys, "argv", args), patch.dict(m.os.environ, {
+                "SKILLOPS_LIVE_EVALUATION_ENABLED": "false",
+            }, clear=True), patch.object(m, "assess_with_details", wraps=m.assess_with_details) as assessed, redirect_stdout(io.StringIO()):
+                self.assertEqual(m.main(), 2)
+            self.assertEqual(assessed.call_args.kwargs["history"], [assessment])
+
     def test_explicit_long_project_window_remains_bounded(self):
         m = self.module()
         for seconds in ("7200", "7201", "0"):
