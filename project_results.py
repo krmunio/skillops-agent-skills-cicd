@@ -51,7 +51,7 @@ DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_pa
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
-    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "evaluation_telemetry.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "evaluation_telemetry.py",
 )
 
 
@@ -599,14 +599,31 @@ def validate_cycle(data, *, report, evaluations):
     return data
 
 
-def load_cycles(results, rows=None):
-    results = safe_path(results)
+def load_replay_evidence(results, rows=None):
+    """Load the transitive report/capture/replay mapping required by cycle validation."""
     rows = load_reports(results) if rows is None else rows
     reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
     replays = load_replays(results, rows)
     lifecycles = load_evolution(results, rows)
-    evaluations = {key: {"report": reports[key], "lifecycle": lifecycles[key], "replay": replay}
-                   for key, replay in replays.items()}
+    return {key: {"report": reports[key], "lifecycle": lifecycles[key], "replay": replay}
+            for key, replay in replays.items()}
+
+
+def store_cycle(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = safe_path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    validate_cycle(data, report=report, evaluations=load_replay_evidence(results))
+    path = folder / "cycle.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_cycles(results, rows=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
+    evaluations = load_replay_evidence(results, rows)
     values = {}
     for path in sorted(results.glob("*/*/cycle.json")):
         key = (path.parent.parent.name, path.parent.name)
