@@ -45,7 +45,7 @@ def string_values(value):
 
 def public_history_bytes(output):
     return {path.relative_to(output): path.read_bytes()
-            for filename in ("report.json", "skill-snapshots.json", "skill-evolution.json")
+            for filename in ("report.json", "skill-snapshots.json", "skill-evolution.json", "skill-assessments.json")
             for path in output.glob(f"*/*/{filename}")}
 
 
@@ -167,9 +167,7 @@ class ProjectSampleReportTests(unittest.TestCase):
         if report["project_id"] not in PROJECT_IDS:
             return
         self.assertEqual(report["guide"], self.results.axis("blocked", "guide_integration_pending"))
-        expected = ("blocked", "live_disabled") if report["project_id"] == "sample_repo" else (
-            "configuration_required", "no_adapter")
-        self.assertEqual(report["execution"], self.results.axis(*expected))
+        self.assertEqual(report["execution"], self.results.axis("blocked", "live_disabled"))
         for skill in project_skills(ROOT / "projects" / report["project_id"]):
             body = skill.read_text(encoding="utf-8")
             self.assertFalse(any(body in text for text in strings))
@@ -184,6 +182,7 @@ class ProjectSampleReportTests(unittest.TestCase):
         reports = self.results.load_reports(output)
         snapshots = self.results.load_snapshots(output, reports)
         lifecycles = self.results.load_evolution(output, reports, snapshots)
+        assessments = self.results.load_assessments(output, reports, lifecycles)
         for entry in index["projects"]:
             active = entry["id"] in self.catalog
             self.assertEqual(entry, {
@@ -210,6 +209,8 @@ class ProjectSampleReportTests(unittest.TestCase):
                         candidate_skill_sha256=snapshot["candidate"]["sha256"] if snapshot["candidate"] else None,
                     )
                 lifecycle = lifecycles.get(key)
+                if key in assessments:
+                    summary["skill_assessments"] = f"{summary['run_id']}/skill-assessments.json"
                 if lifecycle is not None:
                     names = {item["skill_key"]: item["display_name"] for item in lifecycle["records"]["identities"]}
                     summary.update(
@@ -319,8 +320,7 @@ class ProjectSampleReportTests(unittest.TestCase):
             self.catalog = {identifier: project}
             report = self.evaluation.assess(root, project, "104-1", "a" * 40, {}, runtime_factory=runtime)
             self.assertEqual(report["guide"], self.results.axis("blocked", "guide_integration_pending"))
-            expected = ("blocked", "live_disabled") if adapter else ("configuration_required", "no_adapter")
-            self.assertEqual(report["execution"], self.results.axis(*expected))
+            self.assertEqual(report["execution"], self.results.axis("blocked", "live_disabled"))
             with patch(f"{__name__}.ROOT", root):
                 self.assert_sample_report(report, "104-1", "a" * 40)
                 for field, value in (("source_commit", "b" * 40), ("project_tree_sha256", "b" * 64),

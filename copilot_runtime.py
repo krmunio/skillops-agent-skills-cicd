@@ -120,7 +120,9 @@ def capture(args, *, cwd=None, env=None, timeout=180, limit=4 * 1024 * 1024):
         process.stderr.close()
 
 
-def disabled_skills(rows, expected_path):
+def disabled_skills(rows, expected_path, *, skill_name="develop"):
+    if not isinstance(skill_name, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", skill_name):
+        raise RuntimeFailure("invalid_skill_name", "Use an explicit safe Skill name.")
     if not isinstance(rows, list):
         raise RuntimeFailure("invalid_inventory", "Skill inventory must be a list.")
     names = []
@@ -133,16 +135,44 @@ def disabled_skills(rows, expected_path):
             raise RuntimeFailure("invalid_inventory", "Skill inventory lacks path or enabled status.")
         name = row["name"]
         names.append(name)
-        if expected is not None and name == "develop":
+        if expected is not None and name == skill_name:
             path = Path(row["path"])
             path = path if path.name == "SKILL.md" else path / "SKILL.md"
             matches.append(path.resolve())
     if expected is not None and matches != [expected]:
-        raise RuntimeFailure("skill_mismatch", "Expected exactly one develop skill from the staged source.")
-    return sorted(set(names) - ({"develop"} if expected is not None else set()))
+        raise RuntimeFailure("skill_mismatch", "Expected exactly one selected Skill from the staged source.")
+    return sorted(set(names) - ({skill_name} if expected is not None else set()))
 
 
-def parse_events(text, model, role):
+def verify_staged_version(entrypoint, version):
+    from evolution_records import capture_version, validate_version
+
+    validate_version(version)
+    entrypoint = Path(entrypoint).absolute()
+    if entrypoint.name != "SKILL.md" or any(path.is_symlink() for path in (entrypoint, *entrypoint.parents)):
+        raise RuntimeFailure("unsafe_skill_path", "Staged Skill must use an ordinary SKILL.md.")
+    files = {}
+    total = 0
+    for path in entrypoint.parent.rglob("*"):
+        if path.is_symlink():
+            raise RuntimeFailure("unsafe_skill_path", "Staged Skill resources must not be symbolic links.")
+        if path.is_dir():
+            continue
+        if not path.is_file() or len(files) >= 256:
+            raise RuntimeFailure("skill_capture_limit", "Staged Skill inventory is invalid or oversized.")
+        with path.open("rb") as stream:
+            raw = stream.read(2 * 1024 * 1024 + 1)
+        total += len(raw)
+        if len(raw) > 2 * 1024 * 1024 or total > 8 * 1024 * 1024:
+            raise RuntimeFailure("skill_capture_limit", "Staged Skill content exceeds the capture limits.")
+        files[path.relative_to(entrypoint.parent).as_posix()] = raw
+    captured, _ = capture_version(files, capture_scope=version["capture_scope"], complete_inventory=list(files))
+    if captured != version:
+        raise RuntimeFailure("skill_version_mismatch", "Staged Skill bytes differ from the selected version.")
+    return captured["version_id"]
+
+
+def parse_events(text, model, role, *, skill_name="develop"):
     if role not in ("developer", "judge", "generator"):
         raise RuntimeFailure("invalid_role", "Unknown CLI role.")
     events = [strict_json(line) for line in text.splitlines() if line.strip()]
@@ -214,11 +244,11 @@ def parse_events(text, model, role):
     if role == "developer":
         completed = {row.get("toolCallId"): row.get("success") for row in tool_completions}
         if not calls or any(
-            call.get("toolName") != "skill" or call.get("arguments") != {"skill": "develop"}
+            call.get("toolName") != "skill" or call.get("arguments") != {"skill": skill_name}
             or completed.get(call.get("toolCallId")) is not True
             for call in calls
         ):
-            raise RuntimeFailure("skill_not_activated", "The pinned develop skill was not successfully invoked.")
+            raise RuntimeFailure("skill_not_activated", "The selected Skill was not successfully invoked.")
         activated = True
     if len(final) != 1:
         raise RuntimeFailure("invalid_final", "Expected exactly one final assistant response.")
@@ -333,13 +363,17 @@ class CopilotRuntime:
     def command(self, *args):
         return [self.cli, "--no-auto-update", *args]
 
-    def model_command(self, prompt, model, role):
+    def model_command(self, prompt, model, role, *, max_ai_credits=None):
         if role not in ("developer", "judge", "generator") or not isinstance(model, str) or not model:
             raise RuntimeFailure("invalid_role", "An explicit model and supported role are required.")
+        if max_ai_credits is not None and (
+                type(max_ai_credits) not in (int, float) or not math.isfinite(max_ai_credits) or max_ai_credits <= 0):
+            raise RuntimeFailure("invalid_limit", "AI credit limit must be a positive finite number.")
         return self.command(
             "--no-custom-instructions", "--disable-builtin-mcps", "--no-ask-user", "--no-color",
             "--available-tools=skill", *(["--excluded-tools=skill"] if role != "developer" else []),
             "--allow-all-tools",
+            *(["--max-ai-credits", str(max_ai_credits)] if max_ai_credits is not None else []),
             "--model", model, "--output-format", "json", "-p", prompt,
         )
 
@@ -364,15 +398,15 @@ class CopilotRuntime:
             if os.path.exists(path):
                 os.unlink(path)
 
-    def configure(self, workdir, expected_skill=None):
+    def configure(self, workdir, expected_skill=None, *, skill_name="develop"):
         self.check_profile()
         self.write_settings([])
         discovered = self.inventory(workdir, "skill")
-        self.write_settings(disabled_skills(discovered, expected_skill))
+        self.write_settings(disabled_skills(discovered, expected_skill, skill_name=skill_name))
         checked = self.inventory(workdir, "skill")
-        disabled_skills(checked, expected_skill)
+        disabled_skills(checked, expected_skill, skill_name=skill_name)
         enabled = sorted(row["name"] for row in checked if row["enabled"])
-        if enabled != (["develop"] if expected_skill is not None else []):
+        if enabled != ([skill_name] if expected_skill is not None else []):
             raise RuntimeFailure("skill_mismatch", "Enabled skills do not match the role allowlist.")
         if self.inventory(workdir, "instruction"):
             raise RuntimeFailure("unexpected_instructions", "Unexpected instructions discovered in the role workspace.")
@@ -385,7 +419,8 @@ class CopilotRuntime:
             "instructions": [], "plugins": [], "custom_mcp_servers": [],
         }
 
-    def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180):
+    def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
+               skill_name="develop", expected_version=None, max_ai_credits=None):
         if len(prompt.encode("utf-8")) > PROMPT_LIMIT:
             raise RuntimeFailure("prompt_limit", "Prompt exceeds the bounded CLI input size.")
         artifact = Path(artifact)
@@ -404,8 +439,13 @@ class CopilotRuntime:
             "usage": usage_metrics(None, model),
         }
         try:
-            record["inventory"] = self.configure(workdir, expected_skill)
-            command = self.model_command(prompt, model, role) + ["--usage-output-file", str(usage_path)]
+            if expected_version is not None:
+                if role != "developer" or expected_skill is None:
+                    raise RuntimeFailure("invalid_role", "Version binding requires a staged developer Skill.")
+                record["staged_version_id"] = verify_staged_version(expected_skill, expected_version)
+            record["inventory"] = self.configure(workdir, expected_skill, skill_name=skill_name)
+            command = self.model_command(prompt, model, role, max_ai_credits=max_ai_credits)
+            command += ["--usage-output-file", str(usage_path)]
             result = capture(command, cwd=workdir, env=self.env, timeout=timeout)
             stdout, stderr = redact(result.stdout, self.env), redact(result.stderr, self.env)
             (private / f"{identifier}.jsonl").write_text(stdout)
@@ -414,7 +454,10 @@ class CopilotRuntime:
             record["usage"] = usage_metrics(value, model)
             if result.returncode:
                 raise RuntimeFailure("cli_error", f"CLI failed: {stderr[:1024]}")
-            record.update(parse_events(stdout, model, role))
+            record.update(parse_events(stdout, model, role, skill_name=skill_name))
+            if expected_version is not None:
+                verify_staged_version(expected_skill, expected_version)
+                record["skill_version_verified"] = True
             record["status"] = "completed"
         except RuntimeFailure as error:
             record.update(status="contract_error", error={"code": error.code, "message": str(error)})

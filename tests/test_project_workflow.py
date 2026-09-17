@@ -28,6 +28,17 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn("Microsoft.Storage", text)
         self.assertNotIn("repositoryToken", text)
 
+    def test_automatic_evaluation_has_scoped_auth_history_and_both_language_images(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / ".github/workflows/project-evaluation.yml").read_text()
+        self.assertIn("copilot-requests: write", text)
+        self.assertIn("GITHUB_TOKEN: ${{ github.token }}", text)
+        self.assertIn("SKILLOPS_MAX_AI_CREDITS_PER_SESSION", text)
+        self.assertIn("--history .prior-results/results", text)
+        self.assertIn("group: skillops-project-evaluation-${{ github.ref }}", text)
+        for workflow in ("ci.yml", "project-evaluation.yml"):
+            self.assertIn("node@sha256:", (root / ".github/workflows" / workflow).read_text())
+
 
 if __name__ == "__main__":
     unittest.main()

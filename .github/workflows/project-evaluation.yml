@@ -14,9 +14,22 @@ on:
       - 'dashboard/**'
       - '.github/workflows/project-evaluation.yml'
   workflow_dispatch:
+    inputs:
+      project:
+        description: 'Optional catalog project ID; empty evaluates the entire catalog'
+        type: string
+        default: ''
+      live:
+        description: 'Authorize billable execution for this dispatch using configured limits'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+
+concurrency:
+  group: skillops-project-evaluation-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   contracts:
@@ -35,6 +48,8 @@ jobs:
         run: |
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
           docker tag python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea python:3.12-slim
+          docker pull node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+          docker tag node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 node:22-slim
       - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - run: python3 project_results.py catalog
       - name: Verify actual sample reports with model execution disabled
@@ -60,6 +75,7 @@ jobs:
             ci-sample-results/*/*/report.json
             ci-sample-results/*/*/skill-snapshots.json
             ci-sample-results/*/*/skill-evolution.json
+            ci-sample-results/*/*/skill-assessments.json
           if-no-files-found: error
           retention-days: 30
 
@@ -68,6 +84,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    permissions:
+      contents: read
+      copilot-requests: write
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -79,24 +98,38 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
+      - name: Read prior validated identity history inside the serialized run
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: evaluation-results
+          path: .prior-results
+          persist-credentials: false
       - name: Install pinned runtime only for enabled live evaluation
-        if: vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true'
+        if: vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live)
         run: |
           npm ci --no-audit --no-fund
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
           docker tag python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea python:3.12-slim
+          docker pull node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
+          docker tag node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 node:22-slim
+          docker image inspect python:3.12-slim node:22-slim --format '{{.Id}}'
           echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Assess projects or record explicit blocked prerequisites
         env:
           SOURCE_SHA: ${{ github.sha }}
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+          PROJECT_ID: ${{ inputs.project }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          SKILLOPS_LIVE_EVALUATION_ENABLED: ${{ vars.SKILLOPS_LIVE_EVALUATION_ENABLED }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SKILLOPS_LIVE_EVALUATION_ENABLED: ${{ vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live) }}
           SKILLOPS_MAX_INVOCATIONS: ${{ vars.SKILLOPS_MAX_INVOCATIONS }}
           SKILLOPS_MAX_SECONDS: ${{ vars.SKILLOPS_MAX_SECONDS }}
+          SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA"
+          args=()
+          if [ -n "$PROJECT_ID" ]; then args+=(--project "$PROJECT_ID"); fi
+          python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
       - name: Retain public-safe reports, including blocked outcomes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

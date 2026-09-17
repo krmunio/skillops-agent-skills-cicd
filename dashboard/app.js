@@ -1,5 +1,6 @@
 import { $, node, labels, purposes, stamp, renderReport } from './views.js';
 import { validateEvolutionSummary, validateEvolution, renderEvolution, clearEvolution } from './evolution.js';
+import { validateAssessmentSummary, validateAssessments, renderAssessment } from './assessments.js';
 
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const runPattern = /^(?:[0-9]+-[0-9]+|(?:import-|local-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})$/;
@@ -149,7 +150,7 @@ async function selectRun(run, token) {
   $('detail').hidden = true;
   $('error').hidden = true;
   try {
-    let report, detail = null, snapshots = null, lifecycle = null;
+    let report, detail = null, snapshots = null, lifecycle = null, assessments = null;
     if (sampleMode) {
       report = sampleSkill.reports.find(item => item.run_id === run.run_id);
       if (!report) throw new Error('Sample run unavailable');
@@ -182,6 +183,13 @@ async function selectRun(run, token) {
         lifecycle = await validateEvolution(data, report, loaded.raw, run, snapshots);
         if (request !== reportSelection || token !== selection) return;
       }
+      if (run.skill_assessments) {
+        validateAssessmentSummary(run);
+        const data = await load(`/results/${activeProject.id}/${run.skill_assessments}`);
+        if (request !== reportSelection || token !== selection) return;
+        assessments = await validateAssessments(data, report, loaded.raw, lifecycle);
+        if (request !== reportSelection || token !== selection) return;
+      }
       const skills = runSkills(run);
       selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : skills[0]?.id ?? null;
       $('skill-select').value = selectedSkill || '';
@@ -190,6 +198,7 @@ async function selectRun(run, token) {
     renderReport(report, activeProject, detail, snapshots);
     clearEvolution();
     if (lifecycle) renderEvolution(lifecycle, selectedSkill, history, next => selectRun(next, selection));
+    if (assessments) renderAssessment(assessments, selectedSkill);
     activeRun = run.run_id;
     $('detail').hidden = false;
     renderHistory();
@@ -214,6 +223,7 @@ async function selectProject(project) {
       if (run.skill_id && !idPattern.test(run.skill_id)) throw new Error('Invalid Skill identity');
       if (Boolean(run.skill_id) !== Boolean(run.skill_snapshots)) throw new Error('Incomplete Skill reference');
       validateEvolutionSummary(run);
+      validateAssessmentSummary(run);
     }
     history = data.history;
     const unlinked = node('option', 'Skill 미연결');
