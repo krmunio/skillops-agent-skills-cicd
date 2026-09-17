@@ -180,6 +180,47 @@ class CommonContractsTests(unittest.TestCase):
         with self.assertRaises(RuntimeFailure):
             validate(data["cycle"], report=data["cycle_report"], evaluations=data["evaluations"])
 
+    def test_started_unsaved_attempt_has_null_run_reference_and_decision(self):
+        cycle = deepcopy(self.data["cycle"])
+        cycle.update(stop_reason="time_limit", selected_candidate_version_id=None,
+                     confirmation_ref=None, confirmation_status="not_run")
+        cycle["rounds"][-1].update(run_id=None, evaluation_ref=None, decision=None, stop_reason="time_limit")
+        self.assertIs(results.validate_cycle(cycle, report=self.data["cycle_report"],
+                                              evaluations=self.data["evaluations"]), cycle)
+        for mutate in (
+            lambda c: c["rounds"][-1].update(run_id="999-1"),
+            lambda c: c["rounds"][-1].update(decision=self.data["cycle"]["rounds"][-1]["decision"]),
+            lambda c: c["rounds"][-1].update(evaluation_ref=self.data["cycle"]["rounds"][-1]["evaluation_ref"]),
+            lambda c: c.update(stop_reason="max_rounds"),
+        ):
+            with self.subTest(mutation=mutate):
+                invalid = deepcopy(cycle)
+                mutate(invalid)
+                with self.assertRaises(RuntimeFailure):
+                    results.validate_cycle(invalid, report=self.data["cycle_report"],
+                                           evaluations=self.data["evaluations"])
+
+    def test_unsaved_attempt_cannot_be_followed_by_another_round(self):
+        cycle = deepcopy(self.data["cycle"])
+        cycle["rounds"][0].update(run_id=None, evaluation_ref=None, decision=None)
+        with self.assertRaises(RuntimeFailure):
+            results.validate_cycle(cycle, report=self.data["cycle_report"], evaluations=self.data["evaluations"])
+
+    def test_no_admitted_attempt_has_no_placeholder_round(self):
+        cycle = deepcopy(self.data["cycle"])
+        cycle.update(rounds=[], stop_reason="call_limit", selected_candidate_version_id=None,
+                     confirmation_ref=None, confirmation_status="not_run")
+        self.assertIs(results.validate_cycle(cycle, report=self.data["cycle_report"], evaluations={}), cycle)
+        cycle["stop_reason"] = "no_change"
+        with self.assertRaises(RuntimeFailure):
+            results.validate_cycle(cycle, report=self.data["cycle_report"], evaluations={})
+
+    def test_saved_round_cannot_lose_its_run_id(self):
+        cycle = deepcopy(self.data["cycle"])
+        cycle["rounds"][0]["run_id"] = None
+        with self.assertRaises(RuntimeFailure):
+            results.validate_cycle(cycle, report=self.data["cycle_report"], evaluations=self.data["evaluations"])
+
     def test_cycle_rejects_task_criteria_drift_with_unchanged_input_hash(self):
         validate = self.api(results, "validate_cycle")
         for key, value in (("task_id", "forged"), ("checks", {

@@ -1,9 +1,10 @@
 # Hackathon contracts: replay, bounded improvement, explicit adoption
 
-Contract revision: **1.2** (session 2 issue #25 accepted handoff).
+Contract revision: **1.3** (nullable unsaved attempts; fail-closed persistence).
 Original code baseline: `3a6a2a3`.
 The operator confirmed **explicit local CLI approval** on September 17, 2026.
-This PR specifies interfaces; it does not implement them or authorize model calls.
+Interface declarations do not authorize model calls; delivered APIs are identified
+in the implementation handoffs below.
 Revision 1 was accepted in PR #24. This follow-up fixes the provider boundaries
 requested by sessions 3 and 4; API declarations below are not implementation evidence.
 Revision 1.2 supersedes revision 1.1's `development_scope` and context-only
@@ -13,6 +14,10 @@ it is not completion of `prepare_replay`, `generate_candidate` or `evaluate_cand
 It also accepts session 4's ABA/concurrent-Active correction: private approval
 and execution records bind both the previous version and previous execution
 receipt hash. Public adoption projections remain unchanged.
+Revision 1.3 retains those interfaces and distinguishes an admitted attempt
+ending before durable evaluation storage from a persistence callback failure.
+Only the former can become a terminal round with a null `run_id`. This is a
+validation clarification within schema version 1, not a rewrite of prior evidence.
 Dependent PRs must name the accepted contract commit; changes go through the
 integration owner, not independent reinterpretations by each session.
 No presentation file was available in this checkout or conversation attachments;
@@ -243,8 +248,17 @@ input_sha256 reference_sha256 feedback_source_round_id feedback_sha256
 evaluation_ref decision stop_reason
 ```
 
-The nullable candidate/evaluation/decision fields remain null if their stage never
-completed. `decision`, when present, is the validated evaluation decision.
+An attempt is added only when candidate generation is actually admitted. Do not
+invent a placeholder round for a budget/input/feedback failure before admission.
+If an admitted attempt terminates before evaluation persistence, its `run_id`,
+`evaluation_ref` and `decision` are all null. Its `candidate_version_id` may be
+present only if candidate generation completed. Preserve the actual stop reason;
+an unsaved attempt is necessarily the last round and cannot mean `improved` or
+`max_rounds`. A saved round has a valid run ID equal to its evaluation reference
+and a validated evaluation decision; a null run ID cannot reference stored evidence.
+`round_id` remains `<cycle_id>-r<number>` even when `run_id` is null.
+The public validator checks this shape, not private proof of attempt admission;
+the loop must retain the actual attempt and must not synthesize missing rounds.
 `stop_reason` is null while continuing, otherwise one of:
 `improved`, `max_rounds`, `no_change`, `call_limit`, `time_limit`,
 `credit_limit`, `input_changed`, `evaluation_unverified`, `runtime_error`,
@@ -306,6 +320,13 @@ Persist each completed round under its own ordinary run ID. A cycle report is
 written once after its terminal state and references those runs. Do not rewrite
 completed rounds to append feedback. Interrupted processes may leave valid round
 records without a completed cycle; they are visibly incomplete and not approvable.
+If `persist_round` itself fails (including IO, validation, immutable conflict or
+an invalid returned reference), propagate the exception to fail the CLI. Do not
+convert that failure into a null-run terminal round, return a terminal cycle, or
+write a success receipt. Preserve already stored rounds. Individual writes may
+leave partial artifacts, but there is no fabricated completed cycle or retry,
+automatic repair, overwrite or rollback of earlier evidence. The same fail-closed
+rule applies if binding, writing or reloading the final cycle fails.
 Automatic resume is out of scope.
 
 ## 6. Human approval and proof of next use
