@@ -235,10 +235,20 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
         if reason:
             cycle["stop_reason"] = reason
             break
-        packet = _feedback(context, previous, source_round_id, work["input_sha256"])
         folder = artifact / f"r{number}"
         folder.mkdir()
+        try:
+            packet = _feedback(context, previous, source_round_id, work["input_sha256"])
+            admit_stage()
+        except (RuntimeFailure, OSError, KeyboardInterrupt) as error:
+            cycle["stop_reason"] = _failure(folder, error)
+            break
         (folder / "feedback.json").write_bytes(project_results.encoded(packet))
+        try:
+            admit_stage()
+        except (RuntimeFailure, OSError, KeyboardInterrupt) as error:
+            cycle["stop_reason"] = _failure(folder, error)
+            break
         round_row = {
             "round_id": f"{cycle_id}-r{number}", "round_number": number, "run_id": None,
             "parent_version_id": parent[0]["version_id"], "candidate_version_id": None,
@@ -249,7 +259,6 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
         cycle["rounds"].append(round_row)
         evaluated = None
         try:
-            admit_stage()
             generation, candidate = _measured(
                 runtime, folder / "generation-metrics.json", lambda progress: skill_pipeline.generate_candidate(
                     runtime, model, deepcopy(parent), deepcopy(packet), folder / "generation", deadline=deadline),
@@ -260,6 +269,14 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
             exact(generation, "parent_version_id feedback_sha256 addressed_findings hypothesis")
             require(generation["parent_version_id"] == parent[0]["version_id"]
                     and generation["feedback_sha256"] == round_row["feedback_sha256"], "invalid_generation")
+            findings = generation["addressed_findings"]
+            require(isinstance(findings, list) and len(findings) <= 128, "invalid_generation")
+            for identifier in findings:
+                skill_assessments.text(identifier, 160)
+            known = {item["id"] for field in ("dimensions", "findings") for item in packet["quality"][field]}
+            known.update(item["id"] for field in ("cases", "gates") for item in packet["checks"][field])
+            require(len(findings) == len(set(findings)) and set(findings) <= known, "invalid_generation")
+            skill_assessments.text(generation["hypothesis"])
             round_row["candidate_version_id"] = candidate[0]["version_id"]
             admit_stage()
             evaluated, captures = _measured(
