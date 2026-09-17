@@ -1,6 +1,15 @@
 {
   "history": [
     {
+      "created_at": "2026-09-17T08:32:08.087709+00:00",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35200071246-1/report.json",
+      "run_id": "35200071246-1"
+    },
+    {
       "created_at": "2026-09-17T05:12:25.483885+00:00",
       "execution_status": "blocked",
       "guide_status": "blocked",
@@ -38,8 +47,8 @@
     }
   ],
   "project": {
-    "current_run": "35184714110-1",
-    "history_count": 4,
+    "current_run": "35200071246-1",
+    "history_count": 5,
     "id": "project-a",
     "index": "project-a/index.json",
     "state": "active"
