@@ -2,10 +2,12 @@
 
 from contextlib import ExitStack
 from copy import deepcopy
+import base64
 from hashlib import sha256
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import tempfile
 import time
 import unittest
@@ -15,8 +17,11 @@ from copilot_runtime import RuntimeFailure
 import evolution_records as evolution
 from evaluation_reporting import run_stage
 import project_evaluation
+import project_checks
 import project_results
 import skill_assessments
+import skill_guide
+import skill_iterations
 import skill_pipeline
 
 
@@ -44,7 +49,7 @@ class IterationTests(unittest.TestCase):
         self.original = capture(b"Original instructions.")
         self.candidates = [capture(b"Candidate one."), capture(b"Candidate two.")]
         self.cycle_id = "local-20260917T130000Z-123456789abc"
-        self.budget = {"calls": 0, "max_calls": 100, "deadline": time.monotonic() + 120}
+        self.budget = {"calls": 0, "max_calls": 100, "max_seconds": 120, "deadline": time.monotonic() + 120}
         self.limits = {"max_invocations": 100, "max_seconds": 120,
                        "max_ai_credits_per_session": None}
         self.raw = Mock(private=self.root, env={})
@@ -120,12 +125,14 @@ class IterationTests(unittest.TestCase):
         self.assertIs(budget, self.budget)
         return deepcopy(self.limits)
 
-    def feedback(self, context, evaluation, source_round_id):
+    def feedback(self, runtime, context, evaluation, source_round_id):
+        self.assertIs(runtime, self.runtime)
         self.assertIs(context, self.context)
+        observed = evaluation["checks"]["candidate"] if evaluation else self.reference["original_checks"]
         return {"schema_version": 1, "input_sha256": self.work["input_sha256"],
                 "source_round_id": source_round_id,
                 "quality": deepcopy(evaluation["quality"]["candidate"] if evaluation else self.reference["base_quality"]),
-                "checks": deepcopy(evaluation["checks"]["candidate"] if evaluation else self.reference["original_checks"]),
+                "checks": {key: deepcopy(observed[key]) for key in ("cases", "gates")},
                 "application": deepcopy(evaluation["applications"]["candidate"]) if evaluation else None,
                 "decision": deepcopy(evaluation["decision"]) if evaluation else None}
 
@@ -199,7 +206,8 @@ class IterationTests(unittest.TestCase):
                 feedback = self.generated[1][1]
                 prior = self.saved[0][0]
                 self.assertEqual(feedback["quality"], prior["quality"]["candidate"])
-                self.assertEqual(feedback["checks"], prior["checks"]["candidate"])
+                self.assertEqual(feedback["checks"], {
+                    key: prior["checks"]["candidate"][key] for key in ("cases", "gates")})
                 self.assertEqual(feedback["application"], prior["applications"]["candidate"])
                 self.assertEqual(feedback["decision"], prior["decision"])
                 self.assertEqual(feedback["source_round_id"], self.cycle_id + "-r1")
@@ -482,16 +490,10 @@ class IterationTests(unittest.TestCase):
             "round_id round_number run_id parent_version_id candidate_version_id input_sha256 reference_sha256 "
             "feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason".split()))
 
-    def test_missing_providers_fail_closed_without_production_doubles(self):
-        self.stack.close()
-        for function, args, code in (
-            (self.module._context_inputs, (self.context,), "replay_context_provider_missing"),
-            (self.module._authorized_limits, (self.budget,), "authorized_limits_provider_missing"),
-            (self.module._development_feedback, (self.context, None, None), "feedback_provider_missing"),
-        ):
-            with self.subTest(code=code), self.assertRaises(RuntimeFailure) as caught:
-                function(*args)
-            self.assertEqual(caught.exception.code, code)
+    def test_absent_required_provider_fails_closed(self):
+        with patch.object(skill_pipeline, "generate_candidate", None), self.assertRaises(RuntimeFailure) as caught:
+            self.run_cycle()
+        self.assertEqual(caught.exception.code, "replay_provider_missing")
 
     def test_authorized_budget_bounds_and_identity_are_validated_without_model_calls(self):
         for field, values in (("max_invocations", (True, 0, 1001, 1.5)),
@@ -575,21 +577,19 @@ class IterationTests(unittest.TestCase):
         self.statuses = ["not_improved", "not_improved"]
         def evaluate_with_protected_case(*args, **kwargs):
             row, captures = self.evaluate(*args, **kwargs)
-            row["checks"]["candidate"]["cases"].append({"id": "ordinary-name", "status": "failed"})
-            row["decision"]["reasons"].append("private-diagnostic")
+            row["checks"]["candidate"]["cases"].append({"id": "ordinary-name", "status": "passed"})
             return row, captures
         self.evaluate_mock.side_effect = evaluate_with_protected_case
-        def project(context, evaluation, source_round_id):
-            packet = self.feedback(context, evaluation, source_round_id)
+        def project(runtime, context, evaluation, source_round_id):
+            packet = self.feedback(runtime, context, evaluation, source_round_id)
             if evaluation:
-                # Test-only visibility rule, not an agreed production projection API.
+                # Test-only visibility fixture; production uses the issued provider packet.
                 packet["checks"]["cases"] = packet["checks"]["cases"][:1]
-                packet["decision"]["reasons"] = []
             return packet
         self.project_feedback.side_effect = project
         result = self.run_cycle()
         self.assertNotIn("ordinary-name", json.dumps(self.generated[1][1]))
-        self.assertNotIn("private-diagnostic", json.dumps(self.generated[1][1]))
+        self.assertEqual(self.generated[1][1]["decision"], self.saved[0][0]["decision"])
         self.assertIn("ordinary-name", json.dumps(self.saved[0][0]))
         self.assertEqual(result["rounds"][1]["feedback_sha256"], digest(self.generated[1][1]))
 
@@ -655,6 +655,311 @@ class IterationTests(unittest.TestCase):
         self.assertEqual(result["rounds"], [])
         self.assertEqual(self.generated, [])
         self.assertEqual(self.budget["calls"], 0)
+
+    def test_feedback_cannot_rewrite_the_retained_decision(self):
+        def rewritten(*args):
+            packet = self.feedback(*args)
+            if packet["decision"] is not None:
+                packet["decision"]["reasons"].append("invented-reason")
+            return packet
+        self.project_feedback.side_effect = rewritten
+        result = self.run_cycle()
+        self.assertEqual(result["stop_reason"], "runtime_error")
+        self.assertEqual(len(self.generated), 1)
+        self.assertEqual(self.saved[0][0]["decision"]["reasons"], [])
+
+
+class RealProviderIntegrationTests(unittest.TestCase):
+    """Real replay, guide, budget and validation; only model/container I/O is simulated."""
+
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.repo = self.root / "repo"
+        self.project = self.repo / "projects/fixture"
+        bundle = self.project / "skills/develop"
+        (bundle / "references").mkdir(parents=True)
+        self.body = (
+            "Read the request and existing source. Make the requested change, preserve existing behavior, "
+            "and verify the result. Consult [rules](references/rules.md) before changing code."
+        )
+        (bundle / "SKILL.md").write_text(
+            "---\nname: develop\ndescription: Implement recorded development requests safely.\n---\n\n"
+            + self.body + "\n")
+        (bundle / "references/rules.md").write_text("Do not change protected tests or evaluation policy.\n")
+        (self.project / "api.py").write_text("VALUE = 0\n")
+        (self.project / "tests").mkdir()
+        (self.project / "tests/test_api.py").write_text(
+            "import unittest\nclass Tests(unittest.TestCase):\n"
+            "    def test_task(self): self.assertTrue(True)\n"
+            "    def test_hidden(self): self.assertTrue(True)\n"
+            "HIDDEN_CONFIRMATION_SENTINEL = 'withheld'\n")
+        for command in (
+            ["init", "--quiet"], ["add", "--", "projects"],
+            ["-c", "user.name=Offline fixture", "-c", "user.email=fixture@example.invalid",
+             "-c", "commit.gpgSign=false", "-c", "core.hooksPath=/dev/null",
+             "commit", "--quiet", "-m", "Offline fixture"],
+        ):
+            subprocess.run(["git", "-C", str(self.repo), *command], check=True, capture_output=True)
+        commit = subprocess.run(["git", "-C", str(self.repo), "rev-parse", "HEAD"],
+                                check=True, capture_output=True, text=True).stdout.strip()
+        self.raw = Mock(private=self.root / "private", env={}, cli="offline-fixture",
+                        project=self.repo, home=self.root / "home", config=self.root / "config")
+        self.raw.private.mkdir()
+        self.budget = {"calls": 0, "max_calls": 30, "max_seconds": 120,
+                       "deadline": time.monotonic() + 120, "max_ai_credits": 30}
+        self.runtime = project_evaluation.BudgetRuntime(self.raw, self.budget)
+        self.runtime.execution_mode = "offline_test"
+        self.bundle = skill_guide.discover(self.project)[0]
+        self.rubric = {"dimensions": ["workflow_clarity"], "instructions": "Offline quality fixture."}
+        self.images = {"python": "sha256:" + "a" * 64}
+        plan = project_checks.discover(self.project)
+        self.work = {
+            "schema_version": 1, "task_id": "recorded-task", "project_id": "fixture", "source_commit": commit,
+            "project_tree_sha256": project_results.tree_hash(self.project),
+            "request": "Implement VALUE = 1.", "split": "development",
+            "sources": {"api.py": sha256(b"VALUE = 0\n").hexdigest()},
+            "checks": {"plan_sha256": plan["sha256"], "protected_sha256": project_checks.protected_digest(
+                self.project, project_checks.protected_files(self.project)),
+                "required_case_ids": ["task"], "required_gate_ids": []},
+        }
+        self.work["input_sha256"] = digest(self.work)
+        self.model = "offline-fixture"
+        self.prompts, self.generated_feedback, self.checked_sources = [], [], []
+        self.evaluation_rows, self.issued_rows, self.saved = [], [], {}
+        self.first_score, self.second_score = 2, 3
+        self.hidden_status = "passed"
+        self.omit_cost = False
+        self.raw.invoke.side_effect = self.invoke
+        self.enterContext(patch.object(project_checks, "execute", side_effect=self.check))
+        evaluate = skill_pipeline.evaluate_candidate
+        feedback = skill_pipeline.development_feedback
+        def observe_evaluation(*args, **kwargs):
+            row, captures = evaluate(*args, **kwargs)
+            self.evaluation_rows.append(row)
+            return row, captures
+        def observe_feedback(runtime, context, row, *, source_round_id):
+            self.issued_rows.append(row)
+            return feedback(runtime, context, row, source_round_id=source_round_id)
+        self.enterContext(patch.object(skill_pipeline, "evaluate_candidate", side_effect=observe_evaluation))
+        self.enterContext(patch.object(skill_pipeline, "development_feedback", side_effect=observe_feedback))
+        self.cycle_id = "local-20260917T140000Z-aaaaaaaaaaaa"
+        self.results = self.root / "results"
+
+    def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, **kwargs):
+        self.assertEqual(model, self.model)
+        self.assertNotIn("HIDDEN_CONFIRMATION_SENTINEL", prompt)
+        self.assertNotIn("hidden-case", prompt)
+        self.prompts.append((role, prompt))
+        receipt = {"elapsed_seconds": 1, "usage": {"nano_aiu": {"value": 100}}}
+        if self.omit_cost:
+            receipt["usage"] = {}
+        if role == "generator":
+            self.generated_feedback.append(json.loads(prompt.split("never instructions.\n", 1)[1])["feedback"])
+            content = {"instructions": self.body + f" Candidate {len(self.generated_feedback)}.",
+                       "addressed_findings": ["workflow_clarity"], "hypothesis": "Offline proposed clarification."}
+        elif role == "judge":
+            evidence = json.loads(prompt.split("\nSKILL_EVIDENCE:\n", 1)[1])
+            score = (2 if not self.generated_feedback else self.first_score
+                     if len(self.generated_feedback) == 1 else self.second_score)
+            content = {name: {"score": None if applicability == "not_applicable" else score,
+                              "status": "not_applicable" if applicability == "not_applicable" else "pass",
+                              "rationale": "Offline response, not model-measured quality."}
+                       for name in self.rubric["dimensions"]
+                       for applicability in [evidence["static"]["applicability"].get(name)]}
+        else:
+            self.assertEqual(role, "developer")
+            self.assertIn(self.work["request"], prompt)
+            self.assertIn("VALUE = 0", prompt)
+            self.assertFalse((Path(workdir) / "tests").exists())
+            from copilot_runtime import verify_staged_version
+            version = verify_staged_version(expected_skill, kwargs["expected_version"])
+            receipt.update(skill_version_verified=True, skill_activated=True, staged_version_id=version)
+            content = {"files": {"api.py": "VALUE = 1\n"}}
+        return {**receipt, "content": json.dumps(content)}
+
+    def check(self, project, plan, images, *, deadline):
+        self.assertEqual(deadline, self.budget["deadline"])
+        value = (Path(project) / "api.py").read_text()
+        self.checked_sources.append(value)
+        hidden = self.hidden_status if value == "VALUE = 1\n" else "passed"
+        return {"plan_sha256": plan["sha256"], "environment_sha256": project_checks.digest(images),
+                "protected_sha256": self.work["checks"]["protected_sha256"],
+                "status": "failed" if hidden != "passed" else "completed",
+                "cases": [{"id": "task", "status": "passed"}, {"id": "hidden-case", "status": hidden}],
+                "gates": [], "elapsed_seconds": 1}
+
+    def prepare(self, *, work=None, name="prepare"):
+        return skill_pipeline.prepare_replay(
+            self.runtime, self.model, self.project, self.bundle, "skillops:develop", self.rubric, self.images,
+            self.runtime.private / name, work_item=work or self.work, deadline=self.budget["deadline"])
+
+    def report(self, run_id, reference):
+        return {
+            "schema_version": 1, "project_id": "fixture", "run_id": run_id,
+            "created_at": "2026-09-17T14:00:00+00:00", "origin": "local", "purpose": "project_assessment",
+            **{key: reference[key] for key in ("source_commit", "project_tree_sha256", "evaluator_sha256")},
+            "source_report_sha256": None, "source_schema_version": None,
+            "guide": project_results.axis("completed", "evaluation_completed"),
+            "execution": project_results.axis("completed", "evaluation_completed"),
+        }
+
+    def persist(self, evaluation, captures, generation, reference):
+        """Test caller adapter; real common validators/readers check actual generated evidence."""
+        run_id = f"local-20260917T140001Z-{len(self.saved) + 1:012x}"
+        report = self.report(run_id, reference)
+        common = {"schema_version": 1, "project_id": "fixture", "run_id": run_id, "report_sha256": digest(report)}
+        records = evolution.empty_records()
+        key = reference["skill_key"]
+        records["identities"] = [{"skill_key": key, "display_name": "develop"}]
+        records["sources"] = [{"skill_key": key, "project_id": "fixture", "kind": "workspace", "scope": "project",
+                               "path": reference["source_path"], "observed_at": report["created_at"],
+                               "evidence_ref": None}]
+        records["versions"] = [item[0] for item in captures]
+        records["skill_versions"] = [{"skill_key": key, "version_id": item[0]["version_id"]} for item in captures]
+        lifecycle = {
+            **common, "records": records,
+            "bindings": [{"skill_key": key, "base_version_id": evaluation["base_version_id"],
+                          "candidate_version_id": evaluation["candidate_version_id"], "legacy_skill_id": None}],
+            "file_contents": [{"version_id": version["version_id"], "path": path, "encoding": "base64",
+                               "data": base64.b64encode(raw).decode()}
+                              for version, files in captures for path, raw in files.items()],
+        }
+        replay = {**common, "execution_mode": "offline_test", "reference": reference,
+                  "generation": generation, "evaluation": evaluation}
+        skill_assessments.validate_replay(replay, report=report, lifecycle=lifecycle)
+        project_results.store(self.results, report)
+        project_results.store_evolution(self.results, lifecycle)
+        path = self.results / "fixture" / run_id / "replay-evaluation.json"
+        project_results.atomic_json(path, replay, immutable=True)
+        self.saved[("fixture", run_id)] = {"report": report, "lifecycle": lifecycle, "replay": replay}
+        self.assertEqual(project_results.load_replays(self.results)[("fixture", run_id)], replay)
+        return {"project_id": "fixture", "run_id": run_id, "path": path.name,
+                "sha256": sha256(path.read_bytes()).hexdigest()}
+
+    def run_cycle(self, context, *, confirmation=None, max_rounds=2):
+        return skill_iterations.run_cycle(
+            self.runtime, self.model, context, self.runtime.private / "cycle", cycle_id=self.cycle_id,
+            max_rounds=max_rounds, budget=self.budget, confirmation_context=confirmation,
+            persist_round=self.persist)
+
+    def validate_cycle(self, cycle, context):
+        report = self.report(self.cycle_id, context["reference"])
+        bound = {**cycle, "report_sha256": digest(report)}
+        self.assertEqual(project_results.validate_cycle(bound, report=report, evaluations=self.saved), bound)
+
+    def test_real_provider_chains_retained_rows_and_common_decisions(self):
+        context = self.prepare()
+        self.assertEqual(self.budget["calls"], 1)
+        cycle = self.run_cycle(context)
+        self.assertEqual([row["decision"]["status"] for row in self.evaluation_rows], ["not_improved", "improved"])
+        self.assertEqual(cycle["stop_reason"], "improved")
+        self.assertEqual(cycle["confirmation_status"], "not_run")
+        self.assertEqual(len(self.generated_feedback), 2)
+        self.assertEqual(len(self.issued_rows), 2)  # preparation plus the actual first evaluation
+        self.assertIs(self.issued_rows[1], self.evaluation_rows[0])
+        self.assertEqual(self.generated_feedback[1]["decision"], self.evaluation_rows[0]["decision"])
+        self.assertEqual(self.generated_feedback[1]["quality"], self.evaluation_rows[0]["quality"]["candidate"])
+        self.assertEqual(cycle["rounds"][1]["feedback_sha256"], digest(self.generated_feedback[1]))
+        self.assertEqual(cycle["rounds"][1]["parent_version_id"], self.evaluation_rows[0]["candidate_version_id"])
+        self.assertEqual({row["base_version_id"] for row in self.evaluation_rows},
+                         {context["original"][0]["version_id"]})
+        self.assertEqual(self.checked_sources, ["VALUE = 0\n", *(["VALUE = 1\n"] * 4)])
+        self.assertEqual((self.project / "api.py").read_text(), "VALUE = 0\n")
+        self.assertEqual((context["project"] / "api.py").read_text(), "VALUE = 0\n")
+        self.assertEqual(self.budget["calls"], 9)
+        self.validate_cycle(cycle, context)
+
+    def test_real_confirmation_provider_stays_blocked_after_development_improvement(self):
+        self.first_score = 3
+        context = self.prepare()
+        final_work = deepcopy(self.work)
+        final_work.update(task_id="distinct-confirmation", split="confirmation", request="A distinct held-out task.")
+        final_work["checks"]["required_case_ids"] = ["hidden-case"]
+        final_work["input_sha256"] = digest({key: value for key, value in final_work.items() if key != "input_sha256"})
+        confirmation = Mock(side_effect=lambda: self.prepare(work=final_work, name="confirmation-prepare"))
+        cycle = self.run_cycle(context, confirmation=confirmation)
+        confirmation.assert_called_once_with()
+        self.assertEqual(cycle["stop_reason"], "improved")
+        self.assertEqual(cycle["confirmation_status"], "unverified")
+        self.assertIsNone(cycle["confirmation_ref"])
+        self.assertEqual(len(self.generated_feedback), 1)
+        self.assertEqual(self.budget["calls"], 5)
+        failure = project_results.read_json(self.runtime.private / "cycle/confirmation/failure.json")
+        self.assertEqual(failure["code"], "confirmation_isolation_unverified")
+        self.validate_cycle(cycle, context)
+
+    def test_real_rejected_candidate_supplies_unchanged_feedback_to_next_round(self):
+        self.first_score = 1
+        context = self.prepare()
+        cycle = self.run_cycle(context)
+        self.assertEqual([row["decision"]["status"] for row in self.evaluation_rows], ["rejected", "improved"])
+        self.assertIs(self.issued_rows[1], self.evaluation_rows[0])
+        self.assertEqual(self.generated_feedback[1]["decision"], self.evaluation_rows[0]["decision"])
+        self.assertEqual(self.generated_feedback[1]["quality"]["dimensions"][0]["score"], 1)
+        self.assertEqual(cycle["rounds"][1]["parent_version_id"], self.evaluation_rows[0]["candidate_version_id"])
+        self.validate_cycle(cycle, context)
+
+    def test_real_common_budget_requires_original_duration_not_remaining_time(self):
+        context = self.prepare()
+        del self.budget["max_seconds"]
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.run_cycle(context)
+        self.assertEqual(caught.exception.code, "missing_limits")
+        self.assertEqual(self.budget["calls"], 1)
+        self.assertEqual(self.generated_feedback, [])
+
+    def test_real_budget_and_policy_preserve_a_partially_evaluated_stored_round(self):
+        context = self.prepare()
+        self.budget["max_calls"] = 3
+        cycle = self.run_cycle(context)
+        self.assertEqual(cycle["stop_reason"], "call_limit")
+        self.assertEqual(self.budget["calls"], 3)
+        self.assertEqual(len(self.evaluation_rows), 1)
+        row = self.evaluation_rows[0]
+        self.assertEqual(row["decision"]["status"], "unverified")
+        self.assertIn({"stage": "base_application", "code": "call_limit"}, row["errors"])
+        self.assertIsNone(row["applications"]["base"])
+        self.assertIsNone(row["applications"]["candidate"])
+        self.assertIsNotNone(cycle["rounds"][0]["evaluation_ref"])
+        self.validate_cycle(cycle, context)
+
+    def test_real_policy_never_selects_improvement_with_unreported_cost(self):
+        self.first_score = 3
+        self.omit_cost = True
+        context = self.prepare()
+        cycle = self.run_cycle(context)
+        self.assertEqual(cycle["stop_reason"], "evaluation_unverified")
+        self.assertIsNone(cycle["selected_candidate_version_id"])
+        self.assertEqual(len(self.generated_feedback), 1)
+        row = self.evaluation_rows[0]
+        self.assertIn("efficiency_unverified", row["decision"]["reasons"])
+        self.assertIsNone(row["applications"]["candidate"]["measurement"]["cost_nano_aiu"])
+        self.validate_cycle(cycle, context)
+
+    def test_real_excluded_failure_blocks_feedback_without_erasing_previous_evidence(self):
+        self.hidden_status = "failed"
+        context = self.prepare()
+        cycle = self.run_cycle(context)
+        self.assertEqual(cycle["stop_reason"], "runtime_error")
+        self.assertEqual(len(self.generated_feedback), 1)
+        self.assertEqual(len(self.evaluation_rows), 1)
+        self.assertEqual(self.evaluation_rows[0]["decision"]["status"], "rejected")
+        failure = project_results.read_json(self.runtime.private / "cycle/r2/failure.json")
+        self.assertEqual(failure["code"], "confirmation_isolation_unverified")
+        stored = next(iter(self.saved.values()))["replay"]
+        self.assertEqual(stored["evaluation"], self.evaluation_rows[0])
+        self.validate_cycle(cycle, context)
+
+    def test_real_no_improvement_uses_n_attempts_without_confirmation(self):
+        self.second_score = 2
+        context = self.prepare()
+        confirmation = Mock(side_effect=AssertionError("No candidate was selected."))
+        cycle = self.run_cycle(context, confirmation=confirmation)
+        self.assertEqual(cycle["stop_reason"], "max_rounds")
+        self.assertEqual([row["decision"]["status"] for row in self.evaluation_rows],
+                         ["not_improved", "not_improved"])
+        confirmation.assert_not_called()
+        self.validate_cycle(cycle, context)
 
 
 if __name__ == "__main__":

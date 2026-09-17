@@ -1,9 +1,9 @@
 """Bounded development-feedback search; never approval, activation or public storage.
 
-Contract: a1da506a6021f6438d1c24c66534fce99b63d2c4, sections 5 and 8.
-The private-context, filtered-feedback and authorized-duration provider handoffs
-are not yet agreed. Their three internal seams fail closed; only tests replace
-them. They are not new provider APIs or a usable production replay adapter.
+Contract revision 1.2: c194ea8f43f0a64b98d96e5adababbffccc6d49e.
+Uses the real replay provider and shared budget/decision validators. Retained
+evaluation objects stay unchanged for private feedback issuance. Confirmation
+is still blocked by the provider with confirmation_isolation_unverified.
 """
 
 from copy import deepcopy
@@ -23,18 +23,21 @@ import skill_pipeline
 
 
 def _context_inputs(context):
-    raise RuntimeFailure("replay_context_provider_missing",
-                         "The integration/replay owners must supply the agreed private context handoff.")
+    exact(context, "reference work_item original source_project project plan images rubric sources "
+          "execution_mode feedback_scope feedback")
+    return context["reference"], context["original"], context["work_item"], context["execution_mode"]
 
 
 def _authorized_limits(budget):
-    raise RuntimeFailure("authorized_limits_provider_missing",
-                         "The integration owner must supply original authorized caps, including max_seconds.")
+    from project_evaluation import budget_limits
+    return budget_limits(budget)
 
 
-def _development_feedback(context, evaluation, source_round_id):
-    raise RuntimeFailure("feedback_provider_missing",
-                         "The replay owner must supply validated, redacted development-only feedback.")
+def _development_feedback(runtime, context, evaluation, source_round_id):
+    if evaluation is None:
+        require(source_round_id is None, "invalid_feedback_round")
+        return context["feedback"]
+    return skill_pipeline.development_feedback(runtime, context, evaluation, source_round_id=source_round_id)
 
 
 def _digest(value):
@@ -57,7 +60,9 @@ def _stop(code):
         return code
     if code == "unchanged_candidate":
         return "no_change"
-    if code in ("input_changed", "inputs_changed", "skill_inputs_changed"):
+    if code in ("input_changed", "inputs_changed", "skill_inputs_changed", "replay_inputs_changed",
+                "work_inputs_changed", "check_inputs_changed", "quality_inputs_changed",
+                "execution_mode_changed", "skill_version_mismatch", "protected_skill_changed"):
         return "input_changed"
     return "runtime_error"
 
@@ -80,6 +85,7 @@ def _validate_budget(runtime, budget, limits):
                               and credit >= MIN_AI_CREDITS), "invalid_budget")
     require(runtime.budget is budget and type(budget.get("max_calls")) is int
             and budget["max_calls"] == limits["max_invocations"]
+            and budget.get("max_seconds") == limits["max_seconds"]
             and budget.get("max_ai_credits") == credit, "budget_identity_mismatch")
     require(type(budget.get("calls")) is int and 0 <= budget["calls"] <= budget["max_calls"]
             and type(budget.get("deadline")) in (int, float)
@@ -113,9 +119,9 @@ def _failure(folder, error):
     return _stop(code)
 
 
-def _feedback(context, previous, source_round_id, input_sha256):
+def _feedback(runtime, context, previous, source_round_id, input_sha256):
     # The provider owns explicit evidence visibility; never infer it from names.
-    packet = _development_feedback(context, deepcopy(previous), source_round_id)
+    packet = _development_feedback(runtime, context, previous, source_round_id)
     exact(packet, "schema_version input_sha256 source_round_id quality checks application decision")
     require(type(packet["schema_version"]) is int and packet["schema_version"] == 1,
             "invalid_feedback")
@@ -123,11 +129,13 @@ def _feedback(context, previous, source_round_id, input_sha256):
             "invalid_feedback")
     require(packet["quality"] is not None and packet["checks"] is not None, "feedback_unverified")
     skill_assessments.quality(packet["quality"])
+    exact(packet["checks"], "cases gates")
     if previous is None:
         require(packet["application"] is None and packet["decision"] is None, "invalid_feedback")
     else:
         require(packet["application"] == previous["applications"]["candidate"]
-                and packet["quality"] == previous["quality"]["candidate"], "invalid_feedback")
+                and packet["quality"] == previous["quality"]["candidate"]
+                and packet["decision"] == previous["decision"], "invalid_feedback")
     require(len(project_results.encoded(packet)) <= project_results.LIMIT, "feedback_limit")
     return deepcopy(packet)
 
@@ -157,7 +165,7 @@ def _evaluation(row, captures, reference, original, candidate, work):
     require(decision["policy_id"] == "replay-v1" and decision["status"] in
             ("improved", "not_improved", "rejected", "unverified")
             and row["decision"] == decision, "invalid_replay_decision")
-    return deepcopy(row), deepcopy(captures)
+    return row, deepcopy(captures)
 
 
 def _persist(persist_round, evaluation, captures, generation, reference, seen):
@@ -209,6 +217,7 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
                 and current_work == work and current_mode == execution_mode, "inputs_changed")
         require(runtime.budget is budget and budget["deadline"] == deadline
                 and budget["max_calls"] == limits["max_invocations"]
+                and budget["max_seconds"] == limits["max_seconds"]
                 and budget.get("max_ai_credits") == limits["max_ai_credits_per_session"]
                 and type(budget["calls"]) is int and last_calls <= budget["calls"] <= budget["max_calls"],
                 "inputs_changed")
@@ -238,7 +247,7 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
         folder = artifact / f"r{number}"
         folder.mkdir()
         try:
-            packet = _feedback(context, previous, source_round_id, work["input_sha256"])
+            packet = _feedback(runtime, context, previous, source_round_id, work["input_sha256"])
             admit_stage()
         except (RuntimeFailure, OSError, KeyboardInterrupt) as error:
             cycle["stop_reason"] = _failure(folder, error)
@@ -274,7 +283,6 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
             for identifier in findings:
                 skill_assessments.text(identifier, 160)
             known = {item["id"] for field in ("dimensions", "findings") for item in packet["quality"][field]}
-            known.update(item["id"] for field in ("cases", "gates") for item in packet["checks"][field])
             require(len(findings) == len(set(findings)) and set(findings) <= known, "invalid_generation")
             skill_assessments.text(generation["hypothesis"])
             round_row["candidate_version_id"] = candidate[0]["version_id"]
@@ -307,6 +315,9 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
             cycle["stop_reason"] = reason
             break
         parent, previous, source_round_id = candidate, evaluated, round_row["round_id"]
+    if cycle["rounds"] and cycle["rounds"][-1]["stop_reason"] is None:
+        # Finalize the cycle boundary without rewriting an already stored evaluation.
+        cycle["rounds"][-1]["stop_reason"] = cycle["stop_reason"]
     if cycle["selected_candidate_version_id"] is not None and confirmation_context is not None:
         selected = _capture(candidate)
         folder = artifact / "confirmation"
