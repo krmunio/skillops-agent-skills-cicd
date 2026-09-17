@@ -1042,7 +1042,7 @@ test('projects without assessments show unevaluated decisions and no numeric can
   await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
   await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
   await expect(page.locator('#project-summary details')).toHaveJSProperty('open', false);
-  await expect(page.locator('#project-summary details summary')).toHaveText('이 요약은 무엇을 세나요?');
+  await expect(page.locator('#project-summary details summary')).toHaveText('최근 평가·비용·집계 상세');
   await expect(page.locator('#project-summary details p')).toBeHidden();
 });
 
@@ -1240,6 +1240,128 @@ test('a forged newest assessment stays unevaluated instead of borrowing an older
   await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
   await expect(page.locator('#error')).toBeVisible();
   await expect(page.locator('#detail')).toBeHidden();
+});
+
+test.describe('design regressions', () => {
+  for (const width of [1440, 768, 390, 320]) {
+    test(`compact real layout keeps states readable at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+      await expect(page.locator('#summary-history')).toBeVisible();
+      await expect(page.locator('#summary-decisions')).toBeVisible();
+      await expect(page.locator('#summary-adoptions')).toBeVisible();
+      await expect(page.locator('.summary-explanation')).toHaveJSProperty('open', false);
+      const layout = await page.evaluate(() => ({
+        width: document.documentElement.scrollWidth,
+        header: document.querySelector('.site-header').getBoundingClientRect().height,
+        refresh: document.querySelector('#refresh').getBoundingClientRect().height,
+        summary: document.querySelector('#project-summary').getBoundingClientRect().height,
+        quality: document.querySelector('#quality-section').getBoundingClientRect().top,
+      }));
+      expect(layout.width).toBeLessThanOrEqual(width);
+      expect(layout.header).toBeLessThanOrEqual(72);
+      expect(layout.refresh).toBeLessThanOrEqual(48);
+      expect(layout.summary).toBeLessThan(width <= 600 ? 410 : 320);
+      expect(layout.quality).toBeLessThan(width <= 600 ? 920 : 820);
+      if (width <= 600) {
+        expect(layout.refresh).toBeGreaterThanOrEqual(44);
+        await expect(page.locator('.brand-short')).toBeVisible();
+      }
+      await expect(page.locator('#execution .decision-title')).toHaveText('차단');
+      await expect(page.locator('.outcome-card.is-empty')).toHaveCount(2);
+      await expect(page.locator('#cost-card .decision-title')).toHaveCSS('font-size', '16px');
+    });
+
+    test(`populated sample preserves readable content and controls at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await pageWith(page, { schema_version: 1, projects: [] });
+      await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+      await expect(page.locator('.quality-totals')).toBeVisible();
+      await expect(page.locator('#sample-banner')).toContainText('실제 평가·개선 성과·채택 근거가 아닙니다.');
+      await expect(page.locator('.check-name').first()).toHaveCSS('font-size', '14px');
+      await expect(page.locator('#task-results td').first()).toHaveCSS('font-size', '14px');
+      await expect(page.locator('.outcome-card.is-empty')).toHaveCount(0);
+      await page.getByRole('button', { name: '변경 비교', exact: true }).click();
+      await expect(page.locator('#skill-diff')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.getByRole('tab', { name: '실행 이력', exact: true }).click();
+      await expect(page.locator('#execution-history-panel')).toBeVisible();
+      await page.getByRole('button', { name: '실제 기록으로 돌아가기', exact: true }).click();
+      await expect(page.locator('#sample-banner')).toBeHidden();
+      await expect(page.locator('.section-nav a:visible')).toHaveCount(1);
+    });
+  }
+
+  for (const width of [1440, 320]) {
+    test(`section navigation tracks anchors, scrolling and keyboard activation at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await comparisonPage(page);
+      const quality = page.locator('.section-nav a[href="#quality-section"]');
+      const execution = page.locator('.section-nav a[href="#execution-section"]');
+      const history = page.locator('.section-nav a[href="#history-section"]');
+      await expect(quality).toHaveAttribute('aria-current', 'location');
+      await history.click();
+      await expect(history).toHaveAttribute('aria-current', 'location');
+      await expect(page.locator('.section-nav [aria-current]')).toHaveCount(1);
+      await expect(page.getByRole('tab', { name: 'Skill 이력', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await quality.focus();
+      await quality.press('Enter');
+      await expect(quality).toHaveAttribute('aria-current', 'location');
+      const position = await page.evaluate(() => ({
+        navigation: document.querySelector('.section-nav').getBoundingClientRect().bottom,
+        heading: document.querySelector('#quality-title').getBoundingClientRect().top,
+      }));
+      expect(position.heading).toBeGreaterThanOrEqual(position.navigation);
+      await page.locator('#execution-section').evaluate(element => element.scrollIntoView());
+      await expect(execution).toHaveAttribute('aria-current', 'location');
+      await expect(quality).not.toHaveAttribute('aria-current', 'location');
+    });
+  }
+
+  test('compact summary keeps recency, usage and interpretation available in details', async ({ page }) => {
+    await historyPage(page, [historyRun(1, 'project_assessment', 'completed', 'completed')]);
+    await expect(page.locator('#summary-completed')).toBeHidden();
+    await expect(page.locator('#summary-usage')).toBeHidden();
+    await expect(page.locator('#project-summary .summary-scope')).toBeVisible();
+    await page.locator('.summary-explanation summary').click();
+    await expect(page.locator('#summary-completed')).toBeVisible();
+    await expect(page.locator('#summary-usage')).toBeVisible();
+    await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
+  });
+
+  test('long project names and horizontal selection stay in view after resizing', async ({ page }) => {
+    const longName = `project-${'long-project-label-'.repeat(3)}`.slice(0, 64);
+    const projects = ['project-one', 'project-two', 'project-three', longName]
+      .map(id => ({ id, state: 'active', history_count: 0, current_run: null }));
+    await page.route('http://dashboard.test/results/*/index.json', route => route.fulfill({
+      json: { schema_version: 1, history: [] },
+    }));
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await pageWith(page, { schema_version: 1, projects });
+    const selected = page.locator(`.project[data-project="${longName}"]`);
+    await selected.click();
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#freshness').evaluate(element => {
+      element.textContent = '선택한 기록은 다른 버전의 평가입니다. 현재 버전의 검증 근거가 아닙니다. '.repeat(8);
+    });
+    for (const width of [768, 390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect.poll(() => selected.evaluate(element => {
+        const item = element.getBoundingClientRect();
+        const list = element.parentElement.getBoundingClientRect();
+        return item.left >= list.left - 1 && item.right <= list.right + 1;
+      })).toBe(true);
+      await expect(page.locator('#project-title')).toHaveText(longName);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+  });
+  test('skip link transfers keyboard focus into the main content', async ({ page }) => {
+    await pageWith(page, { schema_version: 1, projects: [] });
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: '평가 결과로 이동', exact: true })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#main')).toBeFocused();
+  });
 });
 
 test('the project summary preserves a policy-stamped assessment verdict rather than relabelling an efficiency regression as improved', async ({ page }) => {
