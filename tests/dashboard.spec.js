@@ -542,6 +542,35 @@ async function evolutionPage(page, fixture) {
     history_count: 1, current_run: null }] }, 200, origin);
 }
 
+test('complete Skill bundles share a two-MiB bound across summary and detail without enlarging report reads', async ({ page }) => {
+  const fixture = evolutionFixture({ baseText: 'x'.repeat(800000) });
+  const raw = JSON.stringify(fixture.envelope);
+  expect(Buffer.byteLength(raw)).toBeGreaterThan(1048576);
+  expect(Buffer.byteLength(raw)).toBeLessThan(2097152);
+  await evolutionPage(page, fixture);
+  await expect(page.locator('#detail')).toBeVisible();
+  await expect(page.locator('#error')).toBeHidden();
+  await expect(page.locator('#skill-changes')).toContainText('표시 한도');
+  await expect(page.locator('#project-summary .summary-scope')).toContainText('근거를 확인한 실행 1건');
+  await expect(page.locator('#project-summary .summary-warning')).toHaveCount(0);
+  const folder = `https://dashboard.test/results/sample_repo/${fixture.report.run_id}`;
+  await page.route(`${folder}/skill-evolution.json`, route => route.fulfill({
+    contentType: 'application/json', body: ' '.repeat(2097152) + raw,
+  }));
+  await page.reload();
+  await expect(page.locator('#error')).toBeVisible();
+  await page.unroute(`${folder}/skill-evolution.json`);
+  await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
+  await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
+  await page.route(`${folder}/skill-evolution.json`, route => route.fulfill({ json: fixture.envelope }));
+  await page.route(`${folder}/report.json`, route => route.fulfill({
+    contentType: 'application/json', body: ' '.repeat(1048576) + JSON.stringify(fixture.report),
+  }));
+  await page.reload();
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
+});
+
 function assessmentFixture({ legacy = true } = {}) {
     const { execFileSync } = require('node:child_process');
     const [report, envelope, details] = JSON.parse(execFileSync('python3', ['-c',

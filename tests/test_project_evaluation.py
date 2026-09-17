@@ -5,11 +5,28 @@ import subprocess
 from pathlib import Path
 import tempfile
 import unittest
+import io
+from contextlib import redirect_stdout
 from unittest.mock import Mock
 from unittest.mock import patch, MagicMock
 
 
 class ProjectEvaluationTests(unittest.TestCase):
+    def test_explicit_long_project_window_remains_bounded(self):
+        m = self.module()
+        for seconds in ("7200", "7201", "0"):
+            with self.subTest(seconds=seconds), patch.dict(m.os.environ, {
+                    "SKILLOPS_MAX_INVOCATIONS": "96", "SKILLOPS_MAX_SECONDS": seconds,
+                    "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "60"}, clear=True), patch.object(
+                    m.time, "monotonic", return_value=100):
+                policy = m.policy_from_environment()
+                if seconds == "7200":
+                    self.assertIn("budget", policy)
+                    self.assertEqual(policy["budget"], {"calls": 0, "max_calls": 96,
+                                                       "deadline": 7300, "max_ai_credits": 60})
+                else:
+                    self.assertNotIn("budget", policy)
+
     def test_cli_selects_one_project_and_rejects_unknown_ids_before_assessment(self):
         m = self.module()
         root = Path(m.__file__).resolve().parent
@@ -160,6 +177,105 @@ class ProjectEvaluationTests(unittest.TestCase):
                 policy = m.policy_from_environment()
                 self.assertNotIn("budget", policy)
                 self.assertEqual(m.os.environ["SKILLOPS_MAX_AI_CREDITS_PER_SESSION"], value)
+
+
+class ChangedProjectTests(unittest.TestCase):
+    def setUp(self):
+        self.module = importlib.import_module("project_evaluation")
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.git("init", "-q")
+        self.git("config", "user.name", "SkillOps test")
+        self.git("config", "user.email", "test@example.invalid")
+        for project in ("alpha", "beta"):
+            self.write(f"projects/{project}/app.py", "VALUE = 1\n")
+        self.write("README.md", "fixture\n")
+        self.before = self.commit()
+
+    def git(self, *args):
+        return subprocess.run(
+            ["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", *args],
+            cwd=self.root, check=True, capture_output=True, text=True, timeout=10).stdout.strip()
+
+    def write(self, name, text):
+        path = self.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def commit(self):
+        self.git("add", "--all")
+        self.git("commit", "-qm", "fixture")
+        return self.git("rev-parse", "HEAD")
+
+    def select(self, after, before=None):
+        self.assertTrue(hasattr(self.module, "changed_projects"), "Changed-project selection is not implemented.")
+        projects = self.module.results.catalog(self.root)
+        return self.module.changed_projects(self.root, projects, before or self.before, after)
+
+    def test_new_project_and_skill_resource_change_select_only_affected_projects(self):
+        self.write("projects/alpha/.github/skills/review/references/check.md", "Check changes.")
+        self.write("projects/gamma/app.py", "VALUE = 2\n")
+        selected = self.select(self.commit())
+        self.assertEqual([project["id"] for project in selected], ["alpha", "gamma"])
+
+    def test_cross_project_move_selects_both_projects_and_deletion_is_not_evaluated(self):
+        self.git("mv", "projects/alpha/app.py", "projects/beta/moved.py")
+        self.write("projects/alpha/remaining.py", "VALUE = 1\n")
+        self.assertEqual([project["id"] for project in self.select(self.commit())], ["alpha", "beta"])
+        (self.root / "projects/alpha/remaining.py").unlink()
+        (self.root / "projects/alpha").rmdir()
+        self.assertEqual([project["id"] for project in self.select(self.commit())], ["beta"])
+
+    def test_shared_evaluator_change_selects_all_but_dashboard_and_results_do_not(self):
+        self.write("dashboard/app.js", "export const changed = true;\n")
+        self.write("results/note.txt", "not evaluator input")
+        self.assertEqual(self.select(self.commit()), [])
+        self.write("eval/rubric.json", "{}")
+        self.assertEqual([project["id"] for project in self.select(self.commit())], ["alpha", "beta"])
+
+    def test_shared_runtime_manifest_change_selects_all_projects(self):
+        for name in ("package.json", "package-lock.json"):
+            with self.subTest(name=name):
+                self.write(name, "{}")
+                self.assertEqual([project["id"] for project in self.select(self.commit())], ["alpha", "beta"])
+
+    def test_invalid_or_missing_revision_fails_without_falling_back_to_full_catalog(self):
+        for before, after in (("invalid", self.before), ("f" * 40, self.before), (self.before, "e" * 40)):
+            with self.subTest(before=before, after=after):
+                self.assertTrue(hasattr(self.module, "changed_projects"))
+                with self.assertRaises(self.module.RuntimeFailure):
+                    self.select(after, before)
+        self.assertEqual([project["id"] for project in self.select(self.before, "0" * 40)], ["alpha", "beta"])
+
+    def test_no_changed_projects_is_an_explicit_noop_without_runtime_or_fake_reports(self):
+        self.write("README.md", "documentation only\n")
+        after = self.commit()
+        output = self.root / "output"
+        step_output = self.root / "step-output"
+        args = ["project_evaluation.py", "--root", str(self.root), "--output", str(output),
+                "--run-id", "500-1", "--source-commit", after, "--changed-since", self.before]
+        with patch.object(self.module.sys, "argv", args), patch.dict(self.module.os.environ, {
+                "SKILLOPS_ACTIONS_PROGRESS": "true", "GITHUB_OUTPUT": str(step_output),
+                "SKILLOPS_LIVE_EVALUATION_ENABLED": "false"}, clear=True), patch.object(
+                self.module, "assess_with_details") as assess, redirect_stdout(io.StringIO()) as log:
+            self.assertEqual(self.module.main(), 0)
+        assess.assert_not_called()
+        self.assertIn("no_changed_projects", log.getvalue())
+        self.assertEqual(step_output.read_text(), "selected_projects=0\n")
+        self.assertEqual(self.module.results.load_reports(output), [])
+
+    def test_changed_project_cli_preserves_blocked_status_and_does_not_assess_other_projects(self):
+        self.write("projects/alpha/app.py", "VALUE = 2\n")
+        after = self.commit()
+        output = self.root / "output"
+        args = ["project_evaluation.py", "--root", str(self.root), "--output", str(output),
+                "--run-id", "501-1", "--source-commit", after, "--changed-since", self.before]
+        with patch.object(self.module.sys, "argv", args), patch.dict(
+                self.module.os.environ, {"SKILLOPS_LIVE_EVALUATION_ENABLED": "false"}, clear=True
+        ), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.module.main(), 2)
+        rows = self.module.results.load_reports(output)
+        self.assertEqual([row["project_id"] for row in rows], ["alpha"])
+        self.assertEqual(rows[0]["execution"]["reason_code"], "live_disabled")
 
 
 if __name__ == "__main__":
