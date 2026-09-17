@@ -1,9 +1,11 @@
 """Public, version-bound Skill assessments; qualification never changes adoption."""
 
+from decimal import Decimal
 from hashlib import sha256
 import json
 import math
 
+from candidates import POLICY
 import evolution_records as evolution
 from evolution_records import exact, matches, require, DIGEST, VERSION_ID
 import project_checks
@@ -110,6 +112,10 @@ def validate_skill(row):
 
 
 def decide(row):
+    return _decide(row, POLICY)
+
+
+def _decide(row, policy):
     validate_skill(row)
     regression = project_checks.compare(*(row["checks"][arm] for arm in ("original", "base", "candidate")))
     reasons, rejected = set(), regression["status"] == "rejected"
@@ -175,8 +181,20 @@ def decide(row):
     if (check_id is None or populations["original"].get(check_id) not in ("failed", "error")
             or populations["candidate"].get(check_id) != "passed"):
         reasons.add("task_unverified")
+    if policy is not None:
+        measurements = [(row["applications"][arm] or {}).get("measurement", {}) for arm in ("base", "candidate")]
+        limit = Decimal(100) + Decimal(str(policy["maximum_efficiency_regression_percent"]))
+        for metric in ("cost_nano_aiu", "elapsed_seconds"):
+            before, after = (measurement.get(metric) for measurement in measurements)
+            if before is None or after is None:
+                reasons.add("efficiency_unverified")
+            elif Decimal(str(after)) * 100 > Decimal(str(before)) * limit:
+                reasons.add("efficiency_regression")
     status = "rejected" if rejected else "unverified" if reasons else "improved" if improved else "not_improved"
-    return {"status": status, "reasons": sorted(reasons), "regression": regression}
+    decision = {"status": status, "reasons": sorted(reasons), "regression": regression}
+    if policy is not None:
+        decision["policy_version"] = policy["version"]
+    return decision
 
 
 def validate(data, report, lifecycle):
@@ -200,7 +218,14 @@ def validate(data, report, lifecycle):
         seen.add(key)
         require(all(row[name] == bindings[key][name] for name in ("base_version_id", "candidate_version_id")),
                 "assessment_version_mismatch")
-        require("decision" in row and row["decision"] == decide(row), "assessment_decision_mismatch")
+        decision = row.get("decision")
+        require(isinstance(decision, dict), "assessment_decision_mismatch")
+        versioned = "policy_version" in decision
+        exact(decision, "status reasons regression" + (" policy_version" if versioned else ""))
+        if versioned:
+            require(type(decision["policy_version"]) is int and decision["policy_version"] == POLICY["version"],
+                    "unsupported_assessment_policy")
+        require(decision == _decide(row, POLICY if versioned else None), "assessment_decision_mismatch")
     require(len(json.dumps(data, ensure_ascii=True, allow_nan=False).encode()) <= 1024 * 1024,
             "output_limit")
     return data

@@ -274,6 +274,13 @@ candidate and calibration summaries; raw invocation artifacts remain local.
 Build output must be a new directory. It contains only allowlisted dashboard assets
 and validated results, never project sources or raw logs.
 
+The build writes each ES module as `<name>.<12-character-sha256>.js` and rewrites
+the entry script and relative module imports. Hashes cover the final emitted bytes,
+including dependency filenames, so a dependency change also invalidates its importers.
+The generated Static Web Apps configuration adds one-year immutable cache headers
+only for these exact hashed module paths. Results remain `no-store` and `index.html`
+remains `no-cache`. Unhashed source modules stay in `dashboard/` for local tests.
+
 ## Actions activation
 
 ### Automatic-evaluation support and boundaries
@@ -379,6 +386,56 @@ project/catalog dispatch; this MVP does not provide a durable catch-up queue. Do
 proof that every changed project has been evaluated. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
 and operational failures remain explicit non-success outcomes.
 
+### Stable Skill identity migration
+
+When no validated assessment already associates a project-local path with a Skill key,
+the automatic pipeline derives `path:<24 hex characters>` from the SHA-256 of the
+UTF-8 string `<project_id>\n<relative_skill_path>`. Fresh runs on the same project
+and path therefore agree even without prior history. Different project IDs and
+different relative paths have different inputs; display names do not define identity.
+
+Existing `auto:` keys remain valid history and are not rewritten. A matching
+validated assessment from the same project preserves its existing key, including
+an explicitly registered `skillops:develop` key. Records from another project do
+not establish that association. This change prevents new fallback-key churn; it
+does not merge historical `auto:`, `path:` and registered identities by name or
+rewrite archived imports. Renames or explicit historical identity reconciliation
+remain separate, reviewed migration work.
+
+### Versioned assessment efficiency decisions
+
+New Skill assessments record `decision.policy_version` using `candidates.POLICY["version"]`
+(currently `1`) and reuse its `maximum_efficiency_regression_percent` (currently `5`).
+If either paired application cost or elapsed time increases by **more than** this cap,
+the decision includes `efficiency_regression` and cannot be `improved`: it is
+`unverified` unless an existing quality/project regression already requires rejection.
+An efficiency increase alone does not reject a candidate whose regression checks passed.
+Missing either arm's measurement adds `efficiency_unverified` and also prevents improvement
+qualification. These two reasons can coexist when one measured metric regresses and
+the other is missing.
+
+Exactly 5% is within the cap. Recorded zeros are measurements, not missing values:
+zero to zero does not regress, while zero to a positive value exceeds the cap without
+inventing a finite percentage. Decimal comparisons avoid rounding a boundary into a
+regression. Quality, activation, work satisfaction and project-check gates remain in force.
+This reuses only the existing policy's efficiency-regression cap; it does not claim
+that project application measurements have the common benchmark's developer/judge scope
+or automatically apply its separate 10% efficiency-improvement rule.
+
+Versionless historical decisions retain their original pre-efficiency semantics and
+exact stored bytes through validation, history loading and publication. Their missing
+policy version is not backfilled or treated as proof of passing the new cap. Fresh
+calls to `skill_assessments.decide` always apply and stamp the current policy, including
+when re-evaluating legacy inputs. Unknown or malformed policy versions fail validation;
+new versioned verdicts must match recomputation from their measurements.
+
+The viewer's decision validator supports the same current/legacy distinction. Its
+decision-only JavaScript change is covered by an explicit Python/JavaScript agreement
+test in `tests/dashboard.spec.js`, including boundaries, missing/zero measurements,
+rejections and preserved legacy evidence. The Python suite also executes those shared
+cases with Node when available, so parity can run before the separate dashboard CI PR
+is merged. No dashboard layout, strings or presentation changes are part of this follow-up.
+
 Result writers validate incoming data and use bounded optimistic push retries on
 the dedicated branch, with no force push. A serialized deploy job fetches the
 newest persisted results after entering its slot and publishes a fresh snapshot.
@@ -413,6 +470,29 @@ Selecting a project shows four sections in order:
 Existing public v1 reports remain unchanged. Quality findings, improvement traces and project
 checks use the optional immutable assessment contract above. Missing sidecars remain explicit.
 Reviewed Skill text uses the snapshot/evolution contracts below, never mutable current files.
+
+The initial selection is the newest run with both guide and execution completed,
+then the newest comparison, then the newest available run. Its assessed Skill is
+selected automatically. Completion does not imply a passing assessment or adoption.
+Both history tabs collapse consecutive blocked/configuration-required runs into
+expandable groups; the execution-kind filter operates before grouping. No records
+are removed or combined in the stored history.
+
+Missing-state titles remain visible; explanations, methodology and provenance are
+collapsed by default. Synthetic-data banners and the disclosure footer remain visible.
+Rubric dimensions have Korean labels with their recorded IDs below them, and model
+hypotheses are separately expandable. SHA-256 displays use 12 hex characters with
+the full value available in the title and through a copy button.
+
+Application costs are displayed in AIU (`NanoAIU / 1e9`), the Copilot usage unit
+recorded by the CLI, not a currency price. When paired values exist and no change
+percentage is recorded, the browser computes a percentage for a positive baseline
+and labels it `현장 계산`. A null recorded percentage, missing measurement or zero
+baseline stays explicitly unrecorded rather than inventing a finite percentage.
+Recorded percentages are never replaced. `improved` is displayed as
+`품질 점수 상승 (회귀 없음)`, with changed dimensions listed and a visible warning
+when a recorded or computed cost/time increase exceeds 5%. These are presentation
+changes only: the stored decision, evaluation scope and adoption status are unchanged.
 
 ### Reviewed archived Skill snapshots
 
@@ -540,9 +620,14 @@ rendering; a historical baseline reference does not assert full-version equivale
 
 ## Validation
 
+The `dashboard` job in `SkillOps validation` runs the Playwright suite on
+Ubuntu 24.04 with Node 22, Python 3.12 and Chromium. It uses the existing locked
+dependencies and pinned actions, without model/deployment secrets. Adding this
+job does not change branch protection or make it a required check.
+
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v
-npm ci
+npm ci --no-audit --no-fund
 npx playwright install --with-deps chromium
 npm run test:dashboard
 az bicep build --file infra/public-dashboard.bicep

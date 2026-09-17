@@ -129,7 +129,7 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
                 check_error = error.code if isinstance(error, RuntimeFailure) else "io_error"
                 prepared = {}
             for bundle in bundles:
-                key = skill_pipeline.skill_key(bundle["path"], history)
+                key = skill_pipeline.skill_key(project["id"], bundle["path"], history)
                 identifier = sha256(key.encode()).hexdigest()
                 artifact = runtime.private / "assessments" / run_id / project["id"] / identifier
                 try:
