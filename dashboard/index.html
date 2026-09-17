@@ -21,8 +21,10 @@
       <div id="projects"><p class="muted">목록을 불러오는 중입니다.</p></div>
       <div class="sample-entry">
         <span class="eyebrow">화면 둘러보기</span>
+        <label for="sample-project-select">샘플 프로젝트</label>
+        <select id="sample-project-select"><option value="">기존 화면 예시</option></select>
         <button id="demo-open" type="button" aria-pressed="false">샘플 화면 보기</button>
-        <p>가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
+        <p>프로젝트별 3회분의 기준·후보 평가와 후보 생성 예시를 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
       </div>
     </aside>
     <main id="main">
@@ -30,6 +32,7 @@
       <div id="sample-banner" role="status" hidden>
         <strong>샘플 · 합성 데이터</strong>
         <span>화면 설명을 위해 만든 예시입니다. 실제 평가·개선 성과·채택 근거가 아닙니다.</span>
+        <span>프로젝트 샘플은 이름·경로만 실제 탐지 정보이며, 지침 본문·평가 수치·시각은 합성 예시입니다. 모든 후보는 미채택입니다.</span>
         <button id="exit-sample" type="button">실제 기록으로 돌아가기</button>
       </div>
       <section class="intro">
