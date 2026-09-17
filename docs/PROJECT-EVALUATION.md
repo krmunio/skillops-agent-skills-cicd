@@ -50,9 +50,104 @@ On September 17, 2026, run `35184714110` verified this path; PR run `35184542810
 verified that privileged jobs are skipped; explicitly authorized sample-only run
 `35184191312` completed all four stages and published validated original/candidate results.
 These observations do not establish successful evaluation of the whole catalog.
-Changed-project-only selection and additional automatic-loop controls remain core
-implementation follow-ups; advanced evaluation-set selection and dashboard redesign
-are outside this CI step.
+Main pushes select changed projects as described below. Advanced evaluation-set
+selection and dashboard redesign remain outside this CI step.
+
+### Changed-project execution
+
+On a main push, the evaluate job checks out history and passes the event's `before`
+commit as `--changed-since`. The selector verifies the checkout and source commit,
+then uses a NUL-delimited Git diff with rename folding, external diff and textconv
+disabled. New projects and any changed files inside a project, including Skill
+references/scripts/assets, select that project. Cross-project moves select both
+remaining projects; deleted projects are not executed and their old results remain.
+
+Shared root Python code, `eval/`, root `skills/`, project profiles, runtime package
+manifests or the evaluation workflow select the catalog conservatively. Dashboard-only
+changes select no evaluation targets: they can publish the updated site with existing
+results, without generating candidates or inventing a new assessment. Missing or
+invalid Git revisions fail explicitly instead of silently selecting the whole catalog.
+The all-zero `before` value for an initial push selects the catalog.
+
+Each selected Skill gets at most **one generated candidate per workflow run**.
+All selected projects and Skills share the same invocation/time/credit limits.
+The result branch cannot trigger this main-only workflow, and candidate results are
+not written back to project sources. This is a bounded single-round improvement flow,
+not repeated optimization until a score improves.
+
+Manual dispatch retains its explicit project selector; omitting it selects the catalog.
+For a checked-out Git revision, the corresponding local command is:
+
+```bash
+python3 project_evaluation.py --root . --output ci-results --run-id <run-id> \
+  --source-commit <full-head-sha> --changed-since <full-before-sha>
+```
+
+`--project` and `--changed-since` are mutually exclusive. Existing live-execution
+authorization and resource limits still apply. An empty selection records a no-op
+in the Actions summary; it is not a passing Skill evaluation.
+
+### Actions stage visibility
+
+Trusted evaluation enables `SKILLOPS_ACTIONS_PROGRESS=true` to group logs by project,
+Skill and stage: original/candidate Anthropic quality, evidence-grounded generation,
+project checks/applications, and final evidence qualification. These are log groups
+inside the existing execution step, not separate YAML jobs or independent budgets.
+A completed group means the operation returned, not that its assessment passed.
+
+An always-run summary step reads validated reports and version-bound assessments for
+the current run. It separates Anthropic criteria, APO-inspired evidence linkage,
+untouched-project checks, paired Skill applications, regression and final qualification.
+No independent APO score or adoption decision is invented. Hypotheses remain unverified;
+missing evidence and inherited test failures stay visible. Summary output excludes raw
+prompts, Skill bodies, findings prose and CLI diagnostics. Full results remain in the
+public artifact if the summary reaches its size bound.
+
+To inspect an existing run without model calls:
+
+```bash
+python3 evaluation_reporting.py --results results --run-id <saved-run-id>
+```
+
+### Durable stage measurements
+
+New automatic Skill runs also write the optional immutable
+`results/<project>/<run>/stage-metrics.json`. Its schema version is `1`, independently
+of the existing report and assessment schemas. It binds the exact report and, when
+available, assessment bytes by SHA-256. Each project-local Skill key/path has an
+explicit entry for every evaluation stage, including stages that never started.
+The current deterministic identity and versioned efficiency decisions are preserved;
+no historical decisions or missing measurements are backfilled.
+
+For each entered stage, the recorder retains its execution status, bounded error
+code, wall-clock elapsed seconds and individual admitted runtime attempts.
+Attempts rejected by the shared call/time budget do not increment the invocation
+list. An admitted attempt can still fail before reaching the model, for example
+during CLI configuration; these counts are not model API request counts.
+Completed stages are not proof of passing quality, project checks or adoption.
+
+Each invocation retains only numeric CLI usage values when available: nano-AIU,
+premium-request units, API milliseconds, and input/output/cache-read/cache-write
+tokens. Unknown values remain `null`, including failure paths without a usable
+usage receipt. Already-reported usage is retained for CLI failures. Stage time
+includes orchestration and checks within that stage, not just model execution.
+It does not replace paired application measurements used by the efficiency policy.
+Neither nano-AIU nor invocation counts are converted into AI Credits or currency.
+
+The existing result validator, immutable merge and static publisher validate and
+retain this attachment. The Actions summary shows stage order, call counts, elapsed
+time, known nano-AIU and usage coverage; a partial known sum is never presented as
+the total. When the report records the target Skill count, the summary also counts
+cycles with a generated candidate and completed original/candidate quality results.
+Project execution and adoption remain separate. Absent older attachments are
+reported as unrecorded, not zero-cost evaluations.
+
+Measurements are finalized with each project report. Handled invocation/budget
+failures preserve preceding calls, but a hard process/runner termination before
+project finalization can still prevent publication. This is not a restart/checkpoint
+system. Raw prompts, responses, private session IDs, tool traces and CLI diagnostics
+are excluded. The dashboard does not consume the new attachment; its existing
+report/assessment/index contracts and hashed asset build remain unchanged.
 
 ## Add a project
 
@@ -246,12 +341,24 @@ Supported test runners are unittest, pytest, `node --test`, direct Jest and `vit
 Declared npm build/lint/typecheck scripts are additional gates, not substitutes for individual
 test identities. Opaque test wrappers, shell-compound test commands, pretest/posttest hooks,
 yarn/pnpm and unsupported framework configurations remain explicit unsupported states.
+Discovery also inspects Python test syntax, without importing it, for pytest imports
+and standalone test functions. Mixed projects run recognized checks while recording
+test-named shell scripts and nested npm test packages as unexecuted error gates.
+Their relative paths remain visible in the check results. Such observations stay
+blocked even when all collected Python cases pass; zero collected cases also stay
+blocked rather than becoming a successful project evaluation.
 
 Dependencies are prepared once per project from supported manifests, without mounting project
 code in the resolver. Python accepts registry requirements and supported PEP 621 dependency groups,
 using wheels only. Node accepts supported registry dependencies and npm lockfiles v2/v3, with
 install hooks disabled. Local/VCS/URL dependencies, custom registries, npm workspaces/overrides,
 Poetry/uv locks and packages requiring install/build hooks are not supported.
+Source-tree tests may coexist with `setup.py`/`setup.cfg` only when `pyproject.toml`
+declares static project dependencies. Dynamic version/author metadata does not
+require running packaging code. Dynamic dependencies, undeclared legacy dependencies
+and unsupported lockfiles still fail explicitly. The resolver never installs the
+project itself or executes its setup script, and wheel-only installation remains
+mandatory.
 Resolution uses a restricted proxy for PyPI and npm's official registries; test/build execution
 has no network and receives no model or deployment credentials.
 
@@ -263,8 +370,15 @@ seconds and each check observation at 120 seconds. Cleanup has its own bounded o
 Arm order is varied from a run-specific hash rather than always running the baseline first.
 Unsupported or failed dependency preparation is recorded as an explicit check-stage error.
 It does not prevent independent Skill quality evaluation and candidate generation; execution
-remains unverified. In particular, importing Schedule/Superpowers does not add support for
-their legacy packaging or shell-based test harnesses.
+remains unverified. This does not provide package-building or shell-harness support.
+
+Non-model preflight on the pinned samples found that project-a's declared
+`black==20.8b1` cannot be resolved by the wheel-only preparation path. Its dependency
+configuration remains intact, with execution unverified; Skill quality evaluation
+can continue independently. For project-b, pytest collected 19 passing Python cases.
+The observation remained blocked with 32 test-named shell scripts and one nested
+Node package explicitly unexecuted. These are scoped check results, not evidence of
+Skill improvement or complete project coverage.
 
 `skill-assessments.json` is an optional, immutable, report-bound attachment for per-Skill quality,
 generation, paired application and project-check observations. It requires matching captured
@@ -299,7 +413,7 @@ Before enabling live evaluation, configure repository settings deliberately:
   model. Optional secret `COPILOT_GITHUB_TOKEN` overrides authentication when deliberately supplied.
 - Variable `SKILLOPS_LIVE_EVALUATION_ENABLED=true`: explicit billable-execution opt-in.
 - Positive `SKILLOPS_MAX_INVOCATIONS` (maximum 1000) and `SKILLOPS_MAX_SECONDS`
-  (maximum 1200), shared across the workflow's sequential project evaluations.
+  (maximum 7200), shared across the workflow's sequential project evaluations.
 - Finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION` of at least **30**, forwarded to each Copilot
   CLI session. The pinned CLI 1.0.85 rejects smaller values before model execution. SkillOps
   treats such configuration as invalid limits and blocks evaluation without starting the runtime;
@@ -312,6 +426,38 @@ checkbox (default false). This explicitly authorizes only that dispatch without 
 billable runs on later pushes; the same configured invocation/time/credit limits are still required.
 CLI callers can use `--project <id>`; unknown IDs fail before assessment. Omit the selector to
 evaluate the catalog. Automatic main-push evaluation requires the repository enable variable.
+
+Manual dispatch also accepts optional `max_invocations`, `max_seconds` and
+`max_ai_credits` strings. Overrides require an explicit `project`; omitted values use
+the repository variables. Each selected project's Skills share one total call budget
+and one deadline, not one copy per Skill. Dispatch projects separately when they need
+different budgets. The per-session Credit setting is a soft limit, not a total charge
+or a promise that every session will complete.
+
+The evaluation job keeps its 25-minute ceiling for windows up to 1200 seconds; longer
+configured windows use a 130-minute job ceiling, while Python accepts at most 7200
+seconds. CLI model execution remains capped at 180 seconds per invocation. Larger
+invocation/Credit settings alone do not remove the time bottleneck. Exhausted limits
+remain explicit incomplete outcomes, with no automatic increase or retry.
+
+After these workflow changes are merged to trusted main, a bounded project-b run
+can use the following starting limits. They are not a guarantee of full completion:
+original quality currently requires 18 calls, generation 14, candidate quality is
+known only after generation, and paired applications can add up to 28 calls.
+
+```bash
+gh workflow run project-evaluation.yml --ref main \
+  -f project=project-b -f live=true \
+  -f max_invocations=96 -f max_seconds=7200 -f max_ai_credits=60
+```
+
+Project-a already has actual original/candidate quality data from main run
+`35203851697-1`, using three CLI invocations. Both quality assessments and candidate
+generation completed; project execution remains unverified because dependency
+preparation was unsupported. Persistence and deployment succeeded even though the
+evaluation job reported that incomplete execution evidence. The deployed report and
+assessment bytes matched the validated Actions artifact. This run predates optional
+stage measurements and does not imply project-b has been evaluated.
 
 On September 16, 2026, PR #7 added 11 reviewed reports to main. A later read-only
 check confirmed the existing `evaluation-results` branch and the owner's PR #8
@@ -328,15 +474,18 @@ The remaining time is passed into subprocess deadlines. A CLI credit limit is no
 hard currency ceiling. Public cost/time measurements cover the individual Skill-application
 sessions only, not the complete quality/generation/check pipeline; absent usage remains null.
 
-Relevant main changes conservatively assess the catalog. A result-only update
-does not retrigger evaluation. A blocked assessment makes its evaluation job fail
+Main project changes assess only affected projects; shared evaluator changes assess
+the catalog. A result-only update does not retrigger evaluation. A blocked assessment makes its evaluation job fail
 while the writer can still persist the public blocked result. Raw run directories
 are never uploaded as Actions artifacts.
 
 Trusted-main evaluation through persistence is serialized. Validated prior data is fetched inside
 that slot to reuse Skill identities, never executed as code. GitHub concurrency can coalesce pending
 runs: every intermediate commit is not guaranteed an evaluation, while existing persisted history
-is preserved. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
+is preserved. The current selector compares the triggering push's `before` and source commits.
+If a pending evaluation is replaced, changes exclusive to that skipped push require an explicit
+project/catalog dispatch; this MVP does not provide a durable catch-up queue. Do not treat it as
+proof that every changed project has been evaluated. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
 and operational failures remain explicit non-success outcomes.
 
 ### Stable Skill identity migration
@@ -510,8 +659,12 @@ reverting content can reuse a version ID. `entrypoint_only` is not a whole bundl
 including scripts, references and binary assets. The pure capture helper does not
 discover files or scan home directories.
 
-Private capture bounds are 256 files, 2 MiB/file and 8 MiB total. Public attachments
-remain limited to **1 MiB JSON**, including base64 content. Oversize publication
+Private capture bounds are 256 files, 2 MiB/file and 8 MiB total. The public
+`skill-evolution.json` attachment has a dedicated **2 MiB JSON** bound, including
+base64 content, enforced by the writer, loader, merger and browser reader. Ordinary
+reports, assessments, stage metrics and other JSON reads retain their **1 MiB** bound.
+This preserves all 14 project-b bundles even with maximum-length candidate bodies;
+the capacity fixture is synthetic, not model evaluation evidence. Oversize publication
 fails; files are never silently dropped or scope relabeled. Loading, indexing,
 merging and building verify complete manifest membership and all content hashes.
 Review every retained byte for disclosure before using these publishing helpers.

@@ -22,11 +22,11 @@ function fail(error) {
   $('error').textContent = '이력을 불러오지 못했습니다. 저장된 결과와 배포 상태를 확인한 뒤 새로고침해 주세요.';
   console.error('Dashboard data unavailable:', error.message);
 }
-async function load(url, withRaw = false) {
+async function load(url, withRaw = false, limit = 1048576) {
   const response = await fetch(url, { cache: 'no-store' });
   if (!response.ok) throw new Error(`Result unavailable (${response.status})`);
   const raw = await response.text();
-  if (new TextEncoder().encode(raw).length > 1048576) throw new Error('Result exceeds public size limit');
+  if (new TextEncoder().encode(raw).length > limit) throw new Error('Result exceeds public size limit');
   const value = JSON.parse(raw);
   if (value.schema_version !== 1) throw new Error('Unsupported result schema');
   return withRaw ? { value, raw } : value;
@@ -81,7 +81,7 @@ function loadRun(project, run, store) {
       }
     }
     if (run.skill_evolution) {
-      const data = await load(`/results/${project.id}/${run.skill_evolution}`);
+      const data = await load(`/results/${project.id}/${run.skill_evolution}`, false, 2097152);
       lifecycle = await validateEvolution(data, report, loaded.raw, run, snapshots);
     }
     if (run.skill_assessments) {
