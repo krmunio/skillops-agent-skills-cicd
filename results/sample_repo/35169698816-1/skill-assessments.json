@@ -1,0 +1,98 @@
+{
+  "project_id": "sample_repo",
+  "report_sha256": "53b396fe451ecc3a0a0a4729e4360ffcf7d571a5dc34fc7eb74b9a0bdb64d640",
+  "run_id": "35169698816-1",
+  "schema_version": 1,
+  "skills": [
+    {
+      "applications": {
+        "base": null,
+        "candidate": null
+      },
+      "base_version_id": "sha256:4db4131be1a5ed12c5ee73b2e50de25dbfed4bbe426ae476ecebb91a6bde5fcc",
+      "candidate_version_id": null,
+      "checks": {
+        "base": null,
+        "candidate": null,
+        "original": {
+          "cases": [
+            {
+              "id": "python-tests:test_project.IssueManagementTests.test_empty_issues_remain_empty",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:test_project.IssueManagementTests.test_filter_precedes_pagination",
+              "status": "failed"
+            },
+            {
+              "id": "python-tests:test_project.IssueManagementTests.test_first_page_preserves_order",
+              "status": "failed"
+            },
+            {
+              "id": "python-tests:test_project.IssueManagementTests.test_label_input_remains_unchanged",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:test_project.IssueManagementTests.test_labels_normalize_whitespace_without_sorting",
+              "status": "failed"
+            },
+            {
+              "id": "python-tests:test_project.IssueManagementTests.test_update_does_not_mutate_inputs",
+              "status": "failed"
+            }
+          ],
+          "elapsed_seconds": 0.5891304110000135,
+          "environment_sha256": "ff106ee107f2778a096a6b42b08d574c7bf5883c7023c59f073728164333ce20",
+          "gates": [],
+          "plan_sha256": "82cb94dee4e2047bea65bcf02f2c53133234f318e772397f2c5612ff12391427",
+          "protected_sha256": "45e1bdf044e4bf8f382696b195f9aebe89bb1044fafaf1046cdd2cadc2c9541b",
+          "status": "failed"
+        }
+      },
+      "decision": {
+        "reasons": [
+          "activation_unverified",
+          "candidate_unavailable",
+          "incomplete_stage",
+          "quality_unverified",
+          "regression_unverified",
+          "task_unverified"
+        ],
+        "regression": {
+          "reasons": [
+            "missing_checks"
+          ],
+          "regressions": [],
+          "status": "unverified"
+        },
+        "status": "unverified"
+      },
+      "errors": [
+        {
+          "code": "cli_error",
+          "stage": "base_quality"
+        },
+        {
+          "code": "baseline_quality_missing",
+          "stage": "generation"
+        }
+      ],
+      "generation": {
+        "addressed_findings": [],
+        "hypothesis": null,
+        "status": "failed"
+      },
+      "quality": {
+        "base": null,
+        "candidate": null
+      },
+      "skill_key": "auto:6a35463f3754402e8e4c78163c180479",
+      "source_path": ".github/skills/develop",
+      "work": {
+        "check_id": "python-tests:test_project.IssueManagementTests.test_filter_precedes_pagination",
+        "provenance": "generated",
+        "sha256": "e0f804734d423248eb6c2d8496b0708e456b74fe269ec54b5457ca53a2184130"
+      }
+    }
+  ]
+}
