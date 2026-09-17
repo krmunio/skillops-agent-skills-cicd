@@ -648,8 +648,12 @@ reverting content can reuse a version ID. `entrypoint_only` is not a whole bundl
 including scripts, references and binary assets. The pure capture helper does not
 discover files or scan home directories.
 
-Private capture bounds are 256 files, 2 MiB/file and 8 MiB total. Public attachments
-remain limited to **1 MiB JSON**, including base64 content. Oversize publication
+Private capture bounds are 256 files, 2 MiB/file and 8 MiB total. The public
+`skill-evolution.json` attachment has a dedicated **2 MiB JSON** bound, including
+base64 content, enforced by the writer, loader, merger and browser reader. Ordinary
+reports, assessments, stage metrics and other JSON reads retain their **1 MiB** bound.
+This preserves all 14 project-b bundles even with maximum-length candidate bodies;
+the capacity fixture is synthetic, not model evaluation evidence. Oversize publication
 fails; files are never silently dropped or scope relabeled. Loading, indexing,
 merging and building verify complete manifest membership and all content hashes.
 Review every retained byte for disclosure before using these publishing helpers.

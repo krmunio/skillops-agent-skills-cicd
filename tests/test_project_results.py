@@ -265,7 +265,7 @@ class ProjectResultsTests(unittest.TestCase):
         complete = self.evolution(report, files=files)
         m.validate_evolution(complete, report)
         self.assertEqual({item["path"]: base64.b64decode(item["data"]) for item in complete["file_contents"]}, files)
-        oversized = self.evolution(report, files={"SKILL.md": b"a" * m.LIMIT})
+        oversized = self.evolution(report, files={"SKILL.md": b"a" * (2 * m.LIMIT)})
         with self.assertRaises(m.RuntimeFailure):
             m.validate_evolution(oversized, report)
         empty = self.evolution(report)
@@ -309,6 +309,32 @@ class ProjectResultsTests(unittest.TestCase):
             path.symlink_to(target / "sample_repo/123-1/skill-evolution.json")
             with self.assertRaises(m.RuntimeFailure):
                 m.load_evolution(incoming)
+
+    def test_large_evolution_roundtrips_without_raising_other_result_limits(self):
+        m = self.module()
+        source = Path(__file__).resolve().parents[1]
+        report = self.fixture()
+        data = self.evolution(report, files={"SKILL.md": b"x" * m.LIMIT})
+        self.assertGreater(len(m.encoded(data)), m.LIMIT)
+        self.assertLess(len(m.encoded(data)), 2 * m.LIMIT)
+        with tempfile.TemporaryDirectory() as folder:
+            incoming, target, site = (Path(folder) / name for name in ("incoming", "target", "site"))
+            m.store(incoming, report)
+            try:
+                path = m.store_evolution(incoming, data)
+            except m.RuntimeFailure as error:
+                self.fail(f"The complete bundle is below the dedicated 2 MiB bound: {error.code}")
+            m.store_evolution(incoming, data)
+            m.merge_results(source, incoming, target)
+            m.merge_results(source, incoming, target)
+            m.build(source, target, site)
+            self.assertEqual(m.load_evolution(site / "results"), m.load_evolution(incoming))
+            relative = path.relative_to(incoming)
+            self.assertEqual((site / "results" / relative).read_bytes(), path.read_bytes())
+            with self.assertRaises(m.RuntimeFailure):
+                m.atomic_json(Path(folder) / "report.json", {"padding": "x" * m.LIMIT})
+            with self.assertRaises(m.RuntimeFailure):
+                m.read_json(path)
 
     def test_lifecycle_only_index_and_invalid_merge_are_non_mutating(self):
         m = self.module()
