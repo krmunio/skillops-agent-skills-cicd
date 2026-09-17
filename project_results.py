@@ -51,7 +51,7 @@ DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_pa
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
-    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "evaluation_telemetry.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "evaluation_telemetry.py",
 )
 
 
@@ -309,28 +309,42 @@ def load_snapshots(results, rows=None):
     return snapshots
 
 
+def _require_supported_publication(results):
+    require(not any(safe_path(results).glob("*/*/adoption.json")), "adoption_publication_pending")
+
+
 def merge_results(root, incoming, results):
+    _require_supported_publication(incoming)
+    _require_supported_publication(results)
     rows = load_reports(incoming)
     snapshots = load_snapshots(incoming, rows)
     lifecycles = load_evolution(incoming, rows, snapshots)
     skill_assessments = load_assessments(incoming, rows, lifecycles)
     measurements = load_telemetry(incoming, rows, skill_assessments)
+    replays = load_replays(incoming, rows)
+    cycles = load_cycles(incoming, rows)
     existing_rows = load_reports(results)
     existing_snapshots = load_snapshots(results, existing_rows)
     existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
     existing_assessments = load_assessments(results, existing_rows, existing_lifecycles)
     existing_measurements = load_telemetry(results, existing_rows, existing_assessments)
+    existing_replays = load_replays(results, existing_rows)
+    existing_cycles = load_cycles(results, existing_rows)
     merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
     merged_snapshots = dict(existing_snapshots)
     merged_lifecycles = dict(existing_lifecycles)
     merged_assessments = dict(existing_assessments)
     merged_measurements = dict(existing_measurements)
+    merged_replays = dict(existing_replays)
+    merged_cycles = dict(existing_cycles)
     for mapping, values, name in (
         (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
         (merged_snapshots, snapshots, "skill-snapshots.json"),
         (merged_lifecycles, lifecycles, "skill-evolution.json"),
         (merged_assessments, skill_assessments, "skill-assessments.json"),
         (merged_measurements, measurements, "stage-metrics.json"),
+        (merged_replays, replays, "replay-evaluation.json"),
+        (merged_cycles, cycles, "cycle.json"),
     ):
         for key, value in values.items():
             path = safe_path(Path(results) / key[0] / key[1] / name)
@@ -343,6 +357,12 @@ def merge_results(root, incoming, results):
         assessments.validate(value, merged_rows[key], merged_lifecycles.get(key))
     for key, value in merged_measurements.items():
         telemetry.validate(value, merged_rows[key], merged_assessments.get(key))
+    for key, value in merged_replays.items():
+        assessments.validate_replay(value, report=merged_rows[key], lifecycle=merged_lifecycles.get(key))
+    evidence = {key: {"report": merged_rows[key], "lifecycle": merged_lifecycles[key], "replay": value}
+                for key, value in merged_replays.items()}
+    for key, value in merged_cycles.items():
+        validate_cycle(value, report=merged_rows[key], evaluations=evidence)
     for row in rows:
         store(results, row)
     for data in snapshots.values():
@@ -353,6 +373,10 @@ def merge_results(root, incoming, results):
         store_assessments(results, data)
     for data in measurements.values():
         store_telemetry(results, data)
+    for data in replays.values():
+        store_replay(results, data)
+    for data in cycles.values():
+        store_cycle(results, data)
     return reindex(root, results)
 
 
@@ -421,6 +445,208 @@ def load_assessments(results, rows=None, lifecycles=None):
         key = (path.parent.parent.name, path.parent.name)
         require(key in reports, "orphan_skill_assessments")
         values[key] = assessments.validate(read_json(path), reports[key], lifecycles.get(key))
+    return values
+
+
+def store_replay(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = safe_path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    lifecycle = validate_evolution(read_json(folder / "skill-evolution.json", EVOLUTION_LIMIT), report)
+    assessments.validate_replay(data, report=report, lifecycle=lifecycle)
+    path = folder / "replay-evaluation.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_replays(results, rows=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
+    lifecycles = load_evolution(results, rows)
+    values = {}
+    for path in sorted(results.glob("*/*/replay-evaluation.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports and key in lifecycles, "orphan_replay")
+        data = read_json(path)
+        require(read_bytes(path) == encoded(data), "noncanonical_replay")
+        values[key] = assessments.validate_replay(data, report=reports[key], lifecycle=lifecycles[key])
+    return values
+
+
+def validate_cycle(data, *, report, evaluations):
+    from copilot_runtime import MIN_AI_CREDITS
+    evolution.exact(data, "schema_version project_id run_id report_sha256 execution_mode cycle_id skill_key source_path "
+                         "input_sha256 reference_sha256 original_version_id max_rounds budget rounds stop_reason "
+                         "selected_candidate_version_id confirmation_ref confirmation_status")
+    validate(report)
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "invalid_cycle")
+    require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"] == data["cycle_id"]
+            and data["report_sha256"] == sha256(encoded(report)).hexdigest(), "cycle_report_mismatch")
+    require(report["purpose"] == "project_assessment", "cycle_report_mismatch")
+    require(data["execution_mode"] in ("live", "offline_test", "sample")
+            and (data["execution_mode"] == "sample") == (report["origin"] == "sample"), "cycle_mode_mismatch")
+    require(matches(evolution.SKILL_KEY, data["skill_key"]), "invalid_cycle")
+    evolution.relative_path(data["source_path"])
+    for key in ("input_sha256", "reference_sha256"):
+        require(matches(evolution.DIGEST, data[key]), "invalid_cycle")
+    require(matches(evolution.VERSION_ID, data["original_version_id"]), "invalid_cycle")
+    require(type(data["max_rounds"]) is int and 1 <= data["max_rounds"] <= 10, "invalid_cycle")
+    budget = data["budget"]
+    evolution.exact(budget, "max_invocations max_seconds max_ai_credits_per_session")
+    require(type(budget["max_invocations"]) is int and 1 <= budget["max_invocations"] <= 1000
+            and type(budget["max_seconds"]) is int and 1 <= budget["max_seconds"] <= 7200, "invalid_cycle_budget")
+    credit = budget["max_ai_credits_per_session"]
+    require(credit is None or (type(credit) in (int, float) and math.isfinite(credit) and credit >= MIN_AI_CREDITS),
+            "invalid_cycle_budget")
+    reasons = ("improved", "max_rounds", "no_change", "call_limit", "time_limit", "credit_limit",
+               "input_changed", "evaluation_unverified", "runtime_error", "cancelled")
+    require(data["stop_reason"] in reasons, "invalid_cycle_stop")
+    rounds = data["rounds"]
+    require(isinstance(rounds, list) and len(rounds) <= data["max_rounds"]
+            and isinstance(evaluations, dict), "invalid_cycle")
+    used = {data["cycle_id"]}
+
+    def resolve(ref):
+        evolution.exact(ref, "project_id run_id path sha256")
+        require(ref["project_id"] == data["project_id"] and matches(RUN, ref["run_id"])
+                and ref["run_id"] not in used and ref["path"] == "replay-evaluation.json"
+                and matches(evolution.DIGEST, ref["sha256"]), "invalid_cycle_reference")
+        key = (ref["project_id"], ref["run_id"])
+        require(key in evaluations, "missing_cycle_evaluation")
+        item = evaluations[key]
+        evolution.exact(item, "report lifecycle replay")
+        replay = assessments.validate_replay(item["replay"], report=item["report"], lifecycle=item["lifecycle"])
+        require(replay["project_id"] == ref["project_id"] and replay["run_id"] == ref["run_id"]
+                and sha256(encoded(replay)).hexdigest() == ref["sha256"], "cycle_evidence_mismatch")
+        require(replay["execution_mode"] == data["execution_mode"], "cycle_mode_mismatch")
+        frozen = replay["reference"]
+        require(all(frozen[key] == report[key] for key in ("project_id", "source_commit", "project_tree_sha256", "evaluator_sha256"))
+                and frozen["skill_key"] == data["skill_key"] and frozen["source_path"] == data["source_path"]
+                and frozen["original_version_id"] == data["original_version_id"], "cycle_reference_mismatch")
+        used.add(ref["run_id"])
+        return replay
+
+    parent, previous_id, previous_quality, original_ref = data["original_version_id"], None, None, None
+    development_work = None
+    selected = None
+    for number, row in enumerate(rounds, 1):
+        evolution.exact(row, "round_id round_number run_id parent_version_id candidate_version_id input_sha256 "
+                             "reference_sha256 feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason")
+        require(type(row["round_number"]) is int and row["round_number"] == number
+                and row["round_id"] == f"{data['cycle_id']}-r{number}", "invalid_cycle_round")
+        require(row["run_id"] is None if row["evaluation_ref"] is None else
+                matches(RUN, row["run_id"]) and row["run_id"] not in used, "invalid_cycle_round")
+        require(row["parent_version_id"] == parent and row["feedback_source_round_id"] == previous_id,
+                "cycle_lineage_mismatch")
+        require(row["input_sha256"] == data["input_sha256"] and row["reference_sha256"] == data["reference_sha256"]
+                and matches(evolution.DIGEST, row["feedback_sha256"]), "cycle_reference_mismatch")
+        require(row["stop_reason"] is None or row["stop_reason"] in reasons, "invalid_cycle_stop")
+        if number < len(rounds):
+            require(row["stop_reason"] is None, "cycle_after_stop")
+        else:
+            require(row["stop_reason"] == data["stop_reason"], "cycle_stop_mismatch")
+        if row["evaluation_ref"] is None:
+            require(number == len(rounds) and row["decision"] is None
+                    and row["stop_reason"] not in (None, "improved", "max_rounds"), "incomplete_cycle_round")
+            require(row["candidate_version_id"] is None or matches(evolution.VERSION_ID, row["candidate_version_id"]),
+                    "invalid_cycle_round")
+            break
+        replay = resolve(row["evaluation_ref"])
+        evaluation, generation = replay["evaluation"], replay["generation"]
+        require(generation is not None and row["run_id"] == replay["run_id"]
+                and replay["reference"]["reference_sha256"] == data["reference_sha256"]
+                and evaluation["work"]["split"] == "development", "cycle_reference_mismatch")
+        if original_ref is None:
+            original_ref = replay["reference"]
+            previous_quality = original_ref["base_quality"]
+            development_work = evaluation["work"]
+        require(evaluation["work"] == development_work, "cycle_work_mismatch")
+        require(row["candidate_version_id"] == evaluation["candidate_version_id"]
+                and row["candidate_version_id"] != parent
+                and row["decision"] == evaluation["decision"]
+                and generation["parent_version_id"] == parent
+                and generation["feedback_sha256"] == row["feedback_sha256"], "cycle_lineage_mismatch")
+        known = {item["id"] for name in ("dimensions", "findings") for item in (previous_quality or {}).get(name, [])}
+        require(set(generation["addressed_findings"]) <= known, "cycle_feedback_mismatch")
+        status = evaluation["decision"]["status"]
+        incomplete = evaluation["errors"] or any(
+            value is None for group in ("quality", "checks", "applications") for value in evaluation[group].values())
+        if incomplete:
+            require(number == len(rounds) and row["stop_reason"] in (
+                "evaluation_unverified", "runtime_error", "call_limit", "time_limit",
+                "credit_limit", "input_changed", "cancelled"), "cycle_after_incomplete_evaluation")
+        elif status == "improved":
+            require(number == len(rounds) and row["stop_reason"] == "improved", "cycle_after_improvement")
+            selected = evaluation["candidate_version_id"]
+        elif status == "unverified":
+            require(number == len(rounds) and row["stop_reason"] == "evaluation_unverified", "cycle_after_unverified")
+        else:
+            require(row["stop_reason"] in (None, "max_rounds", "call_limit", "time_limit", "credit_limit",
+                                           "input_changed", "runtime_error", "cancelled"), "invalid_cycle_stop")
+        parent, previous_id = row["candidate_version_id"], row["round_id"]
+        previous_quality = evaluation["quality"]["candidate"]
+    if data["stop_reason"] == "max_rounds":
+        require(len(rounds) == data["max_rounds"], "cycle_stop_mismatch")
+    if not rounds:
+        require(data["stop_reason"] not in ("improved", "max_rounds", "no_change"), "cycle_stop_mismatch")
+    require(data["selected_candidate_version_id"] == selected
+            and (data["stop_reason"] == "improved") == (selected is not None), "cycle_selection_mismatch")
+    if data["confirmation_ref"] is None:
+        require(data["confirmation_status"] in ("not_run", "unverified"), "cycle_confirmation_mismatch")
+    else:
+        require(selected is not None and original_ref is not None, "cycle_confirmation_mismatch")
+        confirmation = resolve(data["confirmation_ref"])
+        evaluation = confirmation["evaluation"]
+        require(confirmation["generation"] is None and evaluation["candidate_version_id"] == selected
+                and evaluation["work"]["split"] == "confirmation", "cycle_confirmation_mismatch")
+        development = evaluations[(data["project_id"], rounds[0]["run_id"])]["replay"]["evaluation"]["work"]
+        final = evaluation["work"]
+        require(final["input_sha256"] != development["input_sha256"] and final["task_id"] != development["task_id"]
+                and not set(final["checks"]["required_case_ids"]) & set(development["checks"]["required_case_ids"]),
+                "cycle_confirmation_overlap")
+        require(all(confirmation["reference"][key] == original_ref[key] for key in
+                    ("rubric_sha256", "quality_context_sha256", "policy_sha256", "plan_sha256",
+                     "environment_sha256", "protected_sha256")), "cycle_confirmation_mismatch")
+        status = evaluation["decision"]["status"]
+        expected = "passed" if status in ("improved", "not_improved") else "failed" if status == "rejected" else "unverified"
+        require(data["confirmation_status"] == expected, "cycle_confirmation_mismatch")
+    require(len(encoded(data)) <= LIMIT, "output_limit")
+    return data
+
+
+def load_replay_evidence(results, rows=None):
+    """Load the transitive report/capture/replay mapping required by cycle validation."""
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
+    replays = load_replays(results, rows)
+    lifecycles = load_evolution(results, rows)
+    return {key: {"report": reports[key], "lifecycle": lifecycles[key], "replay": replay}
+            for key, replay in replays.items()}
+
+
+def store_cycle(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = safe_path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    validate_cycle(data, report=report, evaluations=load_replay_evidence(results))
+    path = folder / "cycle.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_cycles(results, rows=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
+    evaluations = load_replay_evidence(results, rows)
+    values = {}
+    for path in sorted(results.glob("*/*/cycle.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_cycle")
+        data = read_json(path)
+        require(read_bytes(path) == encoded(data), "noncanonical_cycle")
+        values[key] = validate_cycle(data, report=reports[key], evaluations=evaluations)
     return values
 
 
@@ -677,6 +903,7 @@ def reindex(root, results):
     import skill_guide
     from skill_pipeline import skill_key
 
+    _require_supported_publication(results)
     current = {row["id"]: row for row in catalog(root)}
     fingerprint = evaluator_hash(root)
     grouped = {}
@@ -685,6 +912,10 @@ def reindex(root, results):
     lifecycles = load_evolution(results, all_rows, snapshots)
     skill_assessments = load_assessments(results, all_rows, lifecycles)
     load_telemetry(results, all_rows, skill_assessments)
+    replays = load_replays(results, all_rows)
+    cycles = load_cycles(results, all_rows)
+    non_live = {key for group in (replays, cycles) for key, data in group.items()
+                if data["execution_mode"] != "live"}
     for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
@@ -693,6 +924,7 @@ def reindex(root, results):
         active = current.get(identifier)
         matching = [row for row in rows if active and not active["error"]
                     and row["origin"] in ("github_actions", "local")
+                    and (row["project_id"], row["run_id"]) not in non_live
                     and row["project_tree_sha256"] == active["tree_sha256"]
                     and row["evaluator_sha256"] == fingerprint]
         entry = {
@@ -733,6 +965,11 @@ def reindex(root, results):
                                evolution_skills=evolution_summary(lifecycle))
             if (identifier, summary["run_id"]) in skill_assessments:
                 summary["skill_assessments"] = f"{summary['run_id']}/skill-assessments.json"
+            for mapping, key, filename in (
+                (replays, "replay_evaluation", "replay-evaluation.json"), (cycles, "cycle", "cycle.json"),
+            ):
+                if (identifier, summary["run_id"]) in mapping:
+                    summary[key] = f"{summary['run_id']}/{filename}"
         atomic_json(Path(results) / identifier / "index.json", {"schema_version": 1, "project": entry, "history": summaries})
         entries.append(entry)
     index = {"schema_version": 1, "projects": entries}
@@ -800,11 +1037,14 @@ def import_history(source, target, project):
 def build(root, results, output):
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
+    _require_supported_publication(results)
     rows = load_reports(results)
     snapshots = load_snapshots(results, rows)
     lifecycles = load_evolution(results, rows, snapshots)
     skill_assessments = load_assessments(results, rows, lifecycles)
     measurements = load_telemetry(results, rows, skill_assessments)
+    replays = load_replays(results, rows)
+    cycles = load_cycles(results, rows)
     output.mkdir(parents=True)
     modules = {}
 
@@ -812,7 +1052,7 @@ def build(root, results, output):
         require(match[2] in modules, "invalid_dashboard_import")
         return f"{match[1]}./{modules[match[2]]}{match[3]}"
 
-    for name in ("views.js", "evolution.js", "assessments.js", "app.js"):
+    for name in ("views.js", "evolution.js", "assessments.js", "trace.js", "app.js"):
         source = read_bytes(root / "dashboard" / name).decode("utf-8")
         raw = re.sub(r"(?m)^(\s*import\b[^;]*?\bfrom\s*['\"])\./([^'\"]+\.js)(['\"])",
                      rewrite_import, source).encode("utf-8")
@@ -838,6 +1078,10 @@ def build(root, results, output):
         store_assessments(output / "results", data)
     for data in measurements.values():
         store_telemetry(output / "results", data)
+    for data in replays.values():
+        store_replay(output / "results", data)
+    for data in cycles.values():
+        store_cycle(output / "results", data)
     return reindex(root, output / "results")
 
 
@@ -889,6 +1133,7 @@ def main():
             load_evolution(args.results)
             load_assessments(args.results)
             load_telemetry(args.results)
+            load_cycles(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)
