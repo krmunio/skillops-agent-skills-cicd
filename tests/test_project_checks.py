@@ -1,4 +1,5 @@
 from copy import deepcopy
+from hashlib import sha256
 import json
 import os
 import socket
@@ -29,6 +30,51 @@ def observation(cases=None, **changes):
 
 
 class ProjectChecksTests(unittest.TestCase):
+    def test_replay_sources_reject_protected_nested_config_skills_and_hash_changes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            forbidden = ("tests/test_api.py", "src/package.json", "src/setup.py",
+                         "src/requirements-extra.txt", "skills/review/helper.py",
+                         "custom/SKILL.md", "custom/helper.py", "skill_pipeline.py",
+                         "api_test.py", ".github/workflows/build.py")
+            for name in ("api.py", *forbidden):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("original\n")
+            sources = {"api.py": sha256(b"original\n").hexdigest()}
+            self.assertEqual(checks.replay_sources(root, sources), {"api.py": "original\n"})
+            for name in forbidden:
+                with self.subTest(name=name), self.assertRaises(RuntimeFailure):
+                    checks.replay_sources(root, {name: sha256(b"original\n").hexdigest()})
+            (root / "api.py").write_text("changed\n")
+            with self.assertRaises(RuntimeFailure) as caught:
+                checks.replay_sources(root, sources)
+            self.assertEqual(caught.exception.code, "work_inputs_changed")
+
+    def test_replay_sources_enforce_bounds_and_reject_symlinks(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "api.py").write_bytes(b"x" * 65537)
+            with self.assertRaises(RuntimeFailure):
+                checks.replay_sources(root, {"api.py": sha256(b"x" * 65537).hexdigest()})
+            (root / "link.py").symlink_to(root / "api.py")
+            with self.assertRaises(RuntimeFailure):
+                checks.replay_sources(root, {"link.py": "a" * 64})
+            with self.assertRaises(RuntimeFailure):
+                checks.replay_sources(root, {})
+
+    def test_replay_task_outcome_distinguishes_failure_from_missing_or_runtime_evidence(self):
+        required = {"required_case_ids": ["task"], "required_gate_ids": ["build"]}
+        for state, expected in (("passed", "satisfied"), ("failed", "not_satisfied"),
+                                ("error", "unverified"), ("skipped", "unverified"),
+                                ("expected_failure", "unverified"), (None, "unverified")):
+            cases = [] if state is None else [{"id": "task", "status": state}]
+            row = observation(cases, status="failed" if state in ("failed", "error") else "completed")
+            with self.subTest(state=state):
+                self.assertEqual(checks.replay_outcome(row, required), expected)
+        row = observation([{"id": "task", "status": "passed"}], status="blocked")
+        self.assertEqual(checks.replay_outcome(row, required), "unverified")
+
     def test_static_dependencies_allow_source_tree_checks_without_running_legacy_setup(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
