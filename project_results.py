@@ -725,8 +725,26 @@ def build(root, results, output):
     lifecycles = load_evolution(results, rows, snapshots)
     skill_assessments = load_assessments(results, rows, lifecycles)
     output.mkdir(parents=True)
-    for name in ("index.html", "styles.css", "app.js", "views.js", "evolution.js", "assessments.js",
-                 "sample-data.json", "staticwebapp.config.json"):
+    modules = {}
+
+    def rewrite_import(match):
+        require(match[2] in modules, "invalid_dashboard_import")
+        return f"{match[1]}./{modules[match[2]]}{match[3]}"
+
+    for name in ("views.js", "evolution.js", "assessments.js", "app.js"):
+        source = read_bytes(root / "dashboard" / name).decode("utf-8")
+        raw = re.sub(r"(?m)^(\s*import\b[^;]*?\bfrom\s*['\"])\./([^'\"]+\.js)(['\"])",
+                     rewrite_import, source).encode("utf-8")
+        modules[name] = f"{Path(name).stem}.{sha256(raw).hexdigest()[:12]}.js"
+        (output / modules[name]).write_bytes(raw)
+    index = read_bytes(root / "dashboard/index.html").decode("utf-8")
+    require(index.count('src="/app.js"') == 1, "invalid_dashboard_entrypoint")
+    (output / "index.html").write_bytes(index.replace('src="/app.js"', f'src="/{modules["app.js"]}"').encode("utf-8"))
+    config = read_json(root / "dashboard/staticwebapp.config.json")
+    config["routes"].extend({"route": f"/{name}", "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"}} for name in modules.values())
+    (output / "staticwebapp.config.json").write_bytes(encoded(config))
+    for name in ("styles.css", "sample-data.json"):
         raw = read_bytes(root / "dashboard" / name)
         (output / name).write_bytes(raw)
     for row in rows:

@@ -53,12 +53,31 @@ function resetSelection(isSample) {
     button.setAttribute('aria-pressed', String(!isSample && button.dataset.project === activeProject?.id));
   });
 }
+function renderRunGroups(container, runs, renderRun) {
+  const expanded = new Set([...container.querySelectorAll('details[open]')].map(group => group.dataset.group));
+  container.replaceChildren();
+  let blocked = [];
+  const flush = () => {
+    if (!blocked.length) return;
+    const group = node('details', undefined, 'blocked-runs');
+    group.dataset.group = blocked[0].run_id;
+    group.open = expanded.has(group.dataset.group);
+    group.append(node('summary', `차단 기록 ${blocked.length}건 (최근 ${stamp(blocked[0].created_at)})`));
+    for (const run of blocked) group.append(renderRun(run));
+    container.append(group);
+    blocked = [];
+  };
+  for (const run of runs) {
+    if (['blocked', 'configuration_required'].includes(run.execution_status)) blocked.push(run);
+    else { flush(); container.append(renderRun(run)); }
+  }
+  flush();
+}
 function renderHistory() {
   $('history-count').textContent = `${history.length}건`;
-  $('history').replaceChildren();
   const filter = $('history-filter').value;
   const rows = history.filter(row => !filter || row.purpose === filter);
-  for (const run of rows) {
+  renderRunGroups($('history'), rows, run => {
     const button = node('button', undefined, 'run');
     button.type = 'button'; button.dataset.run = run.run_id;
     button.setAttribute('aria-pressed', String(run.run_id === activeRun));
@@ -68,8 +87,8 @@ function renderHistory() {
     const state = run.execution_status;
     button.append(node('time', stamp(run.created_at)), title, node('span', labels[state], `badge ${state}`));
     button.addEventListener('click', () => selectRun(run, selection));
-    $('history').append(button);
-  }
+    return button;
+  });
   if (!rows.length) $('history').append(node('p', history.length ? '해당 종류의 이력이 없습니다.' : '아직 저장된 평가 이력이 없습니다.', 'empty'));
   renderSkillHistory();
 }
@@ -101,8 +120,8 @@ function renderSkillHistory() {
   const groups = skillGroups();
   $('skill-count').textContent = `${groups.length}개 Skill`;
   $('skill-list').replaceChildren();
-  $('skill-history-runs').replaceChildren();
   if (!groups.length) {
+    $('skill-history-runs').replaceChildren();
     $('skill-list').append(node('p', '원문·식별 정보가 연결된 Skill이 없습니다. 미연결 기록은 실행 이력에서 확인하세요.', 'empty'));
     return;
   }
@@ -118,17 +137,17 @@ function renderSkillHistory() {
     $('skill-list').append(button);
   }
   const current = groups.find(group => group.id === selectedSkill);
-  $('skill-history-runs').append(node('p', `${current.id}의 기록 · 선택하면 위의 As-Is / To-Be와 평가 결과가 바뀝니다.`));
-  for (const run of current.runs) {
+  renderRunGroups($('skill-history-runs'), current.runs, run => {
     const button = node('button', undefined, 'skill-run');
-    button.type = 'button';
+    button.type = 'button'; button.dataset.run = run.run_id;
     button.setAttribute('aria-pressed', String(run.run_id === activeRun));
     const title = node('span', purposes[run.purpose]);
     title.append(node('small', stamp(run.created_at)));
     button.append(title, node('span', labels[run.execution_status], `badge ${run.execution_status}`));
     button.addEventListener('click', () => selectRun(run, selection));
-    $('skill-history-runs').append(button);
-  }
+    return button;
+  });
+  $('skill-history-runs').prepend(node('p', `${current.id}의 기록 · 선택하면 위의 As-Is / To-Be와 평가 결과가 바뀝니다.`));
 }
 function chooseSkill(id) {
   if (sampleMode) { selectSampleSkill(id); return; }
@@ -190,7 +209,7 @@ async function selectRun(run, token) {
         assessments = await validateAssessments(data, report, loaded.raw, lifecycle);
         if (request !== reportSelection || token !== selection) return;
       }
-      const skills = runSkills(run);
+      const skills = runSkills(run).filter(skill => !assessments || assessments.skills.some(row => row.skill_key === skill.id));
       selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : skills[0]?.id ?? null;
       $('skill-select').value = selectedSkill || '';
     }
@@ -225,7 +244,7 @@ async function selectProject(project) {
       validateEvolutionSummary(run);
       validateAssessmentSummary(run);
     }
-    history = data.history;
+    history = [...data.history].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
     const unlinked = node('option', 'Skill 미연결');
     unlinked.value = '';
     unlinked.disabled = !history.some(run => !runSkills(run).length);
@@ -236,7 +255,8 @@ async function selectProject(project) {
     }
     $('skill-select').disabled = skillGroups().length === 0;
     renderHistory();
-    if (history.length) await selectRun(history.find(row => row.purpose === 'comparison') || history[0], token);
+    if (history.length) await selectRun(history.find(row => row.guide_status === 'completed' && row.execution_status === 'completed') ||
+      history.find(row => row.purpose === 'comparison') || history[0], token);
     else {
       $('origin').textContent = '미평가';
       $('selection-summary').textContent = '평가 기록이 없습니다.';

@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 import re
 import tempfile
-from uuid import uuid4
 
 from copilot_runtime import RuntimeFailure, redact, strict_json
 import evolution_records as evolution
@@ -19,15 +18,18 @@ import skill_assessments
 import skill_guide
 
 
-def skill_key(source_path, history):
-    """History must already be validated and ordered newest first for this project."""
+def skill_key(project_id, source_path, history):
+    """History must already be validated and ordered newest first."""
+    require(evolution.matches(evolution.PROJECT_ID, project_id), "invalid_skill_identity")
     evolution.relative_path(source_path)
     for assessment in history:
+        if assessment["project_id"] != project_id:
+            continue
         for row in assessment["skills"]:
             if row["source_path"] == source_path:
                 require(evolution.matches(evolution.SKILL_KEY, row["skill_key"]), "invalid_skill_identity")
                 return row["skill_key"]
-    return "auto:" + uuid4().hex
+    return "path:" + sha256(f"{project_id}\n{source_path}".encode("utf-8")).hexdigest()[:24]
 
 
 def attachments(report, evaluated):
