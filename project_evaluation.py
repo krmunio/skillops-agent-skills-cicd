@@ -194,13 +194,43 @@ def policy_from_environment():
     return policy
 
 
+def changed_projects(root, projects, before, source_commit):
+    results.require(results.matches(r"[a-f0-9]{40}", before)
+                    and results.matches(r"[a-f0-9]{40}", source_commit), "invalid_change_revision")
+    identity = capture(["git", "rev-parse", "--show-toplevel", "HEAD"], cwd=root, timeout=30, limit=65536)
+    lines = identity.stdout.splitlines()
+    results.require(not identity.returncode and len(lines) == 2
+                    and Path(lines[0]).resolve() == Path(root).resolve()
+                    and lines[1] == source_commit, "change_source_mismatch")
+    if before == "0" * 40:
+        return projects
+    diff = capture([
+        "git", "diff", "--name-only", "--no-renames", "--no-ext-diff", "--no-textconv",
+        "-z", before, source_commit, "--",
+    ], cwd=root, timeout=30)
+    results.require(not diff.returncode, "change_detection_failed")
+    affected = set()
+    shared = {"project_profiles.json", "package.json", "package-lock.json",
+              ".github/workflows/project-evaluation.yml"}
+    for name in filter(None, diff.stdout.split("\0")):
+        if (name in shared or name.startswith(("eval/", "skills/"))
+                or ("/" not in name and name.endswith(".py"))):
+            return projects
+        parts = name.split("/")
+        if len(parts) >= 3 and parts[0] == "projects":
+            affected.add(parts[1])
+    return [project for project in projects if project["id"] in affected]
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--source-commit", required=True)
-    parser.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
+    selection.add_argument("--changed-since", help="Evaluate projects affected since this full Git commit.")
     parser.add_argument("--history", type=Path, help="Previously validated results, used for stable Skill identity.")
     args = parser.parse_args()
     try:
@@ -210,7 +240,16 @@ def main():
         if args.project is not None:
             projects = [project for project in projects if project["id"] == args.project]
             results.require(bool(projects), "unknown_project")
+        elif args.changed_since is not None:
+            projects = changed_projects(args.root, projects, args.changed_since, args.source_commit)
         policy = policy_from_environment()
+        if policy["progress"] and os.environ.get("GITHUB_OUTPUT"):
+            with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                output.write(f"selected_projects={len(projects)}\n")
+        if not projects:
+            results.reindex(args.root, args.output)
+            print(json.dumps({"status": "not_assessed", "reason": "no_changed_projects"}))
+            return 0
         prior = {}
         if args.history is not None:
             rows = results.load_reports(args.history)

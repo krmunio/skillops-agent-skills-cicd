@@ -3,6 +3,19 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_push_selects_changed_projects_and_preserves_manual_selection(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / ".github/workflows/project-evaluation.yml").read_text()
+        evaluate = text.split("\n  evaluate:\n", 1)[1].split("\n  persist:\n", 1)[0]
+        self.assertIn("fetch-depth: 0", evaluate)
+        self.assertIn("BEFORE_SHA: ${{ github.event.before }}", evaluate)
+        self.assertIn('args+=(--changed-since "$BEFORE_SHA")', evaluate)
+        self.assertIn('args+=(--project "$PROJECT_ID")', evaluate)
+        self.assertIn("SELECTED_PROJECTS: ${{ steps.assess.outputs.selected_projects }}", evaluate)
+        self.assertIn('if [ "$SELECTED_PROJECTS" = "0" ]', evaluate)
+        self.assertIn("No changed projects", evaluate)
+        self.assertIn("      - 'package-lock.json'", text)
+
     def test_evaluation_exposes_stage_logs_and_validated_failure_summary(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / ".github/workflows/project-evaluation.yml").read_text()

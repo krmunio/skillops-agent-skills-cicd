@@ -73,6 +73,10 @@ Owner가 운영하는 [공개 대시보드](https://agreeable-pebble-0ea54a800.6
 Actions의 단계별 로그와 실행 요약은 Anthropic 베이스라인 품질, APO-inspired 개선 근거 연결,
 프로젝트 회귀 검사를 구분합니다. `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`로
 모델 호출 없이 저장된 근거의 요약을 확인할 수 있습니다. 별도 평가 job이나 APO 점수를 추가하는 기능은 아닙니다.
+main push에서는 추가·변경된 프로젝트만 선택하며, 공통 평가기 변경은 전체 목록을 대상으로 합니다.
+선택된 Skill마다 후보는 최대 1개이고 전체 실행 한도를 공유합니다. 기존 `--project <id>` 수동 선택은 유지하며,
+`--changed-since <full-before-sha>`는 체크아웃된 `--source-commit`을 기준으로 영향받은 프로젝트를 선택합니다.
+두 선택 옵션은 함께 사용할 수 없습니다. 대상이 없으면 모델 평가를 생략하며 통과 결과를 만들지 않습니다.
 
 ### 준비된 프로젝트 샘플
 
