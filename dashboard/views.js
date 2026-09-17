@@ -66,10 +66,36 @@ function badge(status) {
   if (!labels[status]) throw new Error('Invalid assessment status');
   return node('span', labels[status], `badge ${status}`);
 }
+function explanation(message) {
+  const details = node('details', undefined, 'state-explanation');
+  details.append(node('summary', '왜 비어 있나요?'), node('p', message, 'reason'));
+  return details;
+}
 function empty(container, title, message) {
   const box = node('div', undefined, 'empty-state');
-  box.append(node('strong', title), node('p', message));
+  box.append(node('strong', title), explanation(message));
   container.replaceChildren(box);
+}
+export function hashValue(value) {
+  const wrapper = node('span', undefined, 'hash-value');
+  const prefix = value.startsWith('sha256:') ? 'sha256:' : '';
+  const digest = node('code', prefix + value.slice(prefix.length, prefix.length + 12));
+  digest.title = value;
+  const copy = node('button', '복사', 'copy-hash');
+  copy.type = 'button';
+  copy.setAttribute('aria-label', 'SHA-256 전체 값 복사');
+  const status = node('span', '', 'copy-status');
+  status.setAttribute('role', 'status');
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      status.textContent = '복사했습니다.';
+    } catch {
+      status.textContent = '복사하지 못했습니다. 전체 값은 해시에 마우스를 올려 확인해 주세요.';
+    }
+  });
+  wrapper.append(digest, copy, status);
+  return wrapper;
 }
 function metricList(metrics) {
   const list = node('dl', undefined, 'metrics');
@@ -109,12 +135,11 @@ function renderQuality(report, detail) {
   const container = $('guide');
   $('quality-summary').textContent = detail ? '선택 Skill · 합성 평가 예시' : '기록된 검사만 표시';
   if (!detail?.quality?.length) {
-    container.replaceChildren(badge(report.guide.status),
-      node('p', reasons[report.guide.reason_code], 'reason'));
+    container.replaceChildren(badge(report.guide.status));
     container.append(metricList(report.guide.metrics));
     const missing = node('div');
     empty(missing, '세부 품질 검사 결과가 공개 기록에 없습니다.',
-      '참고 기준의 설명이며, 실제 정적 검사나 LLM 채점이 수행됐다는 뜻은 아닙니다.');
+      `${reasons[report.guide.reason_code]} 참고 기준의 설명이며, 실제 정적 검사나 LLM 채점이 수행됐다는 뜻은 아닙니다.`);
     container.append(missing);
     return;
   }
@@ -172,19 +197,22 @@ export function renderMetric(container, title, key, metrics) {
   const improvement = metrics[key === 'cost_nano_aiu' ? 'cost_improvement_percent' : 'time_improvement_percent'];
   if (base === null || base === undefined || candidate === null || candidate === undefined) {
     container.append(node('strong', '미기록', 'decision-title'),
-      node('p', '같은 평가의 기존·후보 측정값이 필요합니다.', 'reason'));
-    return;
+      explanation('같은 평가의 기존·후보 측정값이 필요합니다.'));
+    return null;
   }
+  const computed = improvement === undefined && base > 0;
+  const change = computed ? (candidate - base) / base * 100 :
+    typeof improvement === 'number' ? -improvement : null;
   const line = node('div');
-  if (improvement === null || improvement === undefined) {
+  if (change === null || !Number.isFinite(change)) {
     line.append(node('strong', '변화율 미기록'));
   } else {
-    const change = -improvement;
     line.append(node('strong', `${change > 0 ? '+' : ''}${number(change, 2)}%`, 'big-number'),
       node('span', change > 0 ? '증가' : change < 0 ? '감소' : '변화 없음',
-        `delta ${change > 0 ? 'worse' : change < 0 ? 'better' : ''}`));
+        `delta ${change > 0 ? 'worse' : change < 0 ? 'better' : ''}`),
+      node('small', computed ? '현장 계산' : '기록된 변화율', 'metric-origin'));
   }
-  const scale = key === 'cost_nano_aiu' && Math.max(base, candidate) >= 1e9 ? 1e9 : 1;
+  const cost = key === 'cost_nano_aiu';
   const bars = node('div', undefined, 'metric-bars');
   for (const [label, value, name] of [['기존', base, 'base'], ['후보', candidate, 'candidate']]) {
     const row = node('div', undefined, 'bar-row');
@@ -193,11 +221,13 @@ export function renderMetric(container, title, key, metrics) {
     const bar = node('div', undefined, `bar ${name}`);
     bar.style.width = `${Math.max(base, candidate) === 0 ? 0 : value / Math.max(base, candidate) * 100}%`;
     track.append(bar);
-    row.append(node('span', label), track, node('span', number(value / scale), 'bar-value'));
+    const display = cost ? (value / 1e9).toLocaleString('ko-KR', { maximumSignificantDigits: 6 }) : number(value);
+    row.append(node('span', label), track, node('span', display, 'bar-value'));
     bars.append(row);
   }
-  container.append(line, bars, node('p', key === 'cost_nano_aiu' ?
-    `${scale === 1e9 ? '십억 ' : ''}NanoAIU · 기록된 실행 비용` : '초 · 기록된 실행 시간', 'metric-note'));
+  container.append(line, bars, node('p', cost ?
+    'AIU는 CLI가 기록한 Copilot 사용량 단위입니다.' : '초 · 기록된 실행 시간', 'metric-note'));
+  return Number.isFinite(change) ? change : null;
 }
 
 function renderExecution(report, detail) {
@@ -207,9 +237,11 @@ function renderExecution(report, detail) {
   const decision = report.execution.decision;
   if (decision !== null && decision !== undefined && !decisions[decision]) throw new Error('Invalid decision');
   container.className = `outcome-card ${decision === 'rejected' ? 'rejected' : ''}`;
-  container.replaceChildren(node('h3', '선택한 실행의 판단'),
-    node('strong', decisions[decision] || labels[report.execution.status], 'decision-title'));
-  container.append(node('p', detail ? '합성 평가 예시 · 실제 성과 아님' : reasons[report.execution.reason_code], 'reason'));
+  const heading = node('div', undefined, 'decision-heading');
+  heading.append(node('strong', decisions[decision] || labels[report.execution.status], 'decision-title'));
+  container.replaceChildren(node('h3', '선택한 실행의 판단'), heading);
+  container.append(!detail && report.execution.status !== 'completed' ? explanation(reasons[report.execution.reason_code]) :
+    node('p', detail ? '합성 평가 예시 · 실제 성과 아님' : reasons[report.execution.reason_code], 'reason'));
   if (report.purpose === 'comparison') {
     const correctness = node('div', undefined, 'correctness');
     correctness.append(node('span', '정답 작업'),
@@ -220,8 +252,11 @@ function renderExecution(report, detail) {
   }
   $('execution-scope').textContent = detail?.scope ||
     '공개 기록에 세부 작업 범위가 없습니다. 이 결과를 프로젝트 전체의 종합 검증으로 해석하지 않습니다.';
-  renderMetric($('cost-card'), '실행 비용 · 기존 → 후보', 'cost_nano_aiu', metrics);
-  renderMetric($('time-card'), '실행 시간 · 기존 → 후보', 'elapsed_seconds', metrics);
+  const changes = [renderMetric($('cost-card'), '실행 비용 · 기존 → 후보', 'cost_nano_aiu', metrics),
+    renderMetric($('time-card'), '실행 시간 · 기존 → 후보', 'elapsed_seconds', metrics)];
+  if (changes.some(change => change !== null && change > 5)) {
+    heading.append(node('span', '비용·시간 증가 주의', 'badge review efficiency-warning'));
+  }
   if (detail?.policy) {
     $('decision-reasons').replaceChildren(node('p', detail.policy.summary, 'conclusion'),
       node('p', `판정 기준: ${detail.policy.version} · 합성 예시`, 'reason'),
@@ -274,13 +309,17 @@ export function renderSkill(detail, synthetic) {
     return;
   }
   const availability = snapshot => snapshot?.availability || (snapshot ? 'captured' : 'absent');
-  const version = snapshot => snapshot?.version || snapshot?.sha256?.slice(0, 12) ||
-    (availability(snapshot) === 'uncaptured' ? '원문 미보관' : '파일 없음');
+  const version = snapshot => snapshot?.version?.startsWith('sha256:') ? hashValue(snapshot.version) :
+    snapshot?.version ? node('span', snapshot.version) : snapshot?.sha256 ? hashValue(snapshot.sha256) :
+      node('span', availability(snapshot) === 'uncaptured' ? '원문 미보관' : '파일 없음');
   const displayable = snapshot => typeof snapshot?.content === 'string' &&
     snapshot.content.length <= 50000 && snapshot.content.split('\n').length <= 400;
   const meta = node('div', undefined, 'skill-meta');
+  const versions = node('span', undefined, 'badge version-badge');
+  versions.append(version(detail.base));
+  if (detail.candidate) versions.append(node('span', '→'), version(detail.candidate));
   meta.append(node('strong', detail.skill_id),
-    node('span', detail.candidate ? `${version(detail.base)} → ${version(detail.candidate)}` : version(detail.base), 'badge'),
+    versions,
     node('span', synthetic ? '합성 예시 · 실제 평가 아님' : detail.file_path ?
       '보관된 원문만 해시 확인 · 미보관 파일은 판단하지 않음' : '평가 당시 원문 · 기록된 SHA-256과 일치', 'muted'));
   container.replaceChildren(meta);
@@ -291,7 +330,11 @@ export function renderSkill(detail, synthetic) {
     const source = node('details', undefined, 'source-panel');
     source.open = true;
     source.append(node('summary', label));
-    if (detail[key]?.sha256) source.append(node('p', `SHA-256 ${detail[key].sha256}`, 'source-hash'));
+    if (detail[key]?.sha256) {
+      const hash = node('p', 'SHA-256 ', 'source-hash');
+      hash.append(hashValue(detail[key].sha256));
+      source.append(hash);
+    }
     if (detail[key]?.bytes !== undefined) source.append(node('p', `${detail[key].bytes} bytes`, 'source-hash'));
     if (key === 'candidate') source.append(node('p', '비교 대상 후보이며 채택·배포 승인을 의미하지 않습니다.', 'source-hash'));
     if (availability(detail[key]) === 'uncaptured') {
@@ -356,7 +399,9 @@ export function renderReport(report, project, detail = null, snapshots = null) {
   for (const [key, label] of [['run_id', '실행 ID'], ['source_commit', '평가 대상 커밋'],
     ['project_tree_sha256', '프로젝트 내용 SHA-256'], ['evaluator_sha256', '평가기 SHA-256'],
     ['source_report_sha256', '원본 보고서 SHA-256']]) {
-    $('provenance').append(node('dt', label), node('dd', report[key] ?? '미기록'));
+    const value = node('dd');
+    value.append(key.endsWith('_sha256') && report[key] ? hashValue(report[key]) : node('span', report[key] ?? '미기록'));
+    $('provenance').append(node('dt', label), value);
   }
   $('report-link').hidden = Boolean(detail);
 }
