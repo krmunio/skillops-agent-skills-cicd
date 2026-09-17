@@ -26,6 +26,7 @@ const reasons = {
   runtime_error: '평가 환경이나 계약을 확인해야 합니다.',
   call_limit: '허용된 모델 호출 한도에 도달했습니다.',
   time_limit: '허용된 평가 시간에 도달했습니다.',
+  assessment_unverified: '개선 또는 프로젝트 회귀 검증에 필요한 근거가 부족합니다.',
 };
 const metricLabels = {
   requested: '요청 작업', attempted: '시도 작업', evaluation_completed: '평가 완료 작업',
@@ -82,7 +83,7 @@ function metricList(metrics) {
   }
   return list;
 }
-function table(headers, rows) {
+export function table(headers, rows) {
   const wrapper = node('div', undefined, 'table-scroll');
   const element = node('table');
   const head = node('thead');
@@ -164,7 +165,7 @@ function renderEvidence(detail) {
   }
 }
 
-function renderMetric(container, title, key, metrics) {
+export function renderMetric(container, title, key, metrics) {
   container.replaceChildren(node('h3', title));
   const base = metrics[`base_${key}`];
   const candidate = metrics[`candidate_${key}`];

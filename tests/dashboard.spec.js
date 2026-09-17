@@ -9,7 +9,8 @@ async function pageWith(page, index, status = 200, origin = 'http://dashboard.te
       return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(index) });
     }
     const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/app.js': 'app.js',
-      '/views.js': 'views.js', '/evolution.js': 'evolution.js', '/sample-data.json': 'sample-data.json' };
+      '/views.js': 'views.js', '/evolution.js': 'evolution.js', '/assessments.js': 'assessments.js',
+      '/sample-data.json': 'sample-data.json' };
     if (!assets[name]) return route.fallback();
     const contentType = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' :
       name.endsWith('.json') ? 'application/json' : 'text/html';
@@ -329,10 +330,60 @@ async function evolutionPage(page, fixture) {
     await page.route(`${folder}/${item.report.run_id}/skill-evolution.json`, route => route.fulfill({ json: item.envelope }));
     if (item.snapshots) await page.route(`${folder}/${item.report.run_id}/skill-snapshots.json`, route => route.fulfill({ json: item.snapshots }));
   }
+
   await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
     history_count: 1, current_run: null }] }, 200, origin);
 }
 
+function assessmentFixture() {
+    const { execFileSync } = require('node:child_process');
+    const [report, envelope, details] = JSON.parse(execFileSync('python3', ['-c',
+      'import sys,json; sys.path.insert(0,"tests"); from test_skill_assessments import fixture; print(json.dumps(fixture()))',
+    ], { encoding: 'utf8' }));
+    envelope.report_sha256 = details.report_sha256 = hash(JSON.stringify(report));
+    const summary = { ...report, execution_status: report.execution.status, guide_status: report.guide.status,
+      skill_evolution: `${report.run_id}/skill-evolution.json`,
+      skill_assessments: `${report.run_id}/skill-assessments.json`,
+      evolution_skills: envelope.bindings.map(({ legacy_skill_id, ...binding }) => ({ ...binding, display_name: 'develop' })) };
+    return { report, envelope, details, summary };
+  }
+
+  test('automatic Skill assessment shows real quality, frozen work and scoped non-regression', async ({ page }) => {
+    const fixture = assessmentFixture();
+    await page.route('https://dashboard.test/results/sample_repo/123-1/skill-assessments.json',
+      route => route.fulfill({ json: fixture.details }));
+    await evolutionPage(page, fixture);
+    await expect(page.locator('#quality-summary')).toHaveText('선택 Skill · 실제 버전 평가');
+    await expect(page.locator('#guide')).toContainText('2 → 3');
+    await expect(page.locator('#improvement-evidence')).toContainText('Boundary guidance is missing.');
+    await expect(page.locator('#improvement-evidence')).toContainText('개선 가설 · 검증 결과와 구분');
+    await expect(page.locator('#execution')).toContainText('개선 확인');
+    await expect(page.locator('#task-results')).toContainText('bug');
+    await expect(page.locator('#execution-scope')).toContainText('검증 범위에서 회귀 미발견');
+    await expect(page.locator('#quality-section')).not.toContainText('합성 평가 예시');
+    await expect(page.locator('#cost-card')).toContainText('미기록');
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+    await expect(page.locator('#improvement-evidence')).not.toContainText('Boundary guidance is missing.');
+  });
+
+  test('automatic assessment rejects forged qualification or report and version bindings', async ({ page }) => {
+    for (const change of ['report', 'version', 'decision', 'cases', 'path']) {
+      const fixture = assessmentFixture();
+      if (change === 'report') fixture.details.report_sha256 = 'a'.repeat(64);
+      if (change === 'version') fixture.details.skills[0].candidate_version_id = `sha256:${'a'.repeat(64)}`;
+      if (change === 'decision') fixture.details.skills[0].quality.candidate = null;
+      if (change === 'cases') fixture.details.skills[0].checks.candidate.cases = [];
+      if (change === 'path') fixture.summary.skill_assessments = '../outside/skill-assessments.json';
+      await page.route('https://dashboard.test/results/sample_repo/123-1/skill-assessments.json',
+        route => route.fulfill({ json: fixture.details }));
+      await evolutionPage(page, fixture);
+      await expect(page.locator('#error')).toBeVisible();
+      await expect(page.locator('#detail')).toBeHidden();
+      await page.unrouteAll();
+    }
+  });
 test('evolution dual binding selects one stable Skill and separates recommendation from adoption', async ({ page }) => {
   await evolutionPage(page, evolutionFixture({ dual: true }));
   await expect(page.locator('#skill-list .skill-item')).toHaveCount(1);
