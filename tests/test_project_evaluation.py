@@ -130,6 +130,8 @@ class ProjectEvaluationTests(unittest.TestCase):
             self.assertEqual(result["execution"]["status"], "blocked")
             self.assertEqual(result["guide"]["metrics"]["errors"], 1)
             self.assertEqual(details["skills"][0]["decision"]["status"], "improved")
+            self.assertEqual(details["skills"][0]["skill_key"],
+                             m.skill_pipeline.skill_key("sample_repo", ".github/skills/develop", []))
             self.assertEqual(versions["report_sha256"], details["report_sha256"])
             self.assertFalse((root / ".skillops/registry.json").exists())
 

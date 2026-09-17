@@ -347,10 +347,11 @@ async function evolutionPage(page, fixture) {
     history_count: 1, current_run: null }] }, 200, origin);
 }
 
-function assessmentFixture() {
+function assessmentFixture({ legacy = true } = {}) {
     const { execFileSync } = require('node:child_process');
     const [report, envelope, details] = JSON.parse(execFileSync('python3', ['-c',
-      'import sys,json; sys.path.insert(0,"tests"); from test_skill_assessments import fixture; print(json.dumps(fixture()))',
+      'import sys,json; sys.path.insert(0,"tests"); from test_skill_assessments import fixture; print(json.dumps(fixture(legacy=sys.argv[1]=="legacy")))',
+      legacy ? 'legacy' : 'current',
     ], { encoding: 'utf8' }));
     envelope.report_sha256 = details.report_sha256 = hash(JSON.stringify(report));
     const summary = { ...report, execution_status: report.execution.status, guide_status: report.guide.status,
@@ -359,6 +360,40 @@ function assessmentFixture() {
       evolution_skills: envelope.bindings.map(({ legacy_skill_id, ...binding }) => ({ ...binding, display_name: 'develop' })) };
     return { report, envelope, details, summary };
   }
+
+function pythonDecisionCases() {
+  return JSON.parse(require('node:child_process').execFileSync('python3', ['-c',
+    'import sys,json; sys.path.insert(0,"tests"); from test_skill_assessments import decision_cases; print(json.dumps(decision_cases()))',
+  ], { encoding: 'utf8' }));
+}
+
+test('Python and JavaScript decisions agree on efficiency boundaries, missing measurements, rejections and legacy policy', async ({ page }) => {
+  const cases = pythonDecisionCases();
+  await pageWith(page, { schema_version: 1, projects: [] }, 200, 'https://dashboard.test');
+  const decisions = await page.evaluate(async cases => {
+    const { decide } = await import('/assessments.js');
+    return cases.map(item => decide(item.row, item.legacy ? null : undefined));
+  }, cases);
+  for (const [index, item] of cases.entries()) expect(decisions[index], item.name).toEqual(item.expected);
+});
+
+test('versioned assessment records display Python efficiency decisions and reject unsupported policy stamps', async ({ page }) => {
+  const fixture = assessmentFixture({ legacy: false });
+  const item = pythonDecisionCases().find(item => item.name === 'cost-regression');
+  fixture.details.skills[0] = { ...item.row, decision: item.expected };
+  await page.route('https://dashboard.test/results/sample_repo/123-1/skill-assessments.json', route => route.fulfill({ json: fixture.details }));
+  await evolutionPage(page, fixture);
+  await expect(page.locator('#execution .decision-title')).toHaveText('검증 불충분');
+  await expect(page.locator('#decision-reasons')).toContainText('efficiency_regression');
+  await expect(page.locator('#execution-scope')).toContainText('검증 범위에서 회귀 미발견');
+  await expect(page.locator('#error')).toBeHidden();
+  for (const version of [null, true, '1', 2]) {
+    fixture.details.skills[0].decision.policy_version = version;
+    await evolutionPage(page, fixture);
+    await expect(page.locator('#error')).toBeVisible();
+    await expect(page.locator('#detail')).toBeHidden();
+  }
+});
 
   test('automatic Skill assessment shows real quality, frozen work and scoped non-regression', async ({ page }) => {
     const fixture = assessmentFixture();

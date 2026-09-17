@@ -321,6 +321,56 @@ runs: every intermediate commit is not guaranteed an evaluation, while existing 
 is preserved. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
 and operational failures remain explicit non-success outcomes.
 
+### Stable Skill identity migration
+
+When no validated assessment already associates a project-local path with a Skill key,
+the automatic pipeline derives `path:<24 hex characters>` from the SHA-256 of the
+UTF-8 string `<project_id>\n<relative_skill_path>`. Fresh runs on the same project
+and path therefore agree even without prior history. Different project IDs and
+different relative paths have different inputs; display names do not define identity.
+
+Existing `auto:` keys remain valid history and are not rewritten. A matching
+validated assessment from the same project preserves its existing key, including
+an explicitly registered `skillops:develop` key. Records from another project do
+not establish that association. This change prevents new fallback-key churn; it
+does not merge historical `auto:`, `path:` and registered identities by name or
+rewrite archived imports. Renames or explicit historical identity reconciliation
+remain separate, reviewed migration work.
+
+### Versioned assessment efficiency decisions
+
+New Skill assessments record `decision.policy_version` using `candidates.POLICY["version"]`
+(currently `1`) and reuse its `maximum_efficiency_regression_percent` (currently `5`).
+If either paired application cost or elapsed time increases by **more than** this cap,
+the decision includes `efficiency_regression` and cannot be `improved`: it is
+`unverified` unless an existing quality/project regression already requires rejection.
+An efficiency increase alone does not reject a candidate whose regression checks passed.
+Missing either arm's measurement adds `efficiency_unverified` and also prevents improvement
+qualification. These two reasons can coexist when one measured metric regresses and
+the other is missing.
+
+Exactly 5% is within the cap. Recorded zeros are measurements, not missing values:
+zero to zero does not regress, while zero to a positive value exceeds the cap without
+inventing a finite percentage. Decimal comparisons avoid rounding a boundary into a
+regression. Quality, activation, work satisfaction and project-check gates remain in force.
+This reuses only the existing policy's efficiency-regression cap; it does not claim
+that project application measurements have the common benchmark's developer/judge scope
+or automatically apply its separate 10% efficiency-improvement rule.
+
+Versionless historical decisions retain their original pre-efficiency semantics and
+exact stored bytes through validation, history loading and publication. Their missing
+policy version is not backfilled or treated as proof of passing the new cap. Fresh
+calls to `skill_assessments.decide` always apply and stamp the current policy, including
+when re-evaluating legacy inputs. Unknown or malformed policy versions fail validation;
+new versioned verdicts must match recomputation from their measurements.
+
+The viewer's decision validator supports the same current/legacy distinction. Its
+decision-only JavaScript change is covered by an explicit Python/JavaScript agreement
+test in `tests/dashboard.spec.js`, including boundaries, missing/zero measurements,
+rejections and preserved legacy evidence. The Python suite also executes those shared
+cases with Node when available, so parity can run before the separate dashboard CI PR
+is merged. No dashboard layout, strings or presentation changes are part of this follow-up.
+
 Result writers validate incoming data and use bounded optimistic push retries on
 the dedicated branch, with no force push. A serialized deploy job fetches the
 newest persisted results after entering its slot and publishes a fresh snapshot.
