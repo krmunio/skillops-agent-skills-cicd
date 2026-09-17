@@ -219,6 +219,13 @@ candidate and calibration summaries; raw invocation artifacts remain local.
 Build output must be a new directory. It contains only allowlisted dashboard assets
 and validated results, never project sources or raw logs.
 
+The build writes each ES module as `<name>.<12-character-sha256>.js` and rewrites
+the entry script and relative module imports. Hashes cover the final emitted bytes,
+including dependency filenames, so a dependency change also invalidates its importers.
+The generated Static Web Apps configuration adds one-year immutable cache headers
+only for these exact hashed module paths. Results remain `no-store` and `index.html`
+remains `no-cache`. Unhashed source modules stay in `dashboard/` for local tests.
+
 ## Actions activation
 
 ### Automatic-evaluation support and boundaries
@@ -356,6 +363,29 @@ Existing public v1 reports remain unchanged. Quality findings, improvement trace
 checks use the optional immutable assessment contract above. Missing sidecars remain explicit.
 Reviewed Skill text uses the snapshot/evolution contracts below, never mutable current files.
 
+The initial selection is the newest run with both guide and execution completed,
+then the newest comparison, then the newest available run. Its assessed Skill is
+selected automatically. Completion does not imply a passing assessment or adoption.
+Both history tabs collapse consecutive blocked/configuration-required runs into
+expandable groups; the execution-kind filter operates before grouping. No records
+are removed or combined in the stored history.
+
+Missing-state titles remain visible; explanations, methodology and provenance are
+collapsed by default. Synthetic-data banners and the disclosure footer remain visible.
+Rubric dimensions have Korean labels with their recorded IDs below them, and model
+hypotheses are separately expandable. SHA-256 displays use 12 hex characters with
+the full value available in the title and through a copy button.
+
+Application costs are displayed in AIU (`NanoAIU / 1e9`), the Copilot usage unit
+recorded by the CLI, not a currency price. When paired values exist and no change
+percentage is recorded, the browser computes a percentage for a positive baseline
+and labels it `현장 계산`. A null recorded percentage, missing measurement or zero
+baseline stays explicitly unrecorded rather than inventing a finite percentage.
+Recorded percentages are never replaced. `improved` is displayed as
+`품질 점수 상승 (회귀 없음)`, with changed dimensions listed and a visible warning
+when a recorded or computed cost/time increase exceeds 5%. These are presentation
+changes only: the stored decision, evaluation scope and adoption status are unchanged.
+
 ### Reviewed archived Skill snapshots
 
 `results/<project>/<run>/skill-snapshots.json` contains exactly schema version,
@@ -482,9 +512,14 @@ rendering; a historical baseline reference does not assert full-version equivale
 
 ## Validation
 
+The `dashboard` job in `SkillOps validation` runs the Playwright suite on
+Ubuntu 24.04 with Node 22, Python 3.12 and Chromium. It uses the existing locked
+dependencies and pinned actions, without model/deployment secrets. Adding this
+job does not change branch protection or make it a required check.
+
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -v
-npm ci
+npm ci --no-audit --no-fund
 npx playwright install --with-deps chromium
 npm run test:dashboard
 az bicep build --file infra/public-dashboard.bicep

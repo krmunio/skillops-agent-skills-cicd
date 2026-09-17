@@ -3,6 +3,22 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_dashboard_ci_runs_locked_browser_checks_with_pinned_actions_without_privileged_secrets(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root / ".github/workflows/ci.yml").read_text()
+        dashboard = workflow.split("\n  dashboard:\n", 1)[1].split("\n  offline-and-container:\n", 1)[0]
+        self.assertIn("runs-on: ubuntu-24.04", dashboard)
+        self.assertIn("node-version: '22'", dashboard)
+        self.assertIn("python-version: '3.12'", dashboard)
+        for command in ("npm ci --no-audit --no-fund", "npx playwright install --with-deps chromium", "npm run test:dashboard"):
+            self.assertIn(command, dashboard)
+        for line in dashboard.splitlines():
+            if "uses:" in line:
+                self.assertRegex(line, r"uses: actions/[a-z-]+@[a-f0-9]{40}(?: |$)")
+        self.assertIn("persist-credentials: false", dashboard)
+        self.assertNotIn("${{ secrets.", dashboard)
+        self.assertNotIn("copilot-requests:", dashboard)
+
     def test_repository_validation_is_not_named_skill_baseline_evaluation(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / ".github/workflows/ci.yml").read_text()
