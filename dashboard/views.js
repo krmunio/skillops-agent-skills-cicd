@@ -58,6 +58,12 @@ function number(value, places = 3) {
   return value === null || value === undefined ? '미기록' :
     value.toLocaleString('ko-KR', { maximumFractionDigits: places });
 }
+export function measurementChange(base, candidate) {
+  if (typeof base !== 'number' || typeof candidate !== 'number' ||
+      !Number.isFinite(base) || !Number.isFinite(candidate) || base <= 0 || candidate < 0) return null;
+  const change = (candidate - base) / base * 100;
+  return Number.isFinite(change) ? change : null;
+}
 function fraction(value, total) {
   return value === null || value === undefined || total === null || total === undefined ?
     '미기록' : `${number(value)}/${number(total)}`;
@@ -121,7 +127,8 @@ export function table(headers, rows) {
     const row = node('tr');
     for (const value of values) {
       const cell = node('td');
-      cell.append(value instanceof Node ? value : document.createTextNode(String(value)));
+      if (value instanceof Node) cell.append(value);
+      else cell.textContent = String(value);
       row.append(cell);
     }
     body.append(row);
@@ -129,6 +136,134 @@ export function table(headers, rows) {
   element.append(head, body);
   wrapper.append(element);
   return wrapper;
+}
+
+export function summarizeHistory(runs) {
+  const skills = new Set(), legacySkills = new Set(), versions = new Set(), legacyVersions = new Set();
+  const completed = run => run.guide_status === 'completed' && run.execution_status === 'completed';
+  const blocked = run => ['blocked', 'configuration_required'].includes(run.execution_status);
+  const imported = run => run.origin === 'historical_import';
+  for (const run of runs) {
+    for (const binding of run.evolution_skills || []) {
+      skills.add(binding.skill_key);
+      for (const version of [binding.base_version_id, binding.candidate_version_id]) if (version) versions.add(version);
+    }
+    if (run.skill_id) {
+      legacySkills.add(run.skill_id);
+      for (const hash of [run.base_skill_sha256, run.candidate_skill_sha256]) if (hash) legacyVersions.add(hash);
+    }
+  }
+  return { skills: skills.size + legacySkills.size, versions: versions.size + legacyVersions.size,
+    total: runs.length, completed: runs.filter(completed).length, newestCompleted: runs.find(completed) ?? null,
+    blocked: runs.filter(blocked).length, imported: runs.filter(imported).length,
+    unassessed: runs.filter(run => !completed(run) && !blocked(run) && !imported(run)).length };
+}
+
+const summaryDecisions = { improved: '품질 점수 상승 · 회귀 없음', not_improved: '변화 없음',
+  unverified: '검증 불충분', rejected: '후보 거절' };
+
+function newestAssessment(evidence) {
+  const newest = evidence.find(item => item.run.skill_assessments);
+  return { run: newest?.run, skill: newest?.bundle?.assessments?.skills[0] ?? null };
+}
+
+export function renderOverview(models, onSelect) {
+  const container = $('overview-content');
+  const summaries = models.map(model => model.history === null ? null : summarizeHistory(model.history));
+  const complete = summaries.every(summary => summary !== null);
+  const counts = node('p', undefined, 'overview-counts');
+  counts.append(node('span', `프로젝트 ${models.length}개`));
+  for (const [key, label] of [['completed', '완료 평가'], ['blocked', '차단 기록']]) {
+    counts.append(node('span', complete ? `${label} ${summaries.reduce((total, summary) => total + summary[key], 0)}건` : `${label}: 기록 없음`));
+  }
+  container.replaceChildren(counts);
+  if (!models.length) {
+    container.append(node('p', '등록된 프로젝트가 없습니다.', 'empty'));
+    return;
+  }
+  const states = { active: '등록', blocked: '차단', removed: '등록 해제' };
+  const rows = models.map((model, index) => {
+    const { project } = model, summary = summaries[index];
+    const identity = node('div');
+    const button = node('button', project.id, 'overview-project');
+    button.type = 'button';
+    button.setAttribute('aria-label', `${project.id} 프로젝트 열기`);
+    const state = node('div', undefined, 'overview-project-state');
+    state.append(node('span', states[project.state], `badge ${project.state}`));
+    identity.append(button, state);
+    const latest = newestAssessment(model.evidence || []).skill;
+    return [identity, summary?.skills ?? '기록 없음', summary?.completed ?? '기록 없음',
+      summary ? summary.newestCompleted ? stamp(summary.newestCompleted.created_at) : '없음' : '기록 없음',
+      summary?.blocked ?? '기록 없음', summary?.imported ?? '기록 없음',
+      latest ? summaryDecisions[latest.decision.status] : '미평가'];
+  });
+  const grid = table(['프로젝트', 'Skill', '완료 평가', '최근 완료', '차단·설정 필요', '과거 가져오기', '최근 후보 판정'], rows);
+  grid.classList.add('overview-table');
+  grid.tabIndex = 0;
+  grid.setAttribute('role', 'region');
+  grid.setAttribute('aria-label', '프로젝트 요약 표');
+  grid.querySelectorAll('tbody tr').forEach((row, index) => {
+    row.dataset.project = models[index].project.id;
+    row.addEventListener('click', () => onSelect(models[index].project));
+  });
+  container.append(grid, node('p', '완료 평가와 후보 판정은 채택 여부가 아닙니다. 채택 기록은 각 프로젝트 화면에서 확인합니다.', 'overview-note'));
+  if (models.some(model => model.error || model.evidence.some(item => item.error))) {
+    container.append(node('p', '일부 공개 기록을 확인하지 못했습니다. 확인하지 못한 값은 미평가 또는 기록 없음으로 표시합니다.', 'summary-warning'));
+  }
+}
+
+export function renderProjectSummary(runs = null, evidence = [], completedReport = null) {
+  const container = $('project-summary');
+  const title = node('h2', '프로젝트 평가 요약');
+  title.id = 'project-summary-title';
+  container.replaceChildren(title);
+  container.hidden = false;
+  if (runs === null) {
+    const loading = node('p', '공개 이력의 요약 근거를 불러오는 중입니다.', 'muted');
+    loading.setAttribute('role', 'status');
+    container.append(loading);
+    return;
+  }
+  const summary = summarizeHistory(runs), list = node('dl', undefined, 'summary-grid');
+  const entry = (id, label, text) => {
+    const line = node('div'), value = node('dd', text);
+    value.id = id;
+    line.append(node('dt', label), value); list.append(line);
+    return value;
+  };
+  entry('summary-skills', 'Skill·버전', `Skill ${summary.skills}개 · 버전 ${summary.versions}개`);
+  entry('summary-history', '평가 이력', `평가 기록 ${summary.total}건 · 완료 ${summary.completed} · 차단 ${summary.blocked} · 과거 가져오기 ${summary.imported} · 미평가 ${summary.unassessed}`);
+  const recent = entry('summary-completed', '최근 완료 평가', summary.newestCompleted ?
+    `${stamp(summary.newestCompleted.created_at)} · 커밋 ` : '없음');
+  if (summary.newestCompleted) {
+    const commit = completedReport?.value?.source_commit;
+    const code = node('code', typeof commit === 'string' && /^[a-f0-9]{40}$/.test(commit) ? commit.slice(0, 12) : '기록 없음');
+    if (code.textContent !== '기록 없음') code.title = commit;
+    recent.append(code);
+  }
+  const assessed = evidence.filter(item => item.run.skill_assessments);
+  const skills = assessed.flatMap(item => item.bundle?.assessments?.skills || []);
+  entry('summary-decisions', '후보 판정', !assessed.length ? '후보 판정 없음' : !skills.length ? '미평가' :
+    [['improved', '상승'], ['not_improved', '변화 없음'], ['unverified', '검증 불충분'], ['rejected', '거절']]
+      .map(([status, label]) => `${label} ${skills.filter(row => row.decision.status === status).length}`).join(' · '));
+  const adoptions = evidence.flatMap(item => item.bundle?.lifecycle?.data.records.adoptions || [])
+    .filter(row => row.state !== 'unknown');
+  entry('summary-adoptions', '채택 기록', adoptions.length ? `${adoptions.length}건` :
+    evidence.some(item => item.error) ? '기록 없음' : 'SkillOps에 채택 기록 없음');
+  const latest = newestAssessment(evidence);
+  const changes = ['cost_nano_aiu', 'elapsed_seconds'].map(key => measurementChange(
+    latest.skill?.applications.base?.measurement?.[key], latest.skill?.applications.candidate?.measurement?.[key]));
+  const display = change => change === null ? '미기록' : `${change > 0 ? '+' : ''}${number(change, 2)}%`;
+  const usage = entry('summary-usage', '최근 평가의 적용 비용·시간',
+    `기존 → 후보 비용 ${display(changes[0])} / 시간 ${display(changes[1])}${changes.some(change => change !== null) ? ' (현장 계산)' : ''}`);
+  if (latest.skill) usage.append(node('small', `${latest.skill.skill_key} · ${stamp(latest.run.created_at)} · Skill 한 건 기준입니다.`));
+  const explanation = node('details', undefined, 'summary-explanation');
+  explanation.append(node('summary', '이 요약은 무엇을 세나요?'),
+    node('p', '공개 이력의 식별자와 평가 상태를 세며, 후보 판정과 채택은 불러와 검증한 공개 근거만 집계합니다. 품질 점수는 평균하지 않으며 비용·시간은 최근 평가의 Skill 한 건만 비교합니다.'));
+  container.append(list, node('p', `후보·채택 집계는 근거를 확인한 실행 ${evidence.filter(item => item.bundle).length}건 기준입니다. 완료·차단·과거 가져오기 집계는 서로 겹칠 수 있습니다.`, 'summary-scope'), explanation);
+  if (evidence.some(item => item.error) || completedReport?.error) {
+    container.append(node('p', '일부 공개 근거를 확인하지 못해 요약이 불완전합니다. 새로고침으로 다시 확인할 수 있습니다.', 'summary-warning'));
+  }
 }
 
 function renderQuality(report, detail) {
@@ -201,7 +336,7 @@ export function renderMetric(container, title, key, metrics) {
     return null;
   }
   const computed = improvement === undefined && base > 0;
-  const change = computed ? (candidate - base) / base * 100 :
+  const change = computed ? measurementChange(base, candidate) :
     typeof improvement === 'number' ? -improvement : null;
   const line = node('div');
   if (change === null || !Number.isFinite(change)) {
