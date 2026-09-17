@@ -9,7 +9,7 @@ async function pageWith(page, index, status = 200, origin = 'http://dashboard.te
       return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(index) });
     }
     const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/app.js': 'app.js',
-      '/views.js': 'views.js', '/evolution.js': 'evolution.js', '/assessments.js': 'assessments.js',
+      '/views.js': 'views.js', '/evolution.js': 'evolution.js', '/assessments.js': 'assessments.js', '/trace.js': 'trace.js',
       '/sample-data.json': 'sample-data.json' };
     if (!assets[name]) return route.fallback();
     const contentType = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' :
@@ -617,6 +617,35 @@ function sortKeys(value) {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, sortKeys(value[key])]));
   return value;
+}
+
+test('exact deep link survives refresh without selecting a newer successful run', async ({ page }) => {
+  await historyPage(page, [historyRun(2, 'baseline', 'completed'), historyRun(1, 'baseline', 'blocked')], true);
+  const query = '?project=sample_repo&run=1-1&skill=legacy%3Asample_repo%3Adevelop';
+  await page.goto(`http://dashboard.test/${query}`);
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/1-1/report.json');
+  await page.getByRole('button', { name: '새로고침', exact: true }).click();
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/1-1/report.json');
+  await page.reload();
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/1-1/report.json');
+  await page.locator('#skill-history-runs [data-run="2-1"]').click();
+  await expect(page).toHaveURL(/run=2-1/);
+  await page.reload();
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/2-1/report.json');
+});
+
+for (const query of [
+  '?project=missing&run=1-1', '?project=sample_repo&run=999-1',
+  '?project=sample_repo&run=1-1&skill=other%3Askill', '?run=1-1',
+  '?project=sample_repo&run=1-1&run=2-1', '?project=sample_repo&run=..%2Freport.json',
+]) {
+  test(`invalid deep link does not fall back: ${query}`, async ({ page }) => {
+    await historyPage(page, [historyRun(1, 'baseline', 'completed')], true);
+    await page.goto(`http://dashboard.test/${query}`);
+    await expect(page.locator('#error')).toBeVisible();
+    await expect(page.locator('#detail')).toBeHidden();
+    await expect(page.locator('#report-link')).not.toHaveAttribute('href', /report.json/);
+  });
 }
 function evolutionFixture({ full = false, baseFull = full, candidateFull = full, omitBaseFiles = [],
   dual = false, twins = false, baseText = 'AS-IS\n', candidateText = 'TO-BE\n' } = {}) {
