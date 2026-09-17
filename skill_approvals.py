@@ -125,6 +125,8 @@ def _environment(folder, *, create=False):
              and project_results.matches(project_results.ID, value["environment_id"]), "invalid_local_environment")
     _require(all(type(value[key]) is type(expected) and value[key] == expected
                  for key, expected in binding.items()), "local_environment_mismatch")
+    _fsync_directory(folder)
+    _fsync_directory(folder.parent)
     return value["environment_id"]
 
 
@@ -147,6 +149,7 @@ def _approval(folder, environment, approval_id):
     evolution.timestamp(value["approved_at"])
     binding = {key: item for key, item in value.items() if key not in ("approval_id", "approved_at")}
     _require(approval_id == "approval-" + _digest(binding)[:48], "approval_binding_mismatch")
+    _fsync_directory(folder / "approvals")
     return value
 
 
@@ -203,6 +206,10 @@ def _active(folder, environment):
             _execution(receipt, approval)
             _require(receipt["execution_id"] == pointer["execution_id"] and receipt["status"] == "verified"
                      and receipt["project_id"] == project_id and receipt["skill_key"] == skill_key, "invalid_active")
+    # A visible replace is not durable until its directory has been synchronized.
+    if value["selections"]:
+        _fsync_directory(folder / "executions")
+    _fsync_directory(folder)
     return value
 
 
@@ -334,9 +341,13 @@ def approve(root, *, project_id, skill_key, candidate_version_id, cycle_id,
         environment = _environment(folder, create=True)
         active = _active(folder, environment)
         _require(_active_version(folder, active, project_id, skill_key) == expected_active_version_id, "stale_active")
+        # Contract revision needed: version-only CAS cannot detect same-version/ABA selections.
+        _require(expected_active_version_id is None, "active_revision_unavailable")
         source, _ = _evidence(root, project_id=project_id, skill_key=skill_key,
                               candidate_version_id=candidate_version_id, cycle_id=cycle_id,
                               evidence_sha256=evidence_sha256, results=results)
+        _require(_environment(folder) == environment, "local_environment_mismatch")
+        _require(_active(folder, environment) == active, "stale_active")
         binding = {
             "schema_version": 1, "project_id": project_id, "skill_key": skill_key, **source,
             "candidate_version_id": candidate_version_id, "cycle_id": cycle_id, "evidence_sha256": evidence_sha256,
@@ -349,6 +360,7 @@ def approve(root, *, project_id, skill_key, candidate_version_id, cycle_id,
             return _approval(folder, environment, identifier)
         value = {**binding, "approval_id": identifier, "approved_at": datetime.now(timezone.utc).isoformat()}
         _write(path, value)
+        _require(_environment(folder) == environment, "local_environment_mismatch")
         return _approval(folder, environment, identifier)
 
 
@@ -359,6 +371,7 @@ def resolve_approved(root, *, project_id, skill_key, approval_id, candidate_vers
     with repositories._state(root) as (folder, _):
         environment = _environment(folder)
         approved = _approval(folder, environment, approval_id)
+        _require(approved["previous_active_version_id"] is None, "active_revision_unavailable")
         _require(all(approved[key] == value for key, value in (
             ("project_id", project_id), ("skill_key", skill_key), ("candidate_version_id", candidate_version_id),
             ("evidence_sha256", evidence_sha256))), "approval_binding_mismatch")
@@ -369,6 +382,9 @@ def resolve_approved(root, *, project_id, skill_key, approval_id, candidate_vers
                                        candidate_version_id=candidate_version_id, cycle_id=approved["cycle_id"],
                                        evidence_sha256=evidence_sha256, results=results)
         _require(all(approved[key] == value for key, value in source.items()), "approval_source_changed")
+        _require(_environment(folder) == environment, "local_environment_mismatch")
+        _require(_approval(folder, environment, approval_id) == approved, "approval_binding_mismatch")
+        _require(_active(folder, environment) == active, "stale_active")
         return approved, candidate
 
 
@@ -384,6 +400,7 @@ def record_execution(root, *, approval, receipt):
         _require(isinstance(approval, dict) and "approval_id" in approval)
         saved = _approval(folder, environment, approval["approval_id"])
         _require(saved == approval, "approval_binding_mismatch")
+        _require(saved["previous_active_version_id"] is None, "active_revision_unavailable")
         _execution(receipt, saved)
         _source(root, saved["project_id"], saved)
         active = _active(folder, environment)
@@ -402,11 +419,15 @@ def record_execution(root, *, approval, receipt):
             for existing in (folder / "executions").glob("*.json"):
                 _require(_read(existing)["run_id"] != receipt["run_id"], "execution_run_exists")
         _write(path, receipt)
+        _require(_environment(folder) == environment, "local_environment_mismatch")
+        _require(_approval(folder, environment, saved["approval_id"]) == saved, "approval_binding_mismatch")
+        _source(root, saved["project_id"], saved)
         if receipt["status"] == "verified":
             # ponytail: one registry lock serializes all Skills; shard only if contention matters.
             _require(_active(folder, environment) == active, "stale_active")
             active["selections"].setdefault(project_id, {})[skill_key] = pointer
             _write(folder / "active.json", active, immutable=False)
+            _require(_environment(folder) == environment, "local_environment_mismatch")
             _require(_active_version(folder, _active(folder, environment), project_id, skill_key)
                      == receipt["loaded_version_id"], "active_write_unverified")
         return receipt
