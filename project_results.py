@@ -16,6 +16,7 @@ import tempfile
 from copilot_runtime import RuntimeFailure, strict_json
 import evolution_records as evolution
 import skill_assessments as assessments
+import evaluation_telemetry as telemetry
 
 
 ID = r"[a-z0-9][a-z0-9_-]{0,63}"
@@ -49,7 +50,7 @@ DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_pa
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
-    "skill_assessments.py", "project_checks.py", "skill_pipeline.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "evaluation_telemetry.py",
 )
 
 
@@ -304,19 +305,23 @@ def merge_results(root, incoming, results):
     snapshots = load_snapshots(incoming, rows)
     lifecycles = load_evolution(incoming, rows, snapshots)
     skill_assessments = load_assessments(incoming, rows, lifecycles)
+    measurements = load_telemetry(incoming, rows, skill_assessments)
     existing_rows = load_reports(results)
     existing_snapshots = load_snapshots(results, existing_rows)
     existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
     existing_assessments = load_assessments(results, existing_rows, existing_lifecycles)
+    existing_measurements = load_telemetry(results, existing_rows, existing_assessments)
     merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
     merged_snapshots = dict(existing_snapshots)
     merged_lifecycles = dict(existing_lifecycles)
     merged_assessments = dict(existing_assessments)
+    merged_measurements = dict(existing_measurements)
     for mapping, values, name in (
         (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
         (merged_snapshots, snapshots, "skill-snapshots.json"),
         (merged_lifecycles, lifecycles, "skill-evolution.json"),
         (merged_assessments, skill_assessments, "skill-assessments.json"),
+        (merged_measurements, measurements, "stage-metrics.json"),
     ):
         for key, value in values.items():
             path = safe_path(Path(results) / key[0] / key[1] / name)
@@ -326,6 +331,8 @@ def merge_results(root, incoming, results):
         validate_evolution(value, merged_rows[key], merged_snapshots.get(key))
     for key, value in merged_assessments.items():
         assessments.validate(value, merged_rows[key], merged_lifecycles.get(key))
+    for key, value in merged_measurements.items():
+        telemetry.validate(value, merged_rows[key], merged_assessments.get(key))
     for row in rows:
         store(results, row)
     for data in snapshots.values():
@@ -334,7 +341,37 @@ def merge_results(root, incoming, results):
         store_evolution(results, data)
     for data in skill_assessments.values():
         store_assessments(results, data)
+    for data in measurements.values():
+        store_telemetry(results, data)
     return reindex(root, results)
+
+
+def store_telemetry(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = Path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    path = safe_path(folder / "skill-assessments.json")
+    assessment = read_json(path) if path.exists() else None
+    if assessment is not None:
+        lifecycle = validate_evolution(read_json(folder / "skill-evolution.json"), report)
+        assessments.validate(assessment, report, lifecycle)
+    telemetry.validate(data, report, assessment)
+    path = folder / "stage-metrics.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_telemetry(results, rows=None, skill_assessments=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): row for row in rows}
+    skill_assessments = load_assessments(results, rows) if skill_assessments is None else skill_assessments
+    values = {}
+    for path in sorted(results.glob("*/*/stage-metrics.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_stage_metrics")
+        values[key] = telemetry.validate(read_json(path), reports[key], skill_assessments.get(key))
+    return values
 
 
 def store_assessments(results, data):
@@ -620,6 +657,7 @@ def reindex(root, results):
     snapshots = load_snapshots(results, all_rows)
     lifecycles = load_evolution(results, all_rows, snapshots)
     skill_assessments = load_assessments(results, all_rows, lifecycles)
+    load_telemetry(results, all_rows, skill_assessments)
     for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
@@ -724,6 +762,7 @@ def build(root, results, output):
     snapshots = load_snapshots(results, rows)
     lifecycles = load_evolution(results, rows, snapshots)
     skill_assessments = load_assessments(results, rows, lifecycles)
+    measurements = load_telemetry(results, rows, skill_assessments)
     output.mkdir(parents=True)
     modules = {}
 
@@ -755,6 +794,8 @@ def build(root, results, output):
         store_evolution(output / "results", data)
     for data in skill_assessments.values():
         store_assessments(output / "results", data)
+    for data in measurements.values():
+        store_telemetry(output / "results", data)
     return reindex(root, output / "results")
 
 
@@ -803,6 +844,7 @@ def main():
             load_snapshots(args.results)
             load_evolution(args.results)
             load_assessments(args.results)
+            load_telemetry(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)
