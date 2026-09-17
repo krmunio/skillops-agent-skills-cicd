@@ -45,6 +45,18 @@ async function comparisonPage(page, snapshots = null) {
   await expect(page.locator('#execution')).toContainText('후보 거절');
 }
 
+test('dashboard branding uses the requested bilingual name without mobile overflow', async ({ page }) => {
+  await pageWith(page, { schema_version: 1, projects: [] });
+  await expect(page).toHaveTitle('Self-Evolving Agent SkillOps · 자가 진화 에이전트 스킬옵스');
+  await expect(page.getByRole('link', { name: 'Self-Evolving Agent SkillOps', exact: true })).toBeVisible();
+  await expect(page.locator('.header-caption')).toHaveText('자가 진화 에이전트 스킬옵스');
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    await expect(page.getByRole('button', { name: '새로고침', exact: true })).toBeVisible();
+  }
+});
+
 test('evaluation and skill changes precede history without inventing real evidence', async ({ page }) => {
   await comparisonPage(page);
   const order = await page.locator('[data-section]').evaluateAll(nodes => nodes.map(node => node.dataset.section));
