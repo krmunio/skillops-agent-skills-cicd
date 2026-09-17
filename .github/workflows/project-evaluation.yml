@@ -125,11 +125,18 @@ jobs:
           SKILLOPS_MAX_INVOCATIONS: ${{ vars.SKILLOPS_MAX_INVOCATIONS }}
           SKILLOPS_MAX_SECONDS: ${{ vars.SKILLOPS_MAX_SECONDS }}
           SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
+          SKILLOPS_ACTIONS_PROGRESS: 'true'
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           args=()
           if [ -n "$PROJECT_ID" ]; then args+=(--project "$PROJECT_ID"); fi
           python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
+      - name: Summarize baseline and project evaluation
+        if: always()
+        env:
+          RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python3 evaluation_reporting.py --results ci-results --run-id "$RESULT_RUN" >> "$GITHUB_STEP_SUMMARY"
       - name: Retain public-safe reports, including blocked outcomes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

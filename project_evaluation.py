@@ -3,6 +3,7 @@
 import argparse
 from contextlib import ExitStack
 from datetime import datetime, timezone
+from functools import partial
 from hashlib import sha256
 import json
 import math
@@ -17,6 +18,7 @@ import repositories
 import project_checks
 import skill_guide
 import skill_pipeline
+import evaluation_reporting
 
 
 class BudgetRuntime:
@@ -133,7 +135,9 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
                 try:
                     evaluated.append(skill_pipeline.evaluate_skill(
                         runtime, "gpt-6-astra", folder, bundle, key, rubric, prepared, artifact,
-                        deadline=budget["deadline"], check_error=check_error))
+                        deadline=budget["deadline"], check_error=check_error,
+                        progress=partial(evaluation_reporting.progress, project["id"], bundle["path"])
+                        if policy.get("progress") else None))
                 except (RuntimeFailure, OSError) as error:
                     failure = {"source_path": bundle["path"],
                                "code": error.code if isinstance(error, RuntimeFailure) else "io_error"}
@@ -167,6 +171,7 @@ def policy_from_environment():
     policy = {
         "enabled": os.environ.get("SKILLOPS_LIVE_EVALUATION_ENABLED") == "true",
         "authenticated": bool(os.environ.get("COPILOT_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN")),
+        "progress": os.environ.get("SKILLOPS_ACTIONS_PROGRESS") == "true",
     }
     try:
         calls = int(os.environ.get("SKILLOPS_MAX_INVOCATIONS", ""))
