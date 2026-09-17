@@ -230,6 +230,54 @@ def protected_files(root):
     return sorted(paths)
 
 
+def replay_sources(root, sources):
+    """Read only pinned existing source; replay never exposes protected file bodies."""
+    from evolution_records import relative_path
+    from project_results import CORE
+    root = Path(root)
+    require(isinstance(sources, dict) and 1 <= len(sources) <= 16, "work_input_limit")
+    protected = set(protected_files(root))
+    bundles = [path.parent for path in root.rglob("SKILL.md")]
+    output, total = {}, 0
+    for name, expected in sources.items():
+        relative_path(name)
+        path = root / name
+        require(name not in protected and name not in CORE
+                and not any(part.startswith(".") or part in ("skills", "eval", "fixtures")
+                            for part in Path(name).parts)
+                and not any(path.is_relative_to(bundle) for bundle in bundles)
+                and path.name not in CONFIG_FILES
+                and not path.name.startswith(("test", "requirements"))
+                and not path.name.endswith("_test.py")
+                and path.suffix in (".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"),
+                "protected_work_source")
+        require(matches(DIGEST, expected), "invalid_work_source")
+        raw = read_file(path, 65536)
+        require(sha256(raw).hexdigest() == expected, "work_inputs_changed")
+        total += len(raw)
+        require(total <= 65536, "work_input_limit")
+        try:
+            output[name] = raw.decode("utf-8")
+        except UnicodeError as error:
+            raise RuntimeFailure("invalid_encoding", "Editable source must be UTF-8.") from error
+        require("\0" not in output[name], "invalid_encoding")
+    return output
+
+
+def replay_outcome(observed, checks):
+    """A runtime/coverage failure is not an observed task-quality failure."""
+    validate_observation(observed)
+    outcomes = []
+    for population, required in (("cases", "required_case_ids"), ("gates", "required_gate_ids")):
+        values = {row["id"]: row["status"] for row in observed[population]}
+        outcomes.extend(values.get(key) for key in checks[required])
+    if "failed" in outcomes:
+        return "not_satisfied"
+    if observed["status"] == "blocked" or not outcomes or any(value != "passed" for value in outcomes):
+        return "unverified"
+    return "satisfied"
+
+
 def dependency_manifest(root, language):
     """Only declarative registry requirements reach the network-enabled resolver."""
     root = Path(root)
