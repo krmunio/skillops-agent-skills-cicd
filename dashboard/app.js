@@ -1,4 +1,4 @@
-import { $, node, labels, purposes, stamp, renderReport, summarizeHistory, renderOverview, renderProjectSummary } from './views.js';
+import { $, node, labels, purposes, stamp, renderReport, summarizeHistory, renderProjectSummary } from './views.js';
 import { validateEvolutionSummary, validateEvolution, renderEvolution, clearEvolution } from './evolution.js';
 import { validateAssessmentSummary, validateAssessments, renderAssessment } from './assessments.js';
 
@@ -98,21 +98,6 @@ function loadEvidence(project, runs, store) {
     catch (error) { return { run, error }; }
   }));
 }
-async function showOverview() {
-  activeProject = null;
-  resetSelection(false);
-  const token = selection, store = cache;
-  $('overview-content').replaceChildren(node('p', '프로젝트 요약을 불러오는 중입니다.', 'empty'));
-  $('project-title').textContent = '프로젝트 평가';
-  const models = await Promise.all(projects.map(async project => {
-    try {
-      const runs = await loadHistory(project, store);
-      const evidence = await loadEvidence(project, runs.filter(run => run.skill_assessments).slice(0, 5), store);
-      return { project, history: runs, evidence };
-    } catch (error) { return { project, history: null, evidence: [], error }; }
-  }));
-  if (token === selection) renderOverview(models, selectProject);
-}
 async function showProjectSummary(project, runs, token, store) {
   const latest = summarizeHistory(runs).newestCompleted;
   const [evidence, completed] = await Promise.all([
@@ -127,12 +112,6 @@ function resetSelection(isSample) {
   activeRun = null; history = [];
   selectedSkill = null;
   clearEvolution();
-  const overview = !isSample && !activeProject;
-  $('catalog-overview').hidden = !overview;
-  $('project-header').hidden = overview;
-  $('project-navigation').hidden = overview;
-  $('history-section').hidden = overview;
-  $('overview-back').hidden = isSample;
   $('project-summary').hidden = true;
   $('project-summary').replaceChildren();
   $('detail').hidden = true;
@@ -392,7 +371,6 @@ async function refresh() {
   $('project-title').textContent = '프로젝트 평가';
   $('skill-select').replaceChildren(node('option', 'Skill 정보 미기록'));
   $('skill-select').disabled = true;
-  $('overview-content').replaceChildren(node('p', '프로젝트 목록을 불러오는 중입니다.', 'empty'));
   try {
     const index = await load('/results/index.json');
     if (token !== selection) return;
@@ -415,17 +393,18 @@ async function refresh() {
       button.addEventListener('click', () => selectProject(project));
       $('projects').append(button);
     }
-    await showOverview();
+    if (projects.length) await selectProject(projects[0]);
+    else {
+      $('projects').append(node('p', '등록된 프로젝트가 없습니다.', 'muted'));
+      $('origin').textContent = '프로젝트 없음';
+      $('selection-summary').textContent = '프로젝트를 등록하거나 샘플 화면을 확인하세요.';
+      renderHistory();
+    }
   } catch (error) { if (token === selection) fail(error); }
 }
 $('refresh').addEventListener('click', refresh);
 $('demo-open').addEventListener('click', openSample);
 $('exit-sample').addEventListener('click', refresh);
-$('overview-back').addEventListener('click', event => {
-  event.preventDefault();
-  showOverview();
-  $('overview-title').focus();
-});
 $('history-filter').addEventListener('change', renderHistory);
 $('skill-select').addEventListener('change', () => {
   try {

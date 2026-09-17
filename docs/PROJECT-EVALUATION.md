@@ -176,16 +176,16 @@ The real history still uses public v1 reports, with optional validated snapshot
 and evolution sidecars now supporting reviewed skill versions and dashboard history.
 The new assessment sidecar adds actual project-scoped guide and candidate evidence when available.
 
-The dashboard opens with a catalog overview of public history counts and recent
-candidate decisions; selecting a project opens a summary card above the run detail.
-The overview validates at most the five newest referenced assessment runs per
-project, including their bound evidence. The project card loads referenced evolution
-evidence on selection, counts assessed candidates and known adoption observations,
+The dashboard opens the first registered project directly and adds a per-project
+summary card above the run detail, without a catalog-wide overview. Only the
+selected project's history and referenced evidence are loaded; the sidebar switches
+between projects. The card counts assessed candidates and known adoption observations
 and compares application cost/time for only the first Skill in the newest assessed
 run. Stable identifiers and legacy identifiers are counted separately, and history
-categories can overlap. Neither view averages scores, totals usage across runs or
+categories can overlap. The card never averages scores, totals usage across runs or
 Skills, invents missing measurements, or treats completion or a candidate verdict
-as a pass, adoption, installation or deployment.
+as a pass, adoption, installation or deployment. Synthetic sample data stays separate
+and does not receive a real-project summary card.
 
 Keep these evidence scopes distinct:
 

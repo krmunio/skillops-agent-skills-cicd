@@ -39,20 +39,7 @@ aside h2 { font-size: 13px; margin: 0 8px 18px; }
 #demo-open[aria-pressed="true"] { border-color: var(--teal); color: var(--teal); }
 main { min-width: 0; padding: 26px 32px 36px; }
 .intro { margin-bottom: 20px; }
-#overview-back { display: inline-block; margin-bottom: 12px; font-size: 12px; }
-.overview-counts { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 20px 0 12px; font-size: 13px; }
-.overview-table { max-width: 100%; border: 1px solid var(--line); border-radius: 6px; background: white; }
-.overview-table table { min-width: 860px; }
-.overview-table th, .overview-table td { padding: 14px 12px; }
-.overview-table tr > :first-child { padding-left: 12px; }
-.overview-table th { white-space: nowrap; }
-.overview-table tbody tr { cursor: pointer; }
-.overview-table tbody tr:hover, .overview-table tbody tr:focus-within { background: #f0f7f8; }
-.overview-table td:first-child { min-width: 150px; }
-.overview-table td:last-child { min-width: 180px; }
-.overview-project { border: 0; background: transparent; padding: 0; text-align: left; color: var(--teal); font-weight: 650; overflow-wrap: anywhere; }
-.overview-project-state { display: block; margin-top: 6px; }
-.overview-note, .summary-scope { color: var(--muted); font-size: 12px; }
+.summary-scope { color: var(--muted); font-size: 12px; }
 .summary-warning { color: var(--red); font-size: 12px; }
 .project-summary { margin-bottom: 18px; }
 .project-summary h2 { margin: 0 0 12px; font-size: 17px; }
