@@ -19,7 +19,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, summary:focus-visib
 select { background: white; border: 1px solid var(--line); border-radius: 4px; padding: 7px 25px 7px 10px; max-width: 100%; }
 select:disabled { color: var(--muted); }
 .site-header { min-height: 66px; display: flex; align-items: center; gap: 28px; padding: 12px 32px; background: white; border-bottom: 1px solid var(--ink); }
-.brand { font-size: 25px; letter-spacing: -1px; font-weight: 750; color: var(--ink); text-decoration: none; white-space: nowrap; }
+.brand { font-size: 25px; letter-spacing: -1px; font-weight: 750; color: var(--ink); text-decoration: none; }
 .brand-mark { color: var(--teal); font-size: 24px; margin-right: 3px; }
 .header-caption { color: var(--muted); font-size: 12px; }
 .header-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; font-size: 12px; }
