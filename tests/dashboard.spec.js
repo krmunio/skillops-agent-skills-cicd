@@ -1516,6 +1516,96 @@ test.describe('design regressions', () => {
   });
 });
 
+test.describe('visual identity', () => {
+  test('the brand shell separates navigation without changing labels or empty outcomes', async ({ page }) => {
+    await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+    await expect(page.getByRole('link', { name: 'Self-Evolving Agent SkillOps', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '새로고침', exact: true })).toBeVisible();
+    await expect(page.locator('aside')).toHaveCSS('background-color', 'rgb(20, 43, 58)');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(244, 246, 248)');
+    await expect(page.locator('#refresh')).toHaveCSS('background-color', 'rgb(8, 117, 131)');
+    await expect(page.locator('.summary-heading')).toContainText('프로젝트 평가 요약');
+    await expect(page.locator('#summary-decisions')).toHaveText('후보 판정 없음');
+    await expect(page.locator('.summary-decision')).toHaveCount(0);
+    await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+    await expect(page.locator('#execution .decision-title')).toHaveText('차단');
+    await expect(page.locator('#cost-card .decision-title')).toHaveText('미기록');
+  });
+
+  for (const width of [1440, 390]) {
+    test(`brand and selected controls retain readable text and focus contrast at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+      await expect(page.locator('.section-nav [aria-current]')).toBeVisible();
+      await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).focus();
+      const contrasts = await page.evaluate(() => {
+        const style = selector => getComputedStyle(document.querySelector(selector));
+        const luminance = color => {
+          const channels = color.match(/[\d.]+/g).slice(0, 3).map(channel => {
+            const value = Number(channel) / 255;
+            return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+          });
+          return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+        };
+        const ratio = (foreground, background) => {
+          const values = [luminance(foreground), luminance(background)].sort((left, right) => right - left);
+          return (values[0] + .05) / (values[1] + .05);
+        };
+        const selected = '.project[aria-pressed="true"]';
+        const pairs = [
+          ['body', style('body').color, style('body').backgroundColor],
+          ['description', style('.freshness').color, style('body').backgroundColor],
+          ['project', style(`${selected} strong`).color, style(selected).backgroundColor],
+          ['project metadata', style(`${selected} small`).color, style(selected).backgroundColor],
+          ['refresh', style('#refresh').color, style('#refresh').backgroundColor],
+          ['section navigation', style('.section-nav [aria-current]').color, style('.section-nav [aria-current]').backgroundColor],
+          ['summary label', style('.summary-label').color, style('.summary-heading').backgroundColor],
+          ['sample entry', style('#demo-open').color, style('aside').backgroundColor],
+        ];
+        return {
+          text: pairs.map(([name, foreground, background]) => ({ name, ratio: ratio(foreground, background) })),
+          focus: ratio(style('#demo-open').outlineColor, style('aside').backgroundColor),
+        };
+      });
+      for (const result of contrasts.text) expect(result.ratio, result.name).toBeGreaterThanOrEqual(4.5);
+      expect(contrasts.focus).toBeGreaterThanOrEqual(3);
+      await expect(page.locator('#demo-open')).toHaveCSS('outline-style', 'solid');
+    });
+  }
+
+  test('candidate summary keeps counts, unknowns and missing evidence distinct', async ({ page }) => {
+    const run = historyRun(1, 'project_assessment', 'completed', 'completed');
+    await historyPage(page, [run]);
+    await expect(page.locator('#summary-history')).toBeVisible();
+    await page.evaluate(async run => {
+      const { renderProjectSummary } = await import('/views.js');
+      const assessed = { ...run, skill_assessments: `${run.run_id}/skill-assessments.json` };
+      const skills = ['improved', 'improved', 'not_improved', 'unverified', 'rejected'].map((status, index) => ({
+        skill_key: `path:${String(index).padStart(24, '0')}`, decision: { status },
+        applications: { base: null, candidate: null },
+      }));
+      renderProjectSummary([assessed], [{ run: assessed, bundle: { assessments: { skills } } }]);
+    }, run);
+    await expect(page.locator('#summary-decisions')).toHaveText('상승 2 · 변화 없음 1 · 검증 불충분 1 · 거절 1');
+    await expect(page.locator('.summary-decision')).toHaveCount(4);
+    await expect(page.locator('.summary-decision-count')).toHaveText(['2', '1', '1', '1']);
+    await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await expect(page.locator('.summary-decision-count').first()).toHaveCSS('font-size', width <= 600 ? '24px' : '28px');
+    }
+    await page.evaluate(async run => {
+      const { renderProjectSummary } = await import('/views.js');
+      renderProjectSummary([run], [{ run: { ...run, skill_assessments: `${run.run_id}/skill-assessments.json` }, error: true }]);
+    }, run);
+    await expect(page.locator('#summary-decisions')).toHaveText('미평가');
+    await expect(page.locator('.summary-decision')).toHaveCount(0);
+    await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
+    await expect(page.locator('.summary-warning')).toBeVisible();
+  });
+});
+
 test('the project summary preserves a policy-stamped assessment verdict rather than relabelling an efficiency regression as improved', async ({ page }) => {
   const fixture = assessmentCatalog(1, { legacy: false }), row = fixture.fixtures[0].details.skills[0];
   row.applications.base.measurement = { cost_nano_aiu: 1e9, elapsed_seconds: 100 };
