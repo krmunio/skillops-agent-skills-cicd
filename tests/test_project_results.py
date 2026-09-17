@@ -5,8 +5,10 @@ import importlib.util
 from hashlib import sha256
 import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
+from unittest import mock
 
 
 class ProjectResultsTests(unittest.TestCase):
@@ -150,13 +152,68 @@ class ProjectResultsTests(unittest.TestCase):
             real = m.load_reports(root / "results")
             m.build(root, root / "results", output)
             self.assertTrue((output / "sample-data.json").is_file(), "sample view asset must be deployed")
-            self.assertTrue((output / "views.js").is_file())
+            self.assertEqual(len(list(output.glob("views.*.js"))), 1)
             sample = json.loads((output / "sample-data.json").read_text())
             self.assertIs(sample["synthetic"], True)
             self.assertEqual(m.load_reports(output / "results"), real)
             self.assertNotIn(sample["project_id"], [
                 item["id"] for item in json.loads((output / "results/index.json").read_text())["projects"]
             ])
+
+    def test_build_hashes_final_modules_and_resolves_entrypoint_and_imports(self):
+        module = self.module()
+        root = Path(__file__).resolve().parents[1]
+        names = ("app", "views", "evolution", "assessments")
+        originals = {name: (root / "dashboard" / f"{name}.js").read_bytes() for name in names}
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "site"
+            module.build(root, root / "results", output)
+            scripts = list(output.glob("*.js"))
+            self.assertEqual(len(scripts), len(names))
+            for script in scripts:
+                self.assertRegex(script.name, r"^(app|views|evolution|assessments)\.[a-f0-9]{12}\.js$")
+                self.assertEqual(script.name.split(".")[1], sha256(script.read_bytes()).hexdigest()[:12])
+                source = script.read_text(encoding="utf-8")
+                for imported in re.findall(r"\bfrom\s+['\"]\./([^'\"]+)['\"]", source):
+                    self.assertTrue((output / imported).is_file(), imported)
+                    self.assertRegex(imported, r"\.[a-f0-9]{12}\.js$")
+            index = (output / "index.html").read_text(encoding="utf-8")
+            entrypoints = re.findall(r'<script src="/([^\"]+)" type="module">', index)
+            self.assertEqual(entrypoints, [next(output.glob("app.*.js")).name])
+            self.assertNotIn('src="/app.js"', index)
+            config = json.loads((output / "staticwebapp.config.json").read_text())
+            routes = {row["route"]: row["headers"]["Cache-Control"] for row in config["routes"]}
+            self.assertEqual(routes["/results/*"], "no-store")
+            self.assertEqual(routes["/index.html"], "no-cache")
+            self.assertEqual({route for route, header in routes.items() if "immutable" in header},
+                             {f"/{script.name}" for script in scripts})
+            for script in scripts:
+                self.assertEqual(routes[f"/{script.name}"], "public, max-age=31536000, immutable")
+            self.assertEqual(config["globalHeaders"], module.read_json(root / "dashboard/staticwebapp.config.json")["globalHeaders"])
+            for name in names:
+                self.assertFalse((output / f"{name}.js").exists())
+                self.assertEqual((root / "dashboard" / f"{name}.js").read_bytes(), originals[name])
+
+    def test_build_dependency_changes_invalidate_importers_without_changing_source_files(self):
+        module = self.module()
+        root = Path(__file__).resolve().parents[1]
+        read_bytes = module.read_bytes
+
+        def changed_dependency(path, *args):
+            raw = read_bytes(path, *args)
+            return raw + b"\n" if Path(path) == root / "dashboard/views.js" else raw
+
+        with tempfile.TemporaryDirectory() as temp:
+            original, repeated, changed = (Path(temp) / name for name in ("original", "repeated", "changed"))
+            module.build(root, root / "results", original)
+            module.build(root, root / "results", repeated)
+            self.assertEqual(sorted(path.name for path in original.glob("*.js")),
+                             sorted(path.name for path in repeated.glob("*.js")))
+            with mock.patch.object(module, "read_bytes", side_effect=changed_dependency):
+                module.build(root, root / "results", changed)
+            for name in ("app", "views", "evolution", "assessments"):
+                self.assertNotEqual(next(original.glob(f"{name}.*.js")).name,
+                                    next(changed.glob(f"{name}.*.js")).name)
 
     def snapshot(self, report):
         m = self.module()

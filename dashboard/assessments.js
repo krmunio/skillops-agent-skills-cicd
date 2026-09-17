@@ -3,7 +3,12 @@ import { check, exact, canonical, safePath, digest } from './evolution.js';
 
 const hash = /^[a-f0-9]{64}$/;
 const version = /^sha256:[a-f0-9]{64}$/;
-const states = { improved: '개선 확인', not_improved: '개선 미확인', rejected: '후보 거절', unverified: '검증 불충분' };
+const states = { improved: '품질 점수 상승 (회귀 없음)', not_improved: '개선 미확인', rejected: '후보 거절', unverified: '검증 불충분' };
+const dimensionLabels = {
+  trigger_description: '사용 조건 설명', workflow_clarity: '작업 흐름 명확성', generalization: '일반화',
+  instruction_quality: '지침 품질', progressive_disclosure: '단계적 정보 제공',
+  resource_organization: '리소스 구성', principle_of_lack_of_surprise: '예측 가능한 동작',
+};
 const outcomes = { passed: '통과', failed: '실패', error: '오류', skipped: '건너뜀', expected_failure: '예상 실패' };
 const encoder = new TextEncoder();
 const failure = state => ['failed', 'error'].includes(state);
@@ -227,8 +232,11 @@ export function renderAssessment(data, key) {
   $('quality-summary').textContent = '선택 Skill · 실제 버전 평가';
   const dimensions = new Map([...(base?.dimensions || []), ...(candidate?.dimensions || [])].map(item => [item.id, item.id]));
   const score = (quality, id) => quality?.dimensions.find(item => item.id === id)?.score ?? '미평가';
-  $('guide').replaceChildren(table(['평가 항목', '기존 → 후보'], [...dimensions.keys()].map(id =>
-    [id, `${score(base, id)} → ${score(candidate, id)}`])));
+  $('guide').replaceChildren(table(['평가 항목', '기존 → 후보'], [...dimensions.keys()].map(id => {
+    const label = node('span', dimensionLabels[id] ?? '기타 평가 항목');
+    label.append(node('small', id, 'dimension-id'));
+    return [label, `${score(base, id)} → ${score(candidate, id)}`];
+  })));
   for (const [label, quality] of [['기존', base], ['후보', candidate]]) {
     $('guide').append(node('p', `${label}: ${quality?.status === 'completed' ? '평가 완료' : '검증 불충분'}`, 'reason'));
     for (const finding of quality?.findings || []) $('guide').append(node('p', `${label} · ${finding.message}`, 'reason'));
@@ -236,14 +244,25 @@ export function renderAssessment(data, key) {
   $('improvement-evidence').replaceChildren(node('strong', '관측된 문제'));
   for (const finding of base?.findings || []) $('improvement-evidence').append(node('p', finding.message));
   if (!base?.findings.length) $('improvement-evidence').append(node('p', '정적 검사 지적 사항 없음 · 점수 변화는 위에서 확인'));
-  $('improvement-evidence').append(node('strong', '개선 가설 · 검증 결과와 구분'),
-    node('p', row.generation.hypothesis ?? '가설 미기록'),
+  const hypothesis = node('details', undefined, 'hypothesis');
+  hypothesis.append(node('summary', '모델이 제시한 가설 (영문 원문)'),
+    node('p', row.generation.hypothesis ?? '가설 미기록'));
+  $('improvement-evidence').append(hypothesis,
     node('p', `후보 생성: ${row.generation.status} · 근거 연결 ${row.generation.addressed_findings.length}건`, 'reason'),
     node('p', '생성된 작업과 가설은 과거 실제 작업 이력 또는 개선의 증명이 아닙니다.', 'reason'));
+  if (row.generation.hypothesis === null) $('improvement-evidence').append(node('p', '가설 미기록', 'reason'));
   $('execution').className = `outcome-card ${row.decision.status === 'rejected' ? 'rejected' : ''}`;
+  const heading = node('div', undefined, 'decision-heading');
+  heading.append(node('strong', states[row.decision.status], 'decision-title'));
   $('execution').replaceChildren(node('h3', '선택 Skill 후보 판정'),
-    node('strong', states[row.decision.status], 'decision-title'),
+    heading,
     node('p', '후보 검증 결과이며 원본 변경·채택·배포를 의미하지 않습니다.', 'reason'));
+  const changed = [...dimensions.keys()].filter(id => typeof score(base, id) === 'number' &&
+    typeof score(candidate, id) === 'number' && score(base, id) !== score(candidate, id));
+  if (changed.length || row.decision.status === 'improved') {
+    heading.after(node('p', changed.length ? changed.map(id => `${id} ${score(base, id)} → ${score(candidate, id)}`).join(' · ') :
+      '기록된 품질 점수 변화 없음', 'dimension-changes'));
+  }
   $('execution-scope').textContent = row.decision.regression.status === 'passed' ?
     '동일한 검사와 환경을 사용한 검증 범위에서 회귀 미발견. 프로젝트 전체의 부작용 부재를 보장하지 않습니다.' :
     '프로젝트 회귀가 발견됐거나 검증이 불충분합니다. 후보를 안전한 변경으로 간주하지 않습니다.';
@@ -264,6 +283,9 @@ export function renderAssessment(data, key) {
   for (const arm of ['base', 'candidate']) {
     for (const name of ['cost_nano_aiu', 'elapsed_seconds']) metrics[`${arm}_${name}`] = row.applications[arm]?.measurement?.[name] ?? null;
   }
-  renderMetric($('cost-card'), 'Skill 적용 비용 · 기존 → 후보', 'cost_nano_aiu', metrics);
-  renderMetric($('time-card'), 'Skill 적용 시간 · 기존 → 후보', 'elapsed_seconds', metrics);
+  const changes = [renderMetric($('cost-card'), 'Skill 적용 비용 · 기존 → 후보', 'cost_nano_aiu', metrics),
+    renderMetric($('time-card'), 'Skill 적용 시간 · 기존 → 후보', 'elapsed_seconds', metrics)];
+  if (changes.some(change => change !== null && change > 5)) {
+    heading.append(node('span', '비용·시간 증가 주의', 'badge review efficiency-warning'));
+  }
 }
