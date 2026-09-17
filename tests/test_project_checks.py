@@ -29,6 +29,71 @@ def observation(cases=None, **changes):
 
 
 class ProjectChecksTests(unittest.TestCase):
+    def test_static_dependencies_allow_source_tree_checks_without_running_legacy_setup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            setup = "raise RuntimeError('setup must never execute')\n"
+            (root / "setup.py").write_text(setup)
+            (root / "setup.cfg").write_text("[metadata]\nname = fixture\n")
+            (root / "pyproject.toml").write_text(
+                '[project]\nname = "fixture"\ndynamic = ["version", "authors"]\n'
+                'dependencies = ["pytz"]\n[tool.pytest.ini_options]\n')
+            manifest = checks.dependency_manifest(root, "python")
+            self.assertEqual(manifest, {"requirements.txt": "pytz\npytest\n"})
+            self.assertEqual((root / "setup.py").read_text(), setup)
+            for dynamic in ('["dependencies"]', '["optional-dependencies"]', '"version"'):
+                (root / "pyproject.toml").write_text(f'[project]\ndependencies = []\ndynamic = {dynamic}\n')
+                with self.subTest(dynamic=dynamic), self.assertRaises(RuntimeFailure):
+                    checks.dependency_manifest(root, "python")
+            (root / "pyproject.toml").unlink()
+            with self.assertRaises(RuntimeFailure):
+                checks.dependency_manifest(root, "python")
+
+    def test_pytest_source_hints_are_inspected_without_imports(self):
+        for source in ("import pytest\nraise RuntimeError('do not execute')\n",
+                       "from pytest import fixture\n",
+                       "def test_behavior(): assert True\n"):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                (root / "test_api.py").write_text(source)
+                self.assertEqual(checks.discover(root)["checks"][0]["runner"], "pytest")
+                self.assertIn("pytest", checks.dependency_manifest(root, "python")["requirements.txt"])
+
+    def test_mixed_checks_run_supported_python_but_preserve_unexecuted_harnesses(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "tests/server").mkdir(parents=True)
+            (root / "tests/test_api.py").write_text("import pytest\n")
+            (root / "tests/test_shell.sh").write_text("exit 0\n")
+            (root / "tests/server/package.json").write_text(json.dumps({
+                "scripts": {"test": "node custom.js && bash wrapper.sh"}}))
+            plan = checks.discover(root)
+            self.assertEqual(plan["status"], "partial")
+            self.assertEqual(plan["checks"][0]["runner"], "pytest")
+            self.assertEqual({item["path"] for item in plan["exclusions"]},
+                             {"tests/test_shell.sh", "tests/server/package.json"})
+            output = CompletedProcess([], 0, json.dumps({
+                "status": "completed", "cases": [{"id": "test_api.py::test_one", "status": "passed"}]}), "")
+            with patch.object(checks, "container_capture", return_value=output) as execute:
+                observed = checks.execute(root, plan, {"python": "sha256:" + "a" * 64})
+            self.assertEqual(execute.call_count, 1)
+            self.assertEqual(observed["status"], "blocked")
+            self.assertEqual(observed["cases"][0]["status"], "passed")
+            self.assertEqual(len(observed["gates"]), 2)
+            self.assertTrue(all(gate["status"] == "error" for gate in observed["gates"]))
+            self.assertTrue(any("tests/server/package.json" in gate["id"] for gate in observed["gates"]))
+            self.assertEqual(checks.compare(observed, observed, observed)["status"], "unverified")
+
+    def test_zero_collected_cases_are_blocked_even_if_the_runner_returns_success(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("import unittest\n")
+            output = CompletedProcess([], 0, '{"status":"completed","cases":[]}', "")
+            with patch.object(checks, "container_capture", return_value=output):
+                result = checks.execute(root, checks.discover(root), {"python": "sha256:" + "a" * 64})
+            self.assertEqual(result["status"], "blocked")
+            self.assertEqual(result["cases"], [])
+
     def test_proxy_closes_an_incomplete_client_when_preparation_is_cancelled(self):
         entered = threading.Event()
         parse = checks.BaseHTTPRequestHandler.parse_request
