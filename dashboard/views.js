@@ -159,57 +159,9 @@ export function summarizeHistory(runs) {
     unassessed: runs.filter(run => !completed(run) && !blocked(run) && !imported(run)).length };
 }
 
-const summaryDecisions = { improved: '품질 점수 상승 · 회귀 없음', not_improved: '변화 없음',
-  unverified: '검증 불충분', rejected: '후보 거절' };
-
 function newestAssessment(evidence) {
   const newest = evidence.find(item => item.run.skill_assessments);
   return { run: newest?.run, skill: newest?.bundle?.assessments?.skills[0] ?? null };
-}
-
-export function renderOverview(models, onSelect) {
-  const container = $('overview-content');
-  const summaries = models.map(model => model.history === null ? null : summarizeHistory(model.history));
-  const complete = summaries.every(summary => summary !== null);
-  const counts = node('p', undefined, 'overview-counts');
-  counts.append(node('span', `프로젝트 ${models.length}개`));
-  for (const [key, label] of [['completed', '완료 평가'], ['blocked', '차단 기록']]) {
-    counts.append(node('span', complete ? `${label} ${summaries.reduce((total, summary) => total + summary[key], 0)}건` : `${label}: 기록 없음`));
-  }
-  container.replaceChildren(counts);
-  if (!models.length) {
-    container.append(node('p', '등록된 프로젝트가 없습니다.', 'empty'));
-    return;
-  }
-  const states = { active: '등록', blocked: '차단', removed: '등록 해제' };
-  const rows = models.map((model, index) => {
-    const { project } = model, summary = summaries[index];
-    const identity = node('div');
-    const button = node('button', project.id, 'overview-project');
-    button.type = 'button';
-    button.setAttribute('aria-label', `${project.id} 프로젝트 열기`);
-    const state = node('div', undefined, 'overview-project-state');
-    state.append(node('span', states[project.state], `badge ${project.state}`));
-    identity.append(button, state);
-    const latest = newestAssessment(model.evidence || []).skill;
-    return [identity, summary?.skills ?? '기록 없음', summary?.completed ?? '기록 없음',
-      summary ? summary.newestCompleted ? stamp(summary.newestCompleted.created_at) : '없음' : '기록 없음',
-      summary?.blocked ?? '기록 없음', summary?.imported ?? '기록 없음',
-      latest ? summaryDecisions[latest.decision.status] : '미평가'];
-  });
-  const grid = table(['프로젝트', 'Skill', '완료 평가', '최근 완료', '차단·설정 필요', '과거 가져오기', '최근 후보 판정'], rows);
-  grid.classList.add('overview-table');
-  grid.tabIndex = 0;
-  grid.setAttribute('role', 'region');
-  grid.setAttribute('aria-label', '프로젝트 요약 표');
-  grid.querySelectorAll('tbody tr').forEach((row, index) => {
-    row.dataset.project = models[index].project.id;
-    row.addEventListener('click', () => onSelect(models[index].project));
-  });
-  container.append(grid, node('p', '완료 평가와 후보 판정은 채택 여부가 아닙니다. 채택 기록은 각 프로젝트 화면에서 확인합니다.', 'overview-note'));
-  if (models.some(model => model.error || model.evidence.some(item => item.error))) {
-    container.append(node('p', '일부 공개 기록을 확인하지 못했습니다. 확인하지 못한 값은 미평가 또는 기록 없음으로 표시합니다.', 'summary-warning'));
-  }
 }
 
 export function renderProjectSummary(runs = null, evidence = [], completedReport = null) {
