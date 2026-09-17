@@ -20,7 +20,7 @@ import evaluation_telemetry as telemetry
 
 
 ID = r"[a-z0-9][a-z0-9_-]{0,63}"
-RUN = r"(?:[0-9]+-[0-9]+|(?:import-|local-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})"
+RUN = r"(?:[0-9]+-[0-9]+|(?:import-|local-|sample-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})"
 LIMIT = 1024 * 1024
 EVOLUTION_LIMIT = 2 * LIMIT
 FIELDS = {
@@ -121,7 +121,8 @@ def validate(row):
     require(isinstance(row, dict) and set(row) == FIELDS)
     require(type(row["schema_version"]) is int and row["schema_version"] == 1)
     require(matches(ID, row["project_id"]) and matches(RUN, row["run_id"]))
-    require(row["origin"] in ("github_actions", "historical_import", "local"))
+    require(row["origin"] in ("github_actions", "historical_import", "local", "sample"))
+    require(row["run_id"].startswith("sample-") == (row["origin"] == "sample"))
     require(row["purpose"] in ("project_assessment", "baseline", "comparison", "candidate", "calibration"))
     require(isinstance(row["created_at"], str) and len(row["created_at"]) <= 40)
     try:
@@ -134,7 +135,11 @@ def validate(row):
         require(row[key] is None or matches(r"[a-f0-9]{" + str(length) + "}", row[key]))
     require(row["source_schema_version"] is None or
             (type(row["source_schema_version"]) is int and row["source_schema_version"] in (1, 2)))
-    if row["origin"] == "historical_import":
+    if row["origin"] == "sample":
+        require(all(row[key] is None for key in (
+            "source_commit", "project_tree_sha256", "evaluator_sha256",
+            "source_report_sha256", "source_schema_version")))
+    elif row["origin"] == "historical_import":
         require(row["source_commit"] is None and row["project_tree_sha256"] is None)
         require(row["source_report_sha256"] is not None and row["source_schema_version"] in (1, 2))
     else:
@@ -166,6 +171,9 @@ def validate(row):
         if requested is not None:
             for key in ("attempted", "evaluation_completed", "correctness_successes", "judge_score_denominator"):
                 require(metrics.get(key) is None or metrics[key] <= requested)
+    if row["origin"] == "sample":
+        require(all(row[part]["decision"] is None for part in ("guide", "execution")))
+        require(all((row[part]["metrics"] or {}).get("cli_invocations", 0) == 0 for part in ("guide", "execution")))
     return row
 
 
@@ -345,6 +353,20 @@ def merge_results(root, incoming, results):
         store_assessments(results, data)
     for data in measurements.values():
         store_telemetry(results, data)
+    return reindex(root, results)
+
+
+def merge_samples(root, results):
+    source = Path(root) / "results"
+    for report in load_reports(source):
+        if report["origin"] != "sample":
+            continue
+        folder = source / report["project_id"] / report["run_id"]
+        lifecycle = validate_evolution(read_json(folder / "skill-evolution.json", EVOLUTION_LIMIT), report)
+        assessment = assessments.validate(read_json(folder / "skill-assessments.json"), report, lifecycle)
+        store(results, report)
+        store_evolution(results, lifecycle)
+        store_assessments(results, assessment)
     return reindex(root, results)
 
 
@@ -670,7 +692,7 @@ def reindex(root, results):
         rows = sorted(grouped.get(identifier, []), key=lambda row: (row["created_at"], row["run_id"]), reverse=True)
         active = current.get(identifier)
         matching = [row for row in rows if active and not active["error"]
-                    and row["origin"] != "historical_import"
+                    and row["origin"] in ("github_actions", "local")
                     and row["project_tree_sha256"] == active["tree_sha256"]
                     and row["evaluator_sha256"] == fingerprint]
         entry = {
@@ -681,7 +703,7 @@ def reindex(root, results):
         }
         if active and not active["error"]:
             prior = [skill_assessments[(identifier, row["run_id"])] for row in rows
-                     if (identifier, row["run_id"]) in skill_assessments]
+                     if row["origin"] != "sample" and (identifier, row["run_id"]) in skill_assessments]
             try:
                 bundles = skill_guide.discover(Path(root) / "projects" / identifier)
                 require(len(bundles) <= 256, "skill_inventory_limit")
@@ -776,8 +798,6 @@ def import_history(source, target, project):
 
 
 def build(root, results, output):
-    import dashboard_samples
-
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
     rows = load_reports(results)
@@ -818,12 +838,7 @@ def build(root, results, output):
         store_assessments(output / "results", data)
     for data in measurements.values():
         store_telemetry(output / "results", data)
-    index = reindex(root, output / "results")
-    for entry in index["projects"]:
-        if entry["id"] in dashboard_samples.PROJECTS and entry["detected_skills"] and not entry["skill_discovery_error"]:
-            atomic_json(output / f"sample-{entry['id']}.json",
-                        dashboard_samples.project_sample(entry["id"], entry["detected_skills"]))
-    return index
+    return reindex(root, output / "results")
 
 
 def main():
@@ -838,6 +853,8 @@ def main():
     merge = sub.add_parser("merge")
     merge.add_argument("--incoming", type=Path, required=True)
     merge.add_argument("--results", type=Path, required=True)
+    samples = sub.add_parser("merge-samples")
+    samples.add_argument("--results", type=Path, required=True)
     legacy = sub.add_parser("import-history")
     legacy.add_argument("--source", type=Path, required=True)
     legacy.add_argument("--results", type=Path, default=Path("results"))
@@ -877,6 +894,8 @@ def main():
             reindex(args.root, args.results)
         elif args.command == "merge":
             value = merge_results(args.root, args.incoming, args.results)
+        elif args.command == "merge-samples":
+            value = merge_samples(args.root, args.results)
         elif args.command == "import-skill-snapshots":
             value = {"attached": import_skill_snapshots(
                 args.source, args.results, args.project, args.candidate_run, args.skill_id)}

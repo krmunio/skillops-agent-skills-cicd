@@ -212,6 +212,7 @@ jobs:
             git -C .results-worktree fetch origin evaluation-results
             target="$RUNNER_TEMP/results-attempt-$attempt"
             git -C .results-worktree worktree add --detach "$target" FETCH_HEAD
+            python3 project_results.py merge-samples --results "$target/results"
             python3 project_results.py merge --incoming ci-results --results "$target/results"
             git -C "$target" add -- results
             if git -C "$target" diff --cached --quiet; then

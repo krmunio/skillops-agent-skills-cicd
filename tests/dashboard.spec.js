@@ -345,136 +345,64 @@ test('sample skill and run selection keep baseline and candidate evidence separa
   await expect(page.locator('#cost-card')).not.toContainText('1.64%');
 });
 
-let generatedProjectSamples;
-function projectSampleData() {
-  if (!generatedProjectSamples) {
-    const { execFileSync } = require('node:child_process');
-    generatedProjectSamples = JSON.parse(execFileSync('python3', ['-c', `
-import json, tempfile
-from pathlib import Path
-import project_results, dashboard_samples
-with tempfile.TemporaryDirectory() as folder:
-    entries = project_results.reindex(Path.cwd(), Path(folder))["projects"]
-    projects = [entry for entry in entries if entry["id"] in dashboard_samples.PROJECTS]
-    print(json.dumps({"projects": projects, "samples": {
-        entry["id"]: dashboard_samples.project_sample(entry["id"], entry["detected_skills"])
-        for entry in projects}}, ensure_ascii=False))
-`], { encoding: 'utf8' }));
+async function nativeExamplePage(page) {
+  const projects = [];
+  for (const id of ['project-a', 'project-b']) {
+    const stored = JSON.parse(fs.readFileSync(`results/${id}/index.json`, 'utf8'));
+    const history = stored.history.filter(run => run.origin === 'sample');
+    projects.push({ ...stored.project, history_count: history.length, current_run: null });
+    await page.route(`https://dashboard.test/results/${id}/index.json`, route => route.fulfill({
+      json: { schema_version: 1, history },
+    }));
+    for (const run of history) {
+      for (const name of ['report.json', 'skill-assessments.json', 'skill-evolution.json']) {
+        await page.route(`https://dashboard.test/results/${id}/${run.run_id}/${name}`, route => route.fulfill({
+          contentType: 'application/json', body: fs.readFileSync(`results/${id}/${run.run_id}/${name}`),
+        }));
+      }
+    }
   }
-  return generatedProjectSamples;
+  await pageWith(page, { schema_version: 1, projects }, 200, 'https://dashboard.test');
+  return projects;
 }
 
-async function projectSamplesPage(page) {
-  const data = projectSampleData();
-  for (const project of data.projects) {
-    await page.route(`http://dashboard.test/results/${project.id}/index.json`, route => route.fulfill({
-      json: { schema_version: 1, history: [] },
-    }));
-    await page.route(`http://dashboard.test/sample-${project.id}.json`, route => route.fulfill({
-      json: data.samples[project.id],
-    }));
-  }
-  await pageWith(page, { schema_version: 1, projects: data.projects });
-  return data;
-}
-
-test('project samples include all detected Skills and three unadopted candidate rounds each', async ({ page }) => {
-  const data = await projectSamplesPage(page);
-  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
-  for (const project of data.projects) {
-    await page.locator('#sample-project-select').selectOption(project.id);
-    await expect(page.locator('#project-title')).toHaveText(`${project.id} · 합성 평가 샘플`);
+test('native result examples show baseline project evaluation and all45 candidates without sample mode', async ({ page }) => {
+  const projects = await nativeExamplePage(page);
+  const decisions = ['품질 점수 상승', '개선 미확인', '후보 거절'];
+  for (const project of projects) {
+    await page.locator(`.project[data-project="${project.id}"]`).click();
+    await expect(page.locator('#detail')).toBeVisible();
     await expect(page.locator('#skill-select option')).toHaveCount(project.detected_skills.length);
-    for (const skill of data.samples[project.id].skills) {
-      await page.locator('#skill-select').selectOption(skill.id);
+    await expect(page.locator('#sample-banner')).toBeHidden();
+    await expect(page.locator('#sample-project-select')).toHaveCount(0);
+    for (const skill of project.detected_skills) {
+      await page.locator('#skill-select').selectOption(skill.skill_key);
       await expect(page.locator('#skill-history-runs .skill-run')).toHaveCount(3);
       for (let i = 0; i < 3; i++) {
         await page.locator('#skill-history-runs .skill-run').nth(i).click();
-        await expect(page.locator('#run-title')).toContainText(`${i + 1}회차`);
-        await expect(page.locator('#improvement-evidence')).toContainText('후보 1개');
-        await expect(page.locator('#improvement-evidence')).toContainText('명시적 승인');
-        await expect(page.locator('#execution')).toContainText('미채택');
-        await expect(page.locator('#guide')).toContainText('합성 점수');
-        await expect(page.locator('#skill-changes')).toContainText(`합성 후보 ${i + 1}`);
-        await expect(page.locator('#cost-card')).toContainText('실제 CLI 측정값이 아닙니다');
+        await expect(page.locator('#guide tbody tr')).toHaveCount(7);
+        await expect(page.locator('#execution')).toContainText(decisions[i]);
+        await expect(page.locator('#improvement-evidence')).toContainText('후보 생성: generated');
+        await expect(page.locator('#task-results')).toContainText('원본 프로젝트');
+        await expect(page.locator('#skill-changes')).toContainText('Verification workflow');
+        await expect(page.locator('#cost-card .big-number')).toBeVisible();
+        await expect(page.locator('#origin')).toHaveText('저장된 평가');
+        await expect(page.locator('#provenance')).toContainText('sample');
         await expect(page.locator('#error')).toBeHidden();
       }
       await page.getByRole('button', { name: '변경 비교', exact: true }).click();
-      await expect(page.locator('#skill-diff')).toContainText('Synthetic candidate 3');
+      await expect(page.locator('#skill-diff')).toContainText('+');
     }
   }
-  await page.getByRole('button', { name: '실제 기록으로 돌아가기', exact: true }).click();
-  await expect(page.locator('#sample-banner')).toBeHidden();
-  await expect(page.locator('#detail')).toBeHidden();
-  await expect(page.locator('#origin')).toHaveText('미평가');
-  await expect(page.locator('#history-count')).toHaveText('0건');
-  await page.getByRole('button', { name: /^project-b/ }).click();
-  await expect(page.locator('#skill-select option')).toHaveCount(14);
-  await expect(page.locator('#error')).toBeHidden();
 });
 
-test('late project sample response cannot overwrite a newer sample selection', async ({ page }) => {
-  await projectSamplesPage(page);
-  let finish, started;
-  const waiting = new Promise(resolve => { started = resolve; });
-  const release = new Promise(resolve => { finish = resolve; });
-  await page.route('http://dashboard.test/sample-project-a.json', async route => {
-    started();
-    await release;
-    await route.fulfill({ json: projectSampleData().samples['project-a'] });
-  });
-  await page.locator('#sample-project-select').selectOption('project-a');
-  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
-  await waiting;
-  await page.locator('#sample-project-select').selectOption('project-b');
-  await expect(page.locator('#project-title')).toHaveText('project-b · 합성 평가 샘플');
-  const response = page.waitForResponse('http://dashboard.test/sample-project-a.json');
-  finish();
-  await response;
-  await expect(page.locator('#project-title')).toHaveText('project-b · 합성 평가 샘플');
-  await expect(page.locator('#skill-select option')).toHaveCount(14);
-});
-
-test('project samples reject adoption claims and render on mobile without overflow', async ({ page }) => {
+test('native result examples remain usable on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await projectSamplesPage(page);
-  await page.locator('#sample-project-select').selectOption('project-b');
-  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  await nativeExamplePage(page);
+  await page.locator('.project[data-project="project-b"]').click();
   await expect(page.locator('#detail')).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  const forged = structuredClone(projectSampleData().samples['project-a']);
-  forged.skills[0].reports[0].details.generation.adoption = 'adopted';
-  await page.route('http://dashboard.test/sample-project-a.json', route => route.fulfill({ json: forged }));
-  await page.locator('#sample-project-select').selectOption('project-a');
-  await expect(page.locator('#error')).toBeVisible();
-  await expect(page.locator('#detail')).toBeHidden();
-});
-
-test('sample project loading disables stale Skill choices until the new inventory arrives', async ({ page }) => {
-  await projectSamplesPage(page);
-  await page.locator('#sample-project-select').selectOption('project-b');
-  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
   await expect(page.locator('#skill-select option')).toHaveCount(14);
-  let finish, started;
-  const waiting = new Promise(resolve => { started = resolve; });
-  const release = new Promise(resolve => { finish = resolve; });
-  await page.route('http://dashboard.test/sample-project-a.json', async route => {
-    started();
-    await release;
-    await route.fulfill({ json: projectSampleData().samples['project-a'] });
-  });
-  await page.locator('#sample-project-select').selectOption('project-a');
-  await waiting;
-  try {
-    await expect(page.locator('#skill-select')).toBeDisabled();
-    await expect(page.locator('#skill-list .skill-item')).toHaveCount(0);
-  } finally {
-    finish();
-  }
-  await expect(page.locator('#project-title')).toHaveText('project-a · 합성 평가 샘플');
-  await expect(page.locator('#skill-select')).toBeEnabled();
-  await expect(page.locator('#skill-select option')).toHaveCount(1);
-  await expect(page.locator('#error')).toBeHidden();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 test('duplicate detected identities fail rather than merge different Skill paths', async ({ page }) => {
