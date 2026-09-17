@@ -17,6 +17,26 @@ let selectedSkill = null;
 const newCache = () => ({ histories: new Map(), reports: new Map(), runs: new Map() });
 let cache = newCache();
 
+function linkedSelection() {
+  const query = new URLSearchParams(location.search);
+  for (const key of ['project', 'run', 'skill']) {
+    if (query.getAll(key).length > 1 || (query.has(key) && !query.get(key))) throw new Error('Invalid deep link');
+  }
+  const project = query.get('project'), run = query.get('run'), skill = query.get('skill');
+  if ((run || skill) && !project || project && !idPattern.test(project) || run && !runPattern.test(run)) {
+    throw new Error('Invalid deep link');
+  }
+  return { project, run, skill };
+}
+function rememberSelection() {
+  if (sampleMode) return;
+  const url = new URL(location.href);
+  for (const [key, value] of Object.entries({ project: activeProject?.id, run: activeRun, skill: selectedSkill })) {
+    if (value) url.searchParams.set(key, value);
+    else url.searchParams.delete(key);
+  }
+  window.history.replaceState(null, '', url);
+}
 function fail(error) {
   $('error').hidden = false;
   $('error').textContent = '이력을 불러오지 못했습니다. 저장된 결과와 배포 상태를 확인한 뒤 새로고침해 주세요.';
@@ -261,6 +281,7 @@ function chooseSkill(id) {
     $('freshness').textContent = `${group.source_path} · 탐지 정보이며 품질 평가 결과가 아닙니다.`;
     $('selection-summary').textContent = `${group.name} · 아직 평가 기록이 없습니다.`;
     renderHistory();
+    rememberSelection();
   }
 }
 function selectHistoryTab(name) {
@@ -271,9 +292,10 @@ function selectHistoryTab(name) {
     $(`${kind}-history-panel`).hidden = !active;
   }
 }
-async function selectRun(run, token) {
+async function selectRun(run, token, requiredSkill = null) {
   const request = ++reportSelection;
   $('detail').hidden = true;
+  $('report-link').removeAttribute('href');
   $('error').hidden = true;
   try {
     let report, detail = null, snapshots = null, lifecycle = null, assessments = null;
@@ -293,6 +315,8 @@ async function selectRun(run, token) {
       ({ report, snapshots, lifecycle, assessments } = bundle);
       $('report-link').href = `/results/${project.id}/${run.run_id}/report.json`;
       const skills = runSkills(run).filter(skill => !assessments || assessments.skills.some(row => row.skill_key === skill.id));
+      if (requiredSkill && !skills.some(item => item.id === requiredSkill)) throw new Error('Linked Skill evidence unavailable');
+      if (requiredSkill) selectedSkill = requiredSkill;
       selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : skills[0]?.id ?? null;
       $('skill-select').value = selectedSkill || '';
     }
@@ -304,11 +328,14 @@ async function selectRun(run, token) {
     activeRun = run.run_id;
     $('detail').hidden = false;
     renderHistory();
+    rememberSelection();
   } catch (error) {
-    if (request === reportSelection && token === selection) { $('detail').hidden = true; fail(error); }
+    if (request === reportSelection && token === selection) {
+      $('detail').hidden = true; $('report-link').removeAttribute('href'); fail(error);
+    }
   }
 }
-async function selectProject(project) {
+async function selectProject(project, linked = {}) {
   activeProject = project;
   resetSelection(false);
   const token = selection, store = cache;
@@ -331,16 +358,20 @@ async function selectProject(project) {
     $('skill-select').disabled = groups.length === 0;
     if (!groups.length) $('skill-select').append(node('option', '탐지·연결된 Skill 없음'));
     renderHistory();
-    const run = history.find(row => row.guide_status === 'completed' && row.execution_status === 'completed') ||
-      history.find(row => row.purpose === 'comparison') || history[0];
+    if (linked.skill && !groups.some(group => group.id === linked.skill)) throw new Error('Linked Skill unavailable');
+    const candidates = linked.skill ? history.filter(row => runSkills(row).some(skill => skill.id === linked.skill)) : history;
+    const run = linked.run ? history.find(row => row.run_id === linked.run) :
+      candidates.find(row => row.guide_status === 'completed' && row.execution_status === 'completed') ||
+      candidates.find(row => row.purpose === 'comparison') || candidates[0];
+    if (linked.run && !run) throw new Error('Linked run unavailable');
     if (!run) {
-      if (groups.length) chooseSkill(groups[0].id);
+      if (groups.length) chooseSkill(linked.skill || groups[0].id);
       else {
         $('origin').textContent = '미평가';
         $('selection-summary').textContent = '평가 기록이 없습니다.';
       }
     }
-    await Promise.all([showProjectSummary(project, runs, token, store), run ? selectRun(run, token) : null]);
+    await Promise.all([showProjectSummary(project, runs, token, store), run ? selectRun(run, token, linked.skill) : null]);
     if (token === selection && project.skill_discovery_error) fail(new Error(`Skill discovery blocked: ${project.skill_discovery_error}`));
   } catch (error) {
     if (token === selection) {
@@ -404,6 +435,7 @@ async function refresh() {
   $('skill-select').replaceChildren(node('option', 'Skill 정보 미기록'));
   $('skill-select').disabled = true;
   try {
+    const linked = linkedSelection();
     const index = await load('/results/index.json');
     if (token !== selection) return;
     if (!Array.isArray(index.projects)) throw new Error('Invalid catalog');
@@ -439,7 +471,9 @@ async function refresh() {
       button.addEventListener('click', () => selectProject(project));
       $('projects').append(button);
     }
-    if (projects.length) await selectProject(projects[0]);
+    const linkedProject = projects.find(project => project.id === linked.project);
+    if (linked.project && !linkedProject) throw new Error('Linked project unavailable');
+    if (projects.length) await selectProject(linkedProject || projects[0], linked);
     else {
       $('projects').append(node('p', '등록된 프로젝트가 없습니다.', 'muted'));
       $('origin').textContent = '프로젝트 없음';
