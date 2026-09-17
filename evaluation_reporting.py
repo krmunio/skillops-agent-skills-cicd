@@ -1,6 +1,7 @@
 """Actions presentation of existing evaluation stages and validated public evidence."""
 
 import argparse
+from decimal import Decimal
 from html import escape
 import json
 from pathlib import Path
@@ -8,20 +9,8 @@ import re
 import sys
 
 from copilot_runtime import RuntimeFailure
+from evaluation_telemetry import STAGES
 import project_results as results
-
-
-STAGES = {
-    "discovery": "Project / check discovery",
-    "original_checks": "Project / untouched source checks",
-    "base_quality": "Baseline / original / Anthropic",
-    "work": "Improvement / existing failure selection",
-    "generation": "Improvement / APO-inspired candidate generation",
-    "candidate_quality": "Baseline / candidate / Anthropic",
-    "base_application": "Project / original Skill application and checks",
-    "candidate_application": "Project / candidate Skill application and checks",
-    "qualification": "Baseline / APO-inspired evidence and final qualification",
-}
 
 
 def label(value):
@@ -78,6 +67,17 @@ def report_lines(report, assessment):
         f'Guide: {label(report["guide"]["status"])} / {label(report["guide"]["reason_code"])}. '
         f'Project: {label(report["execution"]["status"])} / {label(report["execution"]["reason_code"])}.',
     ]
+    target = (report["guide"]["metrics"] or {}).get("skills")
+    if target is not None:
+        complete = sum(
+            row["generation"]["status"] == "generated"
+            and all(row["quality"][arm] is not None and row["quality"][arm]["status"] == "completed"
+                    for arm in ("base", "candidate"))
+            for row in (assessment["skills"] if assessment else [])
+        )
+        results.require(complete <= target, "skill_count_mismatch")
+        lines.append(f"Skill quality cycles: {complete}/{target} complete; {target - complete} incomplete. "
+                     "Project execution and adoption are separate.")
     if assessment is None:
         return lines + ["No per-Skill assessment recorded; baseline results are not inferred.", ""]
     for row in assessment["skills"]:
@@ -113,6 +113,7 @@ def report_lines(report, assessment):
             "",
             f'Original version: {label(row["base_version_id"])}',
             f'Candidate version: {label(row["candidate_version_id"] or "not generated")}',
+            f'Assessment policy: {label(row["decision"].get("policy_version", "legacy (unversioned)"))}',
         ]
         reasons = [f'{error["stage"]}: {error["code"]}' for error in row["errors"]]
         reasons += row["decision"]["reasons"]
@@ -122,10 +123,35 @@ def report_lines(report, assessment):
     return lines
 
 
+def measurement_lines(data):
+    if data is None:
+        return ["Stage measurements not recorded; historical usage is not inferred.", ""]
+    lines = [
+        "#### Stage execution measurements",
+        "CLI invocations count admitted runtime attempts, not model API requests or AI Credits.",
+        "Stage completion is execution evidence, not quality success or adoption.",
+        "| Skill / stage | Execution | CLI invocations | Seconds | Known nano-AIU | Usage coverage |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for skill in data["skills"]:
+        for name in STAGES:
+            stage = skill["stages"][name]
+            calls = stage["invocations"]
+            costs = [call["usage"]["nano_aiu"] for call in calls if call["usage"]["nano_aiu"] is not None]
+            cost = f"{sum(Decimal(str(value)) for value in costs):g}" if costs else "not reported"
+            elapsed = stage["elapsed_seconds"]
+            elapsed = f"{elapsed:.3f}" if elapsed is not None else "not recorded"
+            state = stage["status"] + (f' / {stage["code"]}' if stage["code"] else "")
+            lines.append(f'| {label(skill["source_path"])} / {label(STAGES[name])} | {label(state)} | '
+                         f'{len(calls)} | {elapsed} | {cost} | {len(costs)}/{len(calls)} |')
+    return lines + ["Unknown usage remains null; a partial known sum is not a total cost.", ""]
+
+
 def summary(root, run_id):
     results.require(results.matches(results.RUN, run_id), "invalid_run")
     reports = results.load_reports(root)
     assessments = results.load_assessments(root, reports)
+    measurements = results.load_telemetry(root, reports, assessments)
     selected = [report for report in reports if report["run_id"] == run_id]
     results.require(bool(selected), "unknown_run")
     lines = [
@@ -137,7 +163,8 @@ def summary(root, run_id):
     ]
     size = sum(len(line.encode("utf-8")) + 1 for line in lines)
     for report in selected:
-        for line in report_lines(report, assessments.get((report["project_id"], report["run_id"]))):
+        key = (report["project_id"], report["run_id"])
+        for line in report_lines(report, assessments.get(key)) + measurement_lines(measurements.get(key)):
             size += len(line.encode("utf-8")) + 1
             if size > 900000:
                 return "\n".join(lines + ["", "Summary truncated; full results remain in the public results artifact."]) + "\n"

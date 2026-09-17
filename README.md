@@ -80,6 +80,11 @@ Each selected Skill gets at most one candidate within the shared run limits. Man
 `--project <id>` selection is unchanged; `--changed-since <full-before-sha>` selects
 affected projects from the checked-out `--source-commit`. The two selectors are mutually
 exclusive. No affected projects means no model evaluation, not a fabricated pass.
+New automatic Skill runs retain report-bound `stage-metrics.json` attachments with
+stage completion, admitted CLI attempts, elapsed time and available usage. Unknown
+usage remains null; the Actions summary distinguishes partial measurements from
+totals and displays the recorded assessment policy. Existing result formats and
+dashboard behavior are unchanged.
 
 ### Prepared project samples
 

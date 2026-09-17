@@ -19,12 +19,14 @@ import project_checks
 import skill_guide
 import skill_pipeline
 import evaluation_reporting
+import evaluation_telemetry
 
 
 class BudgetRuntime:
     def __init__(self, runtime, budget):
         self.runtime = runtime
         self.budget = budget
+        self.recorder = None
 
     def __getattr__(self, name):
         return getattr(self.runtime, name)
@@ -39,6 +41,8 @@ class BudgetRuntime:
         kwargs["timeout"] = min(180, remaining)
         if "max_ai_credits" in self.budget:
             kwargs["max_ai_credits"] = self.budget["max_ai_credits"]
+        if self.recorder is not None:
+            return self.recorder.invoke(self.runtime, *args, **kwargs)
         return self.runtime.invoke(*args, **kwargs)
 
 
@@ -62,7 +66,8 @@ def resolve_images(project):
     return images
 
 
-def assess_with_details(root, project, run_id, source_commit, policy, *, runtime_factory=CopilotRuntime, history=()):
+def assess_with_details(root, project, run_id, source_commit, policy, *, runtime_factory=CopilotRuntime, history=(),
+                        telemetry=None):
     root = Path(root)
     folder = root / "projects" / project["id"]
     row = {
@@ -132,12 +137,18 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
                 key = skill_pipeline.skill_key(project["id"], bundle["path"], history)
                 identifier = sha256(key.encode()).hexdigest()
                 artifact = runtime.private / "assessments" / run_id / project["id"] / identifier
+                observer = (partial(evaluation_reporting.progress, project["id"], bundle["path"])
+                            if policy.get("progress") else None)
+                if telemetry is not None:
+                    runtime.recorder = evaluation_telemetry.Recorder(observer)
+                    telemetry.append({"skill_key": key, "source_path": bundle["path"],
+                                      "stages": runtime.recorder.stages})
+                    observer = runtime.recorder
                 try:
                     evaluated.append(skill_pipeline.evaluate_skill(
                         runtime, "gpt-6-astra", folder, bundle, key, rubric, prepared, artifact,
                         deadline=budget["deadline"], check_error=check_error,
-                        progress=partial(evaluation_reporting.progress, project["id"], bundle["path"])
-                        if policy.get("progress") else None))
+                        progress=observer))
                 except (RuntimeFailure, OSError) as error:
                     failure = {"source_path": bundle["path"],
                                "code": error.code if isinstance(error, RuntimeFailure) else "io_error"}
@@ -260,13 +271,17 @@ def main():
                     prior.setdefault(item["project_id"], []).append(assessments[key])
         failures = 0
         for project in projects:
+            telemetry = []
             row, lifecycle, assessment = assess_with_details(
-                args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()))
+                args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()),
+                telemetry=telemetry)
             results.store(args.output, row)
             if lifecycle is not None:
                 results.store_evolution(args.output, lifecycle)
             if assessment is not None:
                 results.store_assessments(args.output, assessment)
+            if telemetry:
+                results.store_telemetry(args.output, evaluation_telemetry.bind(row, assessment, telemetry))
             failures += any(row[part]["status"] in ("blocked", "failed") for part in ("guide", "execution"))
             print(json.dumps({"project": project["id"], "guide": row["guide"]["status"],
                               "execution": row["execution"]["status"]}))

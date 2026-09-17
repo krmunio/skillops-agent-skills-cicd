@@ -109,6 +109,46 @@ To inspect an existing run without model calls:
 python3 evaluation_reporting.py --results results --run-id <saved-run-id>
 ```
 
+### Durable stage measurements
+
+New automatic Skill runs also write the optional immutable
+`results/<project>/<run>/stage-metrics.json`. Its schema version is `1`, independently
+of the existing report and assessment schemas. It binds the exact report and, when
+available, assessment bytes by SHA-256. Each project-local Skill key/path has an
+explicit entry for every evaluation stage, including stages that never started.
+The current deterministic identity and versioned efficiency decisions are preserved;
+no historical decisions or missing measurements are backfilled.
+
+For each entered stage, the recorder retains its execution status, bounded error
+code, wall-clock elapsed seconds and individual admitted runtime attempts.
+Attempts rejected by the shared call/time budget do not increment the invocation
+list. An admitted attempt can still fail before reaching the model, for example
+during CLI configuration; these counts are not model API request counts.
+Completed stages are not proof of passing quality, project checks or adoption.
+
+Each invocation retains only numeric CLI usage values when available: nano-AIU,
+premium-request units, API milliseconds, and input/output/cache-read/cache-write
+tokens. Unknown values remain `null`, including failure paths without a usable
+usage receipt. Already-reported usage is retained for CLI failures. Stage time
+includes orchestration and checks within that stage, not just model execution.
+It does not replace paired application measurements used by the efficiency policy.
+Neither nano-AIU nor invocation counts are converted into AI Credits or currency.
+
+The existing result validator, immutable merge and static publisher validate and
+retain this attachment. The Actions summary shows stage order, call counts, elapsed
+time, known nano-AIU and usage coverage; a partial known sum is never presented as
+the total. When the report records the target Skill count, the summary also counts
+cycles with a generated candidate and completed original/candidate quality results.
+Project execution and adoption remain separate. Absent older attachments are
+reported as unrecorded, not zero-cost evaluations.
+
+Measurements are finalized with each project report. Handled invocation/budget
+failures preserve preceding calls, but a hard process/runner termination before
+project finalization can still prevent publication. This is not a restart/checkpoint
+system. Raw prompts, responses, private session IDs, tool traces and CLI diagnostics
+are excluded. The dashboard does not consume the new attachment; its existing
+report/assessment/index contracts and hashed asset build remain unchanged.
+
 ## Add a project
 
 Add a reviewed ordinary source directory under `projects/<safe-id>/` and commit
