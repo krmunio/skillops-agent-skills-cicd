@@ -2,7 +2,7 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-async function pageWith(page, index, status = 200, origin = 'http://dashboard.test') {
+async function pageWith(page, index, status = 200, origin = 'http://dashboard.test', pathname = '/') {
   await page.route(`${origin}/**`, route => {
     const name = new URL(route.request().url()).pathname;
     if (name === '/results/index.json') {
@@ -16,7 +16,7 @@ async function pageWith(page, index, status = 200, origin = 'http://dashboard.te
       name.endsWith('.json') ? 'application/json' : 'text/html';
     return route.fulfill({ contentType, body: fs.readFileSync(path.join('dashboard', assets[name])) });
   });
-  await page.goto(`${origin}/`);
+  await page.goto(`${origin}${pathname}`);
 }
 
 async function comparisonPage(page, snapshots = null, metrics = {}) {
@@ -770,7 +770,10 @@ function assessmentFixture({ legacy = true } = {}) {
 const publicBytes = value => JSON.stringify(sortKeys(value), null, 2).replace(/[\u007f-\uffff]/g,
   char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`) + '\n';
 const H = value => hash(publicBytes(value));
-function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond = false } = {}) {
+const replayPolicyHash = require('node:child_process').execFileSync('python3', ['-c',
+  'from candidates import POLICY; from project_results import encoded; from hashlib import sha256; print(sha256(encoded({"policy": POLICY, "rule": "replay-v1"})).hexdigest())',
+], { encoding: 'utf8' }).trim();
+function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond = false, policyHash = replayPolicyHash } = {}) {
   const key = 'skillops:develop', project = 'sample_repo', source = '.github/skills/develop';
   const cycleId = '104-1';
   const items = [];
@@ -802,7 +805,7 @@ function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond
     const value = { schema_version: 1, project_id: project, skill_key: key, source_path: source,
       source_commit: 'a'.repeat(40), project_tree_sha256: hash('project'), input_sha256: input,
       original_version_id: original, rubric_sha256: hash('rubric'), quality_context_sha256: hash('context'),
-      evaluator_sha256: hash('evaluator'), policy_sha256: hash('policy'), plan_sha256: hash('plan'),
+      evaluator_sha256: hash('evaluator'), policy_sha256: policyHash, plan_sha256: hash('plan'),
       environment_sha256: hash('images'), protected_sha256: hash('protected'),
       original_checks: checks, base_quality: quality(2) };
     return { ...value, reference_sha256: H(value) };
@@ -877,8 +880,8 @@ async function tracePage(page, fixture, run = '104-1') {
     }
   }
   await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
-    history_count: fixture.items.length, current_run: null }] }, 200, origin);
-  await page.goto(`${origin}/?project=sample_repo&run=${run}&skill=${encodeURIComponent(fixture.key)}`);
+    history_count: fixture.items.length, current_run: null }] }, 200, origin,
+  `/?project=sample_repo&run=${run}&skill=${encodeURIComponent(fixture.key)}`);
 }
 
 test('trace links original, two parents, feedback, confirmation and verified use without claiming task success or Active', async ({ page }) => {
@@ -940,6 +943,8 @@ for (const [name, mutate] of [
   ['false confirmation', f => { f.cycle.cycle.confirmation_status = 'failed'; }],
   ['local identity leak', f => { f.adopted.adoption.approvals[0].approved_by = 'private-user'; }],
   ['private extra field', f => { f.adopted.adoption.environment_id = 'private-environment'; }],
+  ['private approval CAS field', f => { f.adopted.adoption.approvals[0].previous_active_execution_sha256 = hash('private receipt'); }],
+  ['private execution CAS field', f => { f.adopted.adoption.executions[0].previous_active_execution_sha256 = hash('private receipt'); }],
   ['forged verified mismatch', f => { f.adopted.adoption.executions[0].loaded_version_id = f.cycle.cycle.original_version_id; }],
   ['boolean round cap', f => { f.cycle.cycle.max_rounds = true; }],
   ['array execution identity', f => { f.adopted.adoption.executions[0].execution_id = ['execution-one']; }],
@@ -996,6 +1001,33 @@ test('completed confirmation without a published approval is pending, not a clai
   await expect(page.locator('#evidence-trace')).toContainText('승인·사용: 미기록');
   await expect(page.locator('#evidence-trace')).not.toContainText('승인 없음');
 });
+
+test('alternate replay policy is rejected even when all reference digests and lineage match', async ({ page }) => {
+  await tracePage(page, traceFixture({ policyHash: hash('different policy') }));
+  await expect(page.locator('#trace-error')).toBeVisible();
+  await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+});
+
+test('trace fixture opens the requested run without a speculative default navigation', async ({ page }) => {
+  const navigations = [];
+  page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations.push(frame.url()); });
+  await tracePage(page, traceFixture());
+  expect(navigations).toEqual(['https://dashboard.test/?project=sample_repo&run=104-1&skill=skillops%3Adevelop']);
+});
+
+for (const status of ['not_run', 'unverified']) {
+  test(`confirmation without an artifact preserves ${status} and does not permit approval`, async ({ page }) => {
+    const fixture = traceFixture();
+    fixture.cycle.cycle.confirmation_ref = null;
+    fixture.cycle.cycle.confirmation_status = status;
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted && item.report.run_id !== '103-1');
+    await tracePage(page, fixture);
+    await expect(page.locator('#evidence-trace')).toContainText(`confirmation: ${status}`);
+    await expect(page.locator('#evidence-trace')).toContainText('최종 확인 미완료');
+    await expect(page.locator('#evidence-trace')).not.toContainText('승인 대기');
+    await expect(page.locator('#trace-error')).toHaveCount(0);
+  });
+}
 
 test('cycle and later use projections remain selectable without redundant local captures or approval copies', async ({ page }) => {
   const fixture = traceFixture({ mode: 'live' });

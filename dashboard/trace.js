@@ -7,6 +7,8 @@ const runId = /^(?:[0-9]+-[0-9]+|(?:import-|local-|sample-)?[0-9]{8}T[0-9]{6}Z-[
 const skillId = /^[a-z0-9][a-z0-9-]{0,63}:[a-z0-9][a-z0-9-]{0,63}$/;
 const hash = /^[a-f0-9]{64}$/;
 const version = /^sha256:[a-f0-9]{64}$/;
+// Contract c194ea8: H({"policy": candidates.POLICY, "rule": "replay-v1"}).
+const replayPolicyHash = 'd6efd14169aab7830b99a03d28f85282aeb04644d54df4d876fb02a3a1d7b212';
 const modes = ['live', 'offline_test', 'sample'];
 const stops = ['improved', 'max_rounds', 'no_change', 'call_limit', 'time_limit', 'credit_limit',
   'input_changed', 'evaluation_unverified', 'runtime_error', 'cancelled'];
@@ -194,6 +196,7 @@ async function validateReplay(parsed, bundle) {
   identity(ref);
   check(ref.schema_version === 1 && matches(/^[a-f0-9]{40}$/, ref.source_commit) && matches(version, ref.original_version_id));
   for (const [key, value] of Object.entries(ref)) if (key.endsWith('_sha256')) check(matches(hash, value));
+  check(ref.policy_sha256 === replayPolicyHash);
   check(ref.reference_sha256 === await parsed.hashObject(ref, 'reference_sha256'));
   for (const key of ['project_id', 'source_commit', 'project_tree_sha256', 'evaluator_sha256']) same(ref[key], bundle.report[key]);
   quality(ref.base_quality); observation(ref.original_checks);
