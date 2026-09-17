@@ -518,8 +518,9 @@ def validate_cycle(data, *, report, evaluations):
         evolution.exact(row, "round_id round_number run_id parent_version_id candidate_version_id input_sha256 "
                              "reference_sha256 feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason")
         require(type(row["round_number"]) is int and row["round_number"] == number
-                and row["round_id"] == f"{data['cycle_id']}-r{number}"
-                and matches(RUN, row["run_id"]) and row["run_id"] not in used, "invalid_cycle_round")
+                and row["round_id"] == f"{data['cycle_id']}-r{number}", "invalid_cycle_round")
+        require(row["run_id"] is None if row["evaluation_ref"] is None else
+                matches(RUN, row["run_id"]) and row["run_id"] not in used, "invalid_cycle_round")
         require(row["parent_version_id"] == parent and row["feedback_source_round_id"] == previous_id,
                 "cycle_lineage_mismatch")
         require(row["input_sha256"] == data["input_sha256"] and row["reference_sha256"] == data["reference_sha256"]
