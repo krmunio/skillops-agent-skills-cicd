@@ -168,7 +168,9 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
   const container = $('project-summary');
   const title = node('h2', '프로젝트 평가 요약');
   title.id = 'project-summary-title';
-  container.replaceChildren(title);
+  const heading = node('div', undefined, 'summary-heading');
+  heading.append(title, node('span', '공개 기록 기준', 'summary-label'));
+  container.replaceChildren(heading);
   container.hidden = false;
   if (runs === null) {
     const loading = node('p', '공개 이력의 요약 근거를 불러오는 중입니다.', 'muted');
@@ -177,16 +179,18 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
     return;
   }
   const summary = summarizeHistory(runs), list = node('dl', undefined, 'summary-grid');
-  const entry = (id, label, text) => {
+  const highlights = node('dl', undefined, 'summary-highlights');
+  const metadata = node('dl', undefined, 'summary-metadata');
+  const entry = (id, label, text, target = list) => {
     const line = node('div'), value = node('dd', text);
     value.id = id;
-    line.append(node('dt', label), value); list.append(line);
+    line.append(node('dt', label), value); target.append(line);
     return value;
   };
   entry('summary-skills', 'Skill·버전', `Skill ${summary.skills}개 · 버전 ${summary.versions}개`);
   entry('summary-history', '평가 이력', `평가 기록 ${summary.total}건 · 완료 ${summary.completed} · 차단 ${summary.blocked} · 과거 가져오기 ${summary.imported} · 미평가 ${summary.unassessed}`);
   const recent = entry('summary-completed', '최근 완료 평가', summary.newestCompleted ?
-    `${stamp(summary.newestCompleted.created_at)} · 커밋 ` : '없음');
+    `${stamp(summary.newestCompleted.created_at)} · 커밋 ` : '없음', metadata);
   if (summary.newestCompleted) {
     const commit = completedReport?.value?.source_commit;
     const code = node('code', typeof commit === 'string' && /^[a-f0-9]{40}$/.test(commit) ? commit.slice(0, 12) : '기록 없음');
@@ -195,24 +199,39 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
   }
   const assessed = evidence.filter(item => item.run.skill_assessments);
   const skills = assessed.flatMap(item => item.bundle?.assessments?.skills || []);
-  entry('summary-decisions', '후보 판정', !assessed.length ? '후보 판정 없음' : !skills.length ? '미평가' :
-    [['improved', '상승'], ['not_improved', '변화 없음'], ['unverified', '검증 불충분'], ['rejected', '거절']]
-      .map(([status, label]) => `${label} ${skills.filter(row => row.decision.status === status).length}`).join(' · '));
+  const decisions = entry('summary-decisions', '후보 판정',
+    !assessed.length ? '후보 판정 없음' : !skills.length ? '미평가' : '', highlights);
+  if (assessed.length && skills.length) {
+    decisions.classList.add('has-decisions');
+    for (const [index, [status, label]] of [
+      ['improved', '상승'], ['not_improved', '변화 없음'], ['unverified', '검증 불충분'], ['rejected', '거절'],
+    ].entries()) {
+      if (index) {
+        const separator = node('span', ' · ', 'summary-separator');
+        separator.setAttribute('aria-hidden', 'true');
+        decisions.append(separator);
+      }
+      const item = node('span', undefined, `summary-decision ${status}`);
+      item.append(node('span', `${label} `, 'summary-decision-label'),
+        node('strong', String(skills.filter(row => row.decision.status === status).length), 'summary-decision-count'));
+      decisions.append(item);
+    }
+  }
   const adoptions = evidence.flatMap(item => item.bundle?.lifecycle?.data.records.adoptions || [])
     .filter(row => row.state !== 'unknown');
   entry('summary-adoptions', '채택 기록', adoptions.length ? `${adoptions.length}건` :
-    evidence.some(item => item.error) ? '기록 없음' : 'SkillOps에 채택 기록 없음');
+    evidence.some(item => item.error) ? '기록 없음' : 'SkillOps에 채택 기록 없음', highlights);
   const latest = newestAssessment(evidence);
   const changes = ['cost_nano_aiu', 'elapsed_seconds'].map(key => measurementChange(
     latest.skill?.applications.base?.measurement?.[key], latest.skill?.applications.candidate?.measurement?.[key]));
   const display = change => change === null ? '미기록' : `${change > 0 ? '+' : ''}${number(change, 2)}%`;
   const usage = entry('summary-usage', '최근 평가의 적용 비용·시간',
-    `기존 → 후보 비용 ${display(changes[0])} / 시간 ${display(changes[1])}${changes.some(change => change !== null) ? ' (현장 계산)' : ''}`);
+    `기존 → 후보 비용 ${display(changes[0])} / 시간 ${display(changes[1])}${changes.some(change => change !== null) ? ' (현장 계산)' : ''}`, metadata);
   if (latest.skill) usage.append(node('small', `${latest.skill.skill_key} · ${stamp(latest.run.created_at)} · Skill 한 건 기준입니다.`));
   const explanation = node('details', undefined, 'summary-explanation');
-  explanation.append(node('summary', '이 요약은 무엇을 세나요?'),
+  explanation.append(node('summary', '최근 평가·비용·집계 상세'), metadata,
     node('p', '공개 이력의 식별자와 평가 상태를 세며, 후보 판정과 채택은 불러와 검증한 공개 근거만 집계합니다. 품질 점수는 평균하지 않으며 비용·시간은 최근 평가의 Skill 한 건만 비교합니다.'));
-  container.append(list, node('p', `후보·채택 집계는 근거를 확인한 실행 ${evidence.filter(item => item.bundle).length}건 기준입니다. 완료·차단·과거 가져오기 집계는 서로 겹칠 수 있습니다.`, 'summary-scope'), explanation);
+  container.append(highlights, list, node('p', `후보·채택 집계는 근거를 확인한 실행 ${evidence.filter(item => item.bundle).length}건 기준입니다. 완료·차단·과거 가져오기 집계는 서로 겹칠 수 있습니다.`, 'summary-scope'), explanation);
   if (evidence.some(item => item.error) || completedReport?.error) {
     container.append(node('p', '일부 공개 근거를 확인하지 못해 요약이 불완전합니다. 새로고침으로 다시 확인할 수 있습니다.', 'summary-warning'));
   }
@@ -282,7 +301,9 @@ export function renderMetric(container, title, key, metrics, origin = null) {
   const base = metrics[`base_${key}`];
   const candidate = metrics[`candidate_${key}`];
   const improvement = metrics[key === 'cost_nano_aiu' ? 'cost_improvement_percent' : 'time_improvement_percent'];
-  if (base === null || base === undefined || candidate === null || candidate === undefined) {
+  const missing = base === null || base === undefined || candidate === null || candidate === undefined;
+  container.classList.toggle('is-empty', missing);
+  if (missing) {
     container.append(node('strong', '미기록', 'decision-title'),
       explanation('같은 평가의 기존·후보 측정값이 필요합니다.'));
     return null;
