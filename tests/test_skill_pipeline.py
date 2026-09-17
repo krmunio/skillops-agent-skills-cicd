@@ -5,6 +5,7 @@ import os
 from hashlib import sha256
 from pathlib import Path
 import tempfile
+import time
 import unittest
 from subprocess import CompletedProcess
 from unittest.mock import Mock, patch
@@ -12,14 +13,17 @@ from unittest.mock import Mock, patch
 import evolution_records as evolution
 import project_checks
 import project_results
+import project_evaluation
 import skill_assessments
 import skill_guide
 import skill_pipeline
-from copilot_runtime import RuntimeFailure
+from copilot_runtime import RuntimeFailure, capture as real_capture
+from project_checks import execute as real_execute_checks
+from skill_guide import evaluate_bundle as real_evaluate_bundle
 
 
 class ReplayTests(unittest.TestCase):
-    """Offline wiring tests; shared providers and model/check execution are test-only doubles."""
+    """Real replay/validation integration; only external model, Git and checker I/O is doubled."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -54,9 +58,6 @@ class ReplayTests(unittest.TestCase):
         self.prompts, self.check_inputs = [], []
         self.runtime.invoke.side_effect = self.invoke
         for target, name, implementation in (
-            (skill_assessments, "validate_work_item", self.validate_work),
-            (skill_assessments, "decide_replay", self.decide),
-            (skill_assessments, "validate_development_feedback", self.validate_feedback),
             (skill_pipeline, "capture", lambda *a, **k: CompletedProcess([], 0, "a" * 40 + "\n", "")),
             (skill_guide, "evaluate_bundle", self.quality),
             (project_checks, "execute", self.check),
@@ -66,27 +67,6 @@ class ReplayTests(unittest.TestCase):
     @staticmethod
     def hash(value):
         return sha256(project_results.encoded(value)).hexdigest()
-
-    def validate_work(self, data, *, project, source_commit):
-        self.assertEqual(source_commit, "a" * 40)
-        if (data["source_commit"] != source_commit
-                or data["input_sha256"] != self.hash({k: v for k, v in data.items() if k != "input_sha256"})
-                or data["project_tree_sha256"] != project_results.tree_hash(project)):
-            raise RuntimeFailure("work_inputs_changed", "Offline validator rejected mismatched inputs.")
-        return deepcopy(data)
-
-    def decide(self, row, *, work_item):
-        regression = project_checks.compare(*(row["checks"][arm] for arm in ("original", "base", "candidate")))
-        return {"policy_id": "replay-v1", "status": "unverified" if row["errors"] else "not_improved",
-                "reasons": ["incomplete_stage"] if row["errors"] else [], "regression": regression}
-
-    def validate_feedback(self, packet, *, context, evaluation, parent, source_round_id):
-        self.assertEqual(context["work_item"]["split"], "development")
-        self.assertEqual(packet["source_round_id"], source_round_id)
-        self.assertEqual(set(packet["checks"]), {"cases", "gates"})
-        self.assertEqual(parent[0]["version_id"], context["reference"]["original_version_id"]
-                         if evaluation is None else evaluation["candidate_version_id"])
-        return packet
 
     def quality(self, runtime, model, bundle, rubric, artifact):
         return {"status": "pass", "static": {"findings": []},
@@ -126,6 +106,13 @@ class ReplayTests(unittest.TestCase):
             self.runtime, "offline-model", self.project, self.bundle, "skillops:develop",
             self.rubric, self.images, self.runtime.private / name,
             work_item=work or self.work, deadline=9999999999)
+
+    def candidate(self, context):
+        files = skill_pipeline.candidate_files(context["original"][1], {
+            "instructions": "Check the requested behavior and preserve existing behavior.",
+            "addressed_findings": [], "hypothesis": "Offline candidate fixture.",
+        })
+        return evolution.capture_version(files, capture_scope="complete_bundle", complete_inventory=list(files))
 
     def test_replay_freezes_reference_and_repeats_real_request_on_pristine_source(self):
         context = self.prepare()
@@ -168,7 +155,7 @@ class ReplayTests(unittest.TestCase):
         changed["input_sha256"] = self.hash({k: v for k, v in changed.items() if k != "input_sha256"})
         second = self.prepare("second", changed)
         self.assertNotEqual(first["reference"]["input_sha256"], second["reference"]["input_sha256"])
-        skill_pipeline.evaluate_candidate(self.runtime, "offline-model", second, second["original"],
+        skill_pipeline.evaluate_candidate(self.runtime, "offline-model", second, self.candidate(second),
                                           self.runtime.private / "second-run", deadline=9999999999)
         self.assertIn(changed["request"], self.prompts[-1][1])
 
@@ -283,7 +270,7 @@ class ReplayTests(unittest.TestCase):
                 return result
             self.runtime.invoke.side_effect = invoke
             row, _ = skill_pipeline.evaluate_candidate(
-                self.runtime, "offline-model", context, context["original"],
+                self.runtime, "offline-model", context, self.candidate(context),
                 self.runtime.private / (kind + "-run"), deadline=9999999999)
             self.assertIsNone(row["applications"]["base"])
             self.assertTrue(row["errors"])
@@ -341,7 +328,7 @@ class ReplayTests(unittest.TestCase):
         quality["context_sha256"] = "b" * 64
         with patch.object(skill_pipeline, "assess_quality", return_value=quality), self.assertRaises(RuntimeFailure):
             skill_pipeline.evaluate_candidate(
-                self.runtime, "offline-model", context, context["original"],
+                self.runtime, "offline-model", context, self.candidate(context),
                 self.runtime.private / "quality-drift", deadline=9999999999)
         self.assertEqual(self.prompts, [])
 
@@ -390,7 +377,7 @@ class ReplayTests(unittest.TestCase):
                     receipt["staged_version_id"] = "sha256:" + "b" * 64
                 return receipt
             self.runtime.invoke.side_effect = fail
-            row, _ = skill_pipeline.evaluate_candidate(self.runtime, "offline-model", context, context["original"],
+            row, _ = skill_pipeline.evaluate_candidate(self.runtime, "offline-model", context, self.candidate(context),
                                                        self.runtime.private / (code + "-run"), deadline=9999999999)
             self.assertEqual(row["decision"]["status"], "unverified")
             self.assertTrue(row["errors"])
@@ -409,6 +396,188 @@ class ReplayTests(unittest.TestCase):
                                           self.runtime.private / "expired", work_item=self.work, deadline=0)
         self.assertEqual(caught.exception.code, "time_limit")
         self.assertEqual(self.prompts, [])
+
+    def test_unchanged_candidate_is_rejected_before_paid_quality_or_application(self):
+        context = self.prepare()
+        skill_guide.evaluate_bundle.reset_mock()
+        with self.assertRaises(RuntimeFailure):
+            skill_pipeline.evaluate_candidate(
+                self.runtime, "offline-model", context, context["original"],
+                self.runtime.private / "unchanged", deadline=9999999999)
+        skill_guide.evaluate_bundle.assert_not_called()
+        self.runtime.invoke.assert_not_called()
+
+    def test_real_common_decision_and_feedback_block_excluded_regression(self):
+        context = self.prepare()
+        candidate = self.candidate(context)
+        original_check = self.check
+        def regress(project, plan, images, **kwargs):
+            observed = original_check(project, plan, images, **kwargs)
+            if Path(project).parent.name == "candidate":
+                observed["cases"][1]["status"] = "failed"
+                observed["status"] = "failed"
+            return observed
+        with patch.object(project_checks, "execute", side_effect=regress):
+            row, _ = skill_pipeline.evaluate_candidate(
+                self.runtime, "offline-model", context, candidate,
+                self.runtime.private / "regression", deadline=9999999999)
+        self.assertEqual(row["decision"]["status"], "rejected")
+        self.assertIn("test:confirmation-secret-case", row["decision"]["regression"]["regressions"])
+        before = project_results.encoded(row)
+        with self.assertRaises(RuntimeFailure) as error:
+            skill_pipeline.development_feedback(
+                self.runtime, context, row, source_round_id="local-20260917T130000Z-aaaaaaaaaaaa-r1")
+        self.assertEqual(error.exception.code, "confirmation_isolation_unverified")
+        self.assertEqual(project_results.encoded(row), before)
+        self.assertFalse(any(role == "generator" for role, _ in self.prompts))
+
+    def test_real_feedback_does_not_disclose_excluded_status_or_suite_timing(self):
+        context = self.prepare()
+        packet = context["feedback"]
+        changed_check = self.check
+        def different_hidden_observation(*args, **kwargs):
+            observed = changed_check(*args, **kwargs)
+            observed["cases"][1]["status"] = "failed"
+            observed["status"], observed["elapsed_seconds"] = "failed", 12345
+            return observed
+        # Separate experiments cannot share one issuance hash with different retained references.
+        self.runtime = Mock(project=self.root, cli="/offline/copilot", env={}, execution_mode="offline_test",
+                            private=self.runtime.private)
+        with patch.object(project_checks, "execute", side_effect=different_hidden_observation):
+            other = self.prepare("hidden-difference")
+        self.assertNotEqual(context["reference"]["reference_sha256"], other["reference"]["reference_sha256"])
+        self.assertEqual(project_results.encoded(packet), project_results.encoded(other["feedback"]))
+        self.assertEqual(other["reference"]["original_checks"]["elapsed_seconds"], 12345)
+        self.assertEqual(other["reference"]["original_checks"]["status"], "failed")
+
+    def test_real_public_validator_and_reader_accept_actual_provider_evidence(self):
+        context = self.prepare()
+        generation, candidate = skill_pipeline.generate_candidate(
+            self.runtime, "offline-model", context["original"], context["feedback"],
+            self.runtime.private / "generate", deadline=9999999999)
+        row, captures = skill_pipeline.evaluate_candidate(
+            self.runtime, "offline-model", context, candidate,
+            self.runtime.private / "evaluate", deadline=9999999999)
+        ref = context["reference"]
+        report = {
+            "schema_version": 1, "project_id": ref["project_id"], "run_id": "101-1",
+            "created_at": "2026-09-17T13:00:00+00:00", "origin": "local", "purpose": "project_assessment",
+            "source_commit": ref["source_commit"], "project_tree_sha256": ref["project_tree_sha256"],
+            "evaluator_sha256": ref["evaluator_sha256"], "source_report_sha256": None, "source_schema_version": None,
+            "guide": project_results.axis("completed", "evaluation_completed"),
+            "execution": project_results.axis("completed", "evaluation_completed"),
+        }
+        common = {"schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+                  "report_sha256": self.hash(report)}
+        records = evolution.empty_records()
+        records["identities"] = [{"skill_key": row["skill_key"], "display_name": "develop"}]
+        records["sources"] = [{"skill_key": row["skill_key"], "project_id": report["project_id"],
+                               "kind": "workspace", "scope": "project", "path": row["source_path"],
+                               "observed_at": report["created_at"], "evidence_ref": None}]
+        records["versions"] = [version for version, _ in captures]
+        records["skill_versions"] = [{"skill_key": row["skill_key"], "version_id": version["version_id"]}
+                                    for version, _ in captures]
+        lifecycle = {**common, "records": records,
+                     "bindings": [{"skill_key": row["skill_key"],
+                                   "base_version_id": row["base_version_id"],
+                                   "candidate_version_id": row["candidate_version_id"], "legacy_skill_id": None}],
+                     "file_contents": [{"version_id": version["version_id"], "path": name,
+                                        "encoding": "base64", "data": base64.b64encode(raw).decode("ascii")}
+                                       for version, files in captures for name, raw in files.items()]}
+        wrapper = {**common, "execution_mode": "offline_test", "reference": ref,
+                   "generation": generation, "evaluation": row}
+        self.assertIs(skill_assessments.validate_replay(wrapper, report=report, lifecycle=lifecycle), wrapper)
+        # Fixture-only assembly: this does not implement the session-1 persistence adapter.
+        results = self.runtime.private / "test-results"
+        for name, payload in (("report.json", report), ("skill-evolution.json", lifecycle),
+                              ("replay-evaluation.json", wrapper)):
+            project_results.atomic_json(results / report["project_id"] / report["run_id"] / name,
+                                        payload, immutable=True)
+        self.assertEqual(project_results.load_replays(results), {("project", "101-1"): wrapper})
+        self.assertEqual(row["decision"]["status"], "not_improved")
+
+    def test_actual_git_budget_guide_checker_and_shared_validators_across_two_rounds(self):
+        """Only model transport and Docker transport are doubled; no live/container run."""
+        for argv in (
+            ["git", "init", "--quiet", str(self.root)],
+            ["git", "-C", str(self.root), "add", "project"],
+            ["git", "-C", str(self.root), "-c", "user.name=Offline Test",
+             "-c", "user.email=offline@example.invalid", "-c", "commit.gpgsign=false",
+             "-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "offline fixture"],
+        ):
+            result = real_capture(argv)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.work["source_commit"] = real_capture(["git", "-C", str(self.root), "rev-parse", "HEAD"]).stdout.strip()
+        self.work["checks"]["required_case_ids"] = ["python-tests:task"]
+        self.work["input_sha256"] = self.hash({k: v for k, v in self.work.items() if k != "input_sha256"})
+        budget = {"calls": 0, "max_calls": 9, "max_seconds": 120, "deadline": time.monotonic() + 120}
+        transport = self.runtime
+        self.runtime = project_evaluation.BudgetRuntime(transport, budget)
+        self.runtime.execution_mode = "offline_test"
+        checker_inputs = []
+        def docker(source, controls, image, argv, **kwargs):
+            checker_inputs.append((Path(source) / "api.py").read_text())
+            return CompletedProcess([], 0, json.dumps({
+                "status": "completed", "cases": [{"id": "task", "status": "passed"},
+                                                {"id": "confirmation-secret-case", "status": "passed"}]}), "")
+        judge_calls = []
+        def invoke(prompt, model, role, *args, **kwargs):
+            self.assertNotIn("HIDDEN_CONFIRMATION_SENTINEL", prompt)
+            self.assertNotIn("confirmation-secret-case", prompt)
+            if role == "judge":
+                judge_calls.append(prompt)
+                return {"content": json.dumps({"workflow_clarity": {
+                    "status": "pass", "score": 3 if len(judge_calls) == 3 else 2,
+                    "rationale": "Offline synthetic model response; not a measured quality claim."}})}
+            return self.invoke(prompt, model, role, *args, **kwargs)
+        transport.invoke.side_effect = invoke
+        with patch.object(skill_pipeline, "capture", side_effect=real_capture), patch.object(
+                skill_guide, "evaluate_bundle", side_effect=real_evaluate_bundle), patch.object(
+                project_checks, "execute", side_effect=real_execute_checks), patch.object(
+                project_checks, "container_capture", side_effect=docker):
+            context = skill_pipeline.prepare_replay(
+                self.runtime, "offline-model", self.project, self.bundle, "skillops:develop",
+                self.rubric, self.images, self.runtime.private / "real-prepare",
+                work_item=self.work, deadline=budget["deadline"])
+            parent, packet, rows = context["original"], context["feedback"], []
+            for number in (1, 2):
+                generation, candidate = skill_pipeline.generate_candidate(
+                    self.runtime, "offline-model", parent, packet,
+                    self.runtime.private / f"real-generate-{number}", deadline=budget["deadline"])
+                self.assertEqual(generation["parent_version_id"], parent[0]["version_id"])
+                row, captures = skill_pipeline.evaluate_candidate(
+                    self.runtime, "offline-model", context, candidate,
+                    self.runtime.private / f"real-evaluate-{number}", deadline=budget["deadline"])
+                rows.append(row)
+                self.assertEqual(captures[0], context["original"])
+                self.assertEqual(row["decision"]["status"], "not_improved" if number == 1 else "improved")
+                packet = skill_pipeline.development_feedback(
+                    self.runtime, context, row, source_round_id=f"local-20260917T130000Z-aaaaaaaaaaaa-r{number}")
+                parent = candidate
+            self.assertEqual(budget["calls"], 9)
+            self.assertEqual(project_evaluation.budget_limits(budget),
+                             {"max_invocations": 9, "max_seconds": 120, "max_ai_credits_per_session": None})
+            with self.assertRaises(RuntimeFailure) as error:
+                skill_pipeline.generate_candidate(
+                    self.runtime, "offline-model", parent, packet,
+                    self.runtime.private / "budget-stop", deadline=budget["deadline"])
+            self.assertEqual(error.exception.code, "call_limit")
+            self.assertEqual(budget["calls"], 9)
+            confirmation = deepcopy(self.work)
+            confirmation["split"], confirmation["task_id"] = "confirmation", "confirmation-task"
+            confirmation["input_sha256"] = self.hash({k: v for k, v in confirmation.items() if k != "input_sha256"})
+            with self.assertRaises(RuntimeFailure) as error:
+                skill_pipeline.prepare_replay(
+                    self.runtime, "offline-model", self.project, self.bundle, "skillops:develop",
+                    self.rubric, self.images, self.runtime.private / "confirmation",
+                    work_item=confirmation, deadline=budget["deadline"])
+            self.assertEqual(error.exception.code, "confirmation_isolation_unverified")
+            self.assertEqual(budget["calls"], 9)
+        self.assertEqual(len(judge_calls), 3)
+        self.assertEqual(checker_inputs, ["VALUE = 0\n", *(["VALUE = 1\n"] * 4)])
+        self.assertEqual(rows[0]["reference_sha256"], rows[1]["reference_sha256"])
+        self.assertEqual(rows[0]["base_version_id"], rows[1]["base_version_id"])
+        self.assertEqual((self.project / "api.py").read_text(), "VALUE = 0\n")
 
 
 class SkillPipelineTests(unittest.TestCase):
