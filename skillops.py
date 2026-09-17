@@ -505,9 +505,25 @@ def main():
     gate_parser = commands.add_parser("eligibility", help="Check recorded comparison eligibility; never deploy.")
     gate_parser.add_argument("--repository", required=True)
     gate_parser.add_argument("--comparison", required=True)
+    replay_parser = commands.add_parser("replay", help="Run one explicitly authorized development WorkItem; never approve.")
+    replay_parser.add_argument("--project", required=True)
+    replay_parser.add_argument("--skill-key", required=True)
+    replay_parser.add_argument("--work-item", required=True)
+    replay_parser.add_argument("--results", required=True)
+    replay_parser.add_argument("--model", default="gpt-6-astra")
+    replay_parser.add_argument("--live", action="store_true", help="Opt in; authentication and approved limits are also required.")
     args = parser.parse_args()
     try:
         root = Path(__file__).resolve().parent
+        if args.command == "replay":
+            from project_evaluation import policy_from_environment, run_replay
+            policy = policy_from_environment()
+            policy["enabled"] = policy["enabled"] and args.live
+            report = run_replay(
+                root, project_id=args.project, skill_key=args.skill_key, work_item=args.work_item,
+                output=args.results, model=args.model, execution_mode="live", policy=policy)
+            print(json.dumps(report, indent=2))
+            return 2 if report["status"] == "unverified" else 0
         if args.command in ("register", "repositories", "eligibility"):
             exit_code = 0
             if args.command == "register":

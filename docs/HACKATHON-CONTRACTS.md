@@ -597,6 +597,71 @@ with TemporaryDirectory() as folder:
     assert len(results.load_cycles(directory)) == 1
 ```
 
+#### Single-replay adapter implementation handoff
+
+The opt-in `skillops.py replay` adapter uses the actual session 2 provider, not
+the legacy generated-work assessment path. Its entry point is:
+
+```python
+project_evaluation.run_replay(
+    root, *, project_id, skill_key, work_item, output, model, execution_mode,
+    policy, runtime_factory=None,
+)
+project_evaluation.persist_replay(
+    output, evaluation, captures, generation, reference,
+    *, execution_mode, run_id=None,
+)
+```
+
+`work_item` is a private WorkItem JSON path; the project is
+`root/projects/<project_id>`. Select the exact discovered Skill key, reusing
+validated identity history from the output directory. The command requires
+both `--live` and `SKILLOPS_LIVE_EVALUATION_ENABLED=true`, authentication and
+explicit invocation/time/per-session Credit limits. Gates run before runtime
+construction or model/image preparation. The CLI always sets `execution_mode`
+to `live`; there is no production mock/offline CLI option. Offline tests inject
+only the transport and container boundaries and explicitly set `offline_test`.
+The supplied budget object is reused without resetting calls, deadline or the
+original authorized `max_seconds`.
+
+The reusable session 3 callback is exactly:
+
+```python
+from functools import partial
+from project_evaluation import persist_replay
+
+persist_round = partial(persist_replay, output, execution_mode=runtime.execution_mode)
+ref = persist_round(evaluation, captures, generation, reference)
+# ref: {project_id, run_id, path: "replay-evaluation.json", sha256}
+```
+
+Every callback creates a fresh run unless an explicit valid `run_id` is supplied.
+It validates the complete report/capture/replay package before writing, uses
+the existing immutable writers, and returns only after the sidecar is written.
+`project_results.store_replay(results, data)` is implemented and validates its
+stored report and complete lifecycle before append-only sidecar storage.
+IO/validation/conflict errors propagate, never a success-shaped reference.
+Writes are individually atomic, not a multi-file transaction: an IO interruption
+may leave report/capture files without a replay sidecar. The aggregate report
+remains `execution: blocked / assessment_unverified`; do not treat partial
+storage as a completed replay or publish it as one.
+
+The callback does not mutate or replace `evaluation`. Pass the provider's
+original row object to `development_feedback` after persistence; neither a
+deserialized row nor a deep copy is valid private feedback evidence.
+No legacy `skill-assessments.json`, cycle, approval, Active or next-use state
+is fabricated. The CLI reports `confirmation_status: not_run`,
+`confirmation_reason: confirmation_isolation_unverified` and
+`approval_eligible: false`, even when the development decision is `improved`.
+`iterate`, cycle/adoption writers, human-approval/next-use CLI, Actions and
+lossless dashboard publication are separate unfinished integrations.
+
+`tests/test_hackathon_integration.py` exercises real provider/guide evaluator,
+common validation, staged-bundle verification and storage with explicitly
+simulated model/container boundaries. Its two development evaluations prove
+feedback lineage and shared budget wiring, not completion of session 3's loop,
+semantic confirmation isolation, model improvement or actual Skill activation.
+
 ### Session 2: single-candidate primitives
 
 ```python
