@@ -25,6 +25,18 @@ on:
         description: 'Authorize billable execution for this dispatch using configured limits'
         type: boolean
         default: false
+      max_invocations:
+        description: 'Optional project-wide CLI attempt cap (1-1000); requires project'
+        type: string
+        default: ''
+      max_seconds:
+        description: 'Optional project-wide evaluation deadline (1-7200 seconds); requires project'
+        type: string
+        default: ''
+      max_ai_credits:
+        description: 'Optional per-session Credit soft cap (minimum 30); requires project'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -85,7 +97,7 @@ jobs:
     needs: contracts
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: ${{ (inputs.max_seconds || vars.SKILLOPS_MAX_SECONDS) > 1200 && 130 || 25 }}
     permissions:
       contents: read
       copilot-requests: write
@@ -125,15 +137,20 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
           PROJECT_ID: ${{ inputs.project }}
+          LIMIT_OVERRIDE: ${{ inputs.max_invocations || inputs.max_seconds || inputs.max_ai_credits }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
           SKILLOPS_LIVE_EVALUATION_ENABLED: ${{ vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live) }}
-          SKILLOPS_MAX_INVOCATIONS: ${{ vars.SKILLOPS_MAX_INVOCATIONS }}
-          SKILLOPS_MAX_SECONDS: ${{ vars.SKILLOPS_MAX_SECONDS }}
-          SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
+          SKILLOPS_MAX_INVOCATIONS: ${{ inputs.max_invocations || vars.SKILLOPS_MAX_INVOCATIONS }}
+          SKILLOPS_MAX_SECONDS: ${{ inputs.max_seconds || vars.SKILLOPS_MAX_SECONDS }}
+          SKILLOPS_MAX_AI_CREDITS_PER_SESSION: ${{ inputs.max_ai_credits || vars.SKILLOPS_MAX_AI_CREDITS_PER_SESSION }}
           SKILLOPS_ACTIONS_PROGRESS: 'true'
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          if [ -n "$LIMIT_OVERRIDE" ] && [ -z "$PROJECT_ID" ]; then
+            echo "::error::Explicit project required for limit overrides."
+            exit 2
+          fi
           args=()
           if [ "$EVENT_NAME" = "push" ]; then
             args+=(--changed-since "$BEFORE_SHA")

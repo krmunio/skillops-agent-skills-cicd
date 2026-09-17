@@ -402,7 +402,7 @@ Before enabling live evaluation, configure repository settings deliberately:
   model. Optional secret `COPILOT_GITHUB_TOKEN` overrides authentication when deliberately supplied.
 - Variable `SKILLOPS_LIVE_EVALUATION_ENABLED=true`: explicit billable-execution opt-in.
 - Positive `SKILLOPS_MAX_INVOCATIONS` (maximum 1000) and `SKILLOPS_MAX_SECONDS`
-  (maximum 1200), shared across the workflow's sequential project evaluations.
+  (maximum 7200), shared across the workflow's sequential project evaluations.
 - Finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION` of at least **30**, forwarded to each Copilot
   CLI session. The pinned CLI 1.0.85 rejects smaller values before model execution. SkillOps
   treats such configuration as invalid limits and blocks evaluation without starting the runtime;
@@ -415,6 +415,38 @@ checkbox (default false). This explicitly authorizes only that dispatch without 
 billable runs on later pushes; the same configured invocation/time/credit limits are still required.
 CLI callers can use `--project <id>`; unknown IDs fail before assessment. Omit the selector to
 evaluate the catalog. Automatic main-push evaluation requires the repository enable variable.
+
+Manual dispatch also accepts optional `max_invocations`, `max_seconds` and
+`max_ai_credits` strings. Overrides require an explicit `project`; omitted values use
+the repository variables. Each selected project's Skills share one total call budget
+and one deadline, not one copy per Skill. Dispatch projects separately when they need
+different budgets. The per-session Credit setting is a soft limit, not a total charge
+or a promise that every session will complete.
+
+The evaluation job keeps its 25-minute ceiling for windows up to 1200 seconds; longer
+configured windows use a 130-minute job ceiling, while Python accepts at most 7200
+seconds. CLI model execution remains capped at 180 seconds per invocation. Larger
+invocation/Credit settings alone do not remove the time bottleneck. Exhausted limits
+remain explicit incomplete outcomes, with no automatic increase or retry.
+
+After these workflow changes are merged to trusted main, a bounded project-b run
+can use the following starting limits. They are not a guarantee of full completion:
+original quality currently requires 18 calls, generation 14, candidate quality is
+known only after generation, and paired applications can add up to 28 calls.
+
+```bash
+gh workflow run project-evaluation.yml --ref main \
+  -f project=project-b -f live=true \
+  -f max_invocations=96 -f max_seconds=7200 -f max_ai_credits=60
+```
+
+Project-a already has actual original/candidate quality data from main run
+`35203851697-1`, using three CLI invocations. Both quality assessments and candidate
+generation completed; project execution remains unverified because dependency
+preparation was unsupported. Persistence and deployment succeeded even though the
+evaluation job reported that incomplete execution evidence. The deployed report and
+assessment bytes matched the validated Actions artifact. This run predates optional
+stage measurements and does not imply project-b has been evaluated.
 
 On September 16, 2026, PR #7 added 11 reviewed reports to main. A later read-only
 check confirmed the existing `evaluation-results` branch and the owner's PR #8

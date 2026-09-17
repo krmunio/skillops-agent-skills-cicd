@@ -85,6 +85,9 @@ stage completion, admitted CLI attempts, elapsed time and available usage. Unkno
 usage remains null; the Actions summary distinguishes partial measurements from
 totals and displays the recorded assessment policy. Existing result formats and
 dashboard behavior are unchanged.
+Manual Actions runs can specify `max_invocations`, `max_seconds` (up to 7200), and
+`max_ai_credits` for an explicit `project`. All its Skills share the call/time budget;
+Credit limits remain per session. Omitting overrides preserves repository defaults.
 
 ### Prepared project samples
 
