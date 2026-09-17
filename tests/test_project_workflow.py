@@ -3,6 +3,16 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_evaluation_exposes_stage_logs_and_validated_failure_summary(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / ".github/workflows/project-evaluation.yml").read_text()
+        evaluate = text.split("\n  evaluate:\n", 1)[1].split("\n  persist:\n", 1)[0]
+        self.assertIn("SKILLOPS_ACTIONS_PROGRESS: 'true'", evaluate)
+        self.assertIn("name: Summarize baseline and project evaluation\n        if: always()", evaluate)
+        self.assertIn('python3 evaluation_reporting.py --results ci-results --run-id "$RESULT_RUN" >> "$GITHUB_STEP_SUMMARY"', evaluate)
+        self.assertLess(evaluate.index("python3 project_evaluation.py "), evaluate.index("python3 evaluation_reporting.py "))
+        self.assertLess(evaluate.index("python3 evaluation_reporting.py "), evaluate.index("name: public-project-results"))
+
     def test_repository_validation_is_not_named_skill_baseline_evaluation(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / ".github/workflows/ci.yml").read_text()

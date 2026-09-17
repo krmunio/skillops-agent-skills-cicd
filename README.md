@@ -71,6 +71,10 @@ The project path now discovers local Skills, evaluates their quality, generates 
 reevaluates it and compares original/base/candidate project checks. No root adapter registration
 is required. Missing supported checks or a suitable work item leaves execution effect unverified.
 Model-backed workflow execution still requires explicit settings and authentication.
+Actions log groups and the run summary distinguish Anthropic baseline quality,
+APO-inspired evidence linkage, and project regression checks. Inspect saved evidence
+without model calls using `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`.
+These are presentation changes, not independent evaluator jobs or an APO score.
 
 ### Prepared project samples
 
@@ -103,7 +107,7 @@ execution comparisons, skill diffs, history and supported execution boundaries.
 
 ## Repository validation
 
-The **Baseline validation** GitHub Actions workflow runs offline runner tests,
+The **SkillOps validation** GitHub Actions workflow runs offline runner tests,
 real Docker positive/negative controls and checks of the historical evidence
 snapshot. Each run records the checked-out commit, Python/Docker/image versions
 and test log in its summary and `baseline-ci-<commit>` artifact.

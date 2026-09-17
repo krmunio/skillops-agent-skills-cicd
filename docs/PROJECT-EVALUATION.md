@@ -54,6 +54,28 @@ Changed-project-only selection and additional automatic-loop controls remain cor
 implementation follow-ups; advanced evaluation-set selection and dashboard redesign
 are outside this CI step.
 
+### Actions stage visibility
+
+Trusted evaluation enables `SKILLOPS_ACTIONS_PROGRESS=true` to group logs by project,
+Skill and stage: original/candidate Anthropic quality, evidence-grounded generation,
+project checks/applications, and final evidence qualification. These are log groups
+inside the existing execution step, not separate YAML jobs or independent budgets.
+A completed group means the operation returned, not that its assessment passed.
+
+An always-run summary step reads validated reports and version-bound assessments for
+the current run. It separates Anthropic criteria, APO-inspired evidence linkage,
+untouched-project checks, paired Skill applications, regression and final qualification.
+No independent APO score or adoption decision is invented. Hypotheses remain unverified;
+missing evidence and inherited test failures stay visible. Summary output excludes raw
+prompts, Skill bodies, findings prose and CLI diagnostics. Full results remain in the
+public artifact if the summary reaches its size bound.
+
+To inspect an existing run without model calls:
+
+```bash
+python3 evaluation_reporting.py --results results --run-id <saved-run-id>
+```
+
 ## Add a project
 
 Add a reviewed ordinary source directory under `projects/<safe-id>/` and commit

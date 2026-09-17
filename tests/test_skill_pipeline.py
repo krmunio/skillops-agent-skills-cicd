@@ -35,6 +35,7 @@ class SkillPipelineTests(unittest.TestCase):
                 runtime.private = root / "private"
                 runtime.private.mkdir()
                 applications = []
+                progress = []
 
                 def invoke(prompt, model, role, workdir, artifact, expected_skill=None, **kwargs):
                     if role == "generator":
@@ -87,7 +88,13 @@ class SkillPipelineTests(unittest.TestCase):
                     assessed, captures = skill_pipeline.evaluate_skill(
                         runtime, "gpt-6-astra", project, bundle, "skillops:develop",
                         {"dimensions": ["workflow_clarity"]}, images, root / "run",
-                        deadline=9999999999, check_error=check_error)
+                        deadline=9999999999, check_error=check_error,
+                        progress=lambda *event: progress.append(event))
+                starts = [event[0] for event in progress if event[1] == "started"]
+                ends = [event[0] for event in progress if event[1] != "started"]
+                self.assertEqual(starts, ends)
+                for stage in ("base_quality", "generation", "candidate_quality", "qualification"):
+                    self.assertIn(stage, starts)
                 self.assertEqual(assessed["decision"]["status"],
                                  "unverified" if check_error else "rejected" if regression else "improved")
                 self.assertEqual(len(calls), 2)

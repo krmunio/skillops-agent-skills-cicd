@@ -70,6 +70,9 @@ Owner가 운영하는 [공개 대시보드](https://agreeable-pebble-0ea54a800.6
 프로젝트별 Skill 탐지 → 품질 평가 → 후보 생성·재평가 → 원본/기존/후보 적용 결과의 회귀 비교가
 연결되어 있습니다. 별도 루트 어댑터 등록은 필요하지 않습니다. 지원되는 검사나 검증 가능한
 작업이 없으면 실행 효과는 `unverified`로 남깁니다. 실제 모델 실행에는 명시적 설정과 인증이 필요합니다.
+Actions의 단계별 로그와 실행 요약은 Anthropic 베이스라인 품질, APO-inspired 개선 근거 연결,
+프로젝트 회귀 검사를 구분합니다. `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`로
+모델 호출 없이 저장된 근거의 요약을 확인할 수 있습니다. 별도 평가 job이나 APO 점수를 추가하는 기능은 아닙니다.
 
 ### 준비된 프로젝트 샘플
 
