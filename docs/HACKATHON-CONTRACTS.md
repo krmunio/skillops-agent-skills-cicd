@@ -1,9 +1,10 @@
 # Hackathon contracts: replay, bounded improvement, explicit adoption
 
-Contract revision: **1**. Code baseline: `3a6a2a3` on `origin/main`.
+Contract revision: **1.1** (handoff clarification). Original code baseline: `3a6a2a3`.
 The operator confirmed **explicit local CLI approval** on September 17, 2026.
 This PR specifies interfaces; it does not implement them or authorize model calls.
-The remaining contract requires review before dependent implementation begins.
+Revision 1 was accepted in PR #24. This follow-up fixes the provider boundaries
+requested by sessions 3 and 4; API declarations below are not implementation evidence.
 Dependent PRs must name the accepted contract commit; changes go through the
 integration owner, not independent reinterpretations by each session.
 No presentation file was available in this checkout or conversation attachments;
@@ -138,7 +139,8 @@ reference_sha256
 `reference_sha256 = H(reference without reference_sha256)`.
 `original_checks` and `base_quality` reuse current observation/quality shapes.
 `policy_sha256` binds the unchanged `candidates.POLICY` plus the replay decision
-rule identifier `replay-v1`. Rubric, model/CLI quality context, evaluator, plan,
+rule identifier `replay-v1`, specifically `H({"policy": POLICY, "rule": "replay-v1"})`.
+Rubric, model/CLI quality context, evaluator, plan,
 prepared image identities, protected files and original version remain fixed.
 Recheck them before and after every application. A changed input ends the cycle.
 
@@ -529,6 +531,72 @@ skill_pipeline.evaluate_candidate(
 )  # -> (evaluation row, captures); no generation or persistence to public results
 ```
 
+The private context has exactly these keys (no closures or unspecified extras):
+
+| Key | Python type / invariant |
+| --- | --- |
+| `reference` | `dict`, exact reference in section 4 |
+| `work_item` | `dict`, validated full private WorkItem |
+| `original` | `tuple[dict, dict[str, bytes]]`, complete-bundle Capture |
+| `execution_mode` | `str`: `live`, `offline_test`, `sample`; never inferred from a passing result |
+| `project` | Absolute `pathlib.Path` to the pristine pinned project |
+| `plan` | `dict`, the existing `project_checks.discover` result |
+| `images` | `dict[str, str]`, prepared language -> immutable image ID |
+| `rubric` | `dict`, the pinned guide rubric |
+| `sources` | `dict[str, str]`, original UTF-8 editable contents, matching WorkItem byte hashes |
+| `skill_name` | `str`, validated frontmatter name used for explicit activation |
+| `development_scope` | `dict` defined below, or `None` for a confirmation context |
+
+`reference` supplies project/Skill/source-path and all comparison hashes; do not
+duplicate these as alternative top-level identities. Artifact directories,
+runtime, model and shared deadline are explicit function arguments, not context
+state. Session 2 derives mode from the caller-set `runtime.execution_mode`;
+missing/unknown mode blocks preparation. Production CLI sets `live` only after
+the live gate; test callers must explicitly set `offline_test`.
+
+Session 2 also owns the **only** development-feedback projection API:
+
+```python
+skill_pipeline.development_feedback(
+    context, *, evaluation=None, source_round_id=None,
+)  # -> feedback packet from section 5; caller hashes with H(packet)
+```
+
+Session 3 calls this API for initial and subsequent feedback; it does not copy
+the filter or reconstruct feedback from raw observations. The provider first
+checks reference/work/version bindings and `split == "development"`.
+Initial calls require both nullable arguments absent; later calls require both
+present, and an evaluation of the same original reference/WorkItem.
+
+`development_scope` is exactly
+`{case_ids, gate_ids, context_paths, scope_sha256}`. Lists are sorted unique
+strings; case/gate IDs are the precommitted development-visible allowlists.
+`context_paths` contains only project-relative protected material proven safe
+to disclose; no confirmation-only file, mixed test module or imported fixture
+may enter it. `scope_sha256` is H of the other three fields.
+Session 2 obtains this scope from the explicitly set
+`runtime.development_scope` supplied by the session 1 input adapter, validates it
+against the WorkItem, plan and observed checks, and copies it into the context.
+Absence or inability to prove context isolation blocks development preparation;
+it must not default to all tests. Confirmation preparation requires no scope
+and must never invoke this projection.
+
+For revision 1.1, packet `checks` is exactly `{cases, gates}`: filtered lists
+of existing `{id, status}` observations, not a full CheckObservation. Do not
+include full-suite status, timings, diagnostics or aggregate decision. Recompute
+development-only regression/status from the filtered base/original/candidate
+observations and the pinned development criteria. Source quality remains the
+guide-only observation. The application receipt contains only the development
+task outcome and application measurement, never full-suite diagnostics.
+If proof of scope fails, raise `confirmation_isolation_unverified`.
+Tests mutate confirmation cases, diagnostics and timings and require identical
+feedback bytes/hash; injecting an unallowlisted file or wrong source round fails.
+Full, unfiltered observations still drive final evaluation/approval gates.
+
+The scope is an operator-reviewed declaration, not a proof based only on a
+filename. The session 1 adapter must compare it with precommitted confirmation
+inputs before supplying it. This declaration cannot authorize edits to tests.
+
 `parent` is a Capture. `feedback` is the packet in section 5. `generation` is the
 section 4 object. `context` includes the frozen reference and validated WorkItem.
 The integration adapter calls existing `attachments`-compatible capture assembly,
@@ -547,7 +615,17 @@ skill_iterations.run_cycle(
 ```
 
 `runtime` is the caller's shared `BudgetRuntime`; `budget` is the same underlying
-live budget, not a copy. `confirmation_context` is a callable prepared by session
+live budget, not a copy. The live dictionary contains `calls: int`,
+`max_calls: int`, `max_seconds: int`, `deadline: float`, and optional
+`max_ai_credits: float`. `policy_from_environment` stores `max_seconds` at
+authorization time, alongside `deadline = monotonic() + max_seconds`.
+Only `calls` changes; never reconstruct authorized duration from remaining time.
+`project_evaluation.budget_limits(budget)` returns exactly the public budget
+object from section 5 using the stored caps and rejects missing `max_seconds`
+with `missing_limits`. Legacy direct `BudgetRuntime` use remains compatible;
+only the new cycle/persistence path requires the added cap.
+
+`confirmation_context` is a callable prepared by session
 1/2, invoked once only after candidate selection; it returns a replay context for
 the precommitted confirmation task without exposing it to generation.
 `persist_round(evaluation, captures, generation, reference)` is supplied by the
@@ -576,6 +654,11 @@ session 4 validates authorization bindings and owns all local state writes.
 the module verifies the immutable approval and current local environment before
 persisting it. Public records alone cannot be passed off as local approvals.
 The adapter requests and records a fresh `run_id`, never an old evaluation run.
+CI/noninteractive rejection and human confirmation are **session 1 CLI** duties;
+complete-bundle selection, activation and post-invocation inventory checks are
+**session 1 execution-adapter** duties, using session 4's binding validation.
+Neither a declared interface nor a passing provider unit test proves these
+adapters are wired. Missing adapters must remain explicit integration blockers.
 
 ### Session 5: read-only consumer
 
