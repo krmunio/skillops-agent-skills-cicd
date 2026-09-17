@@ -251,7 +251,10 @@ Before enabling live evaluation, configure repository settings deliberately:
 - Variable `SKILLOPS_LIVE_EVALUATION_ENABLED=true`: explicit billable-execution opt-in.
 - Positive `SKILLOPS_MAX_INVOCATIONS` (maximum 1000) and `SKILLOPS_MAX_SECONDS`
   (maximum 1200), shared across the workflow's sequential project evaluations.
-- Positive finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION`, forwarded to each Copilot CLI session.
+- Finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION` of at least **30**, forwarded to each Copilot
+  CLI session. The pinned CLI 1.0.85 rejects smaller values before model execution. SkillOps
+  treats such configuration as invalid limits and blocks evaluation without starting the runtime;
+  it never silently raises an authorized limit.
 - Secret `SKILLOPS_SWA_DEPLOYMENT_TOKEN`: the intended Static Web App's deployment credential.
 - An existing writable `evaluation-results` branch for the validated data writer.
 
