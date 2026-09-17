@@ -766,6 +766,326 @@ function assessmentFixture({ legacy = true } = {}) {
     return { report, envelope, details, summary };
   }
 
+// Contract fixtures only: never published as model measurements or adoption evidence.
+const publicBytes = value => JSON.stringify(sortKeys(value), null, 2).replace(/[\u007f-\uffff]/g,
+  char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`) + '\n';
+const H = value => hash(publicBytes(value));
+function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond = false } = {}) {
+  const key = 'skillops:develop', project = 'sample_repo', source = '.github/skills/develop';
+  const cycleId = '104-1';
+  const items = [];
+  const make = (run, body) => {
+    const item = evolutionFixture({ full: true, candidateText: body });
+    Object.assign(item.report, { run_id: run, purpose: 'project_assessment', origin: 'github_actions',
+      created_at: `2026-09-17T12:00:${run.slice(1, 3)}Z`, source_commit: 'a'.repeat(40),
+      evaluator_sha256: hash('evaluator'), project_tree_sha256: hash('project'),
+      source_report_sha256: null, source_schema_version: null,
+      guide: { status: 'completed', reason_code: 'evaluation_completed', metrics: null, decision: null },
+      execution: { status: 'completed', reason_code: 'evaluation_completed', metrics: null, decision: null } });
+    Object.assign(item.envelope, { run_id: run, report_sha256: H(item.report) });
+    item.envelope.records.generations = [];
+    item.envelope.records.comparisons = [];
+    item.envelope.records.adoptions = [];
+    item.summary = { ...item.report, guide_status: 'completed', execution_status: 'completed',
+      skill_evolution: `${run}/skill-evolution.json`,
+      evolution_skills: item.envelope.bindings.map(({ legacy_skill_id, ...binding }) => ({ ...binding, display_name: 'Develop' })) };
+    items.push(item);
+    return item;
+  };
+  const original = evolutionFixture({ full: true }).envelope.bindings[0].base_version_id;
+  const checks = { plan_sha256: hash('plan'), environment_sha256: hash('images'), protected_sha256: hash('protected'),
+    status: 'completed', cases: [{ id: 'development', status: 'passed' }, { id: 'confirmation', status: 'passed' }],
+    gates: [], elapsed_seconds: 1.25 };
+  const quality = score => ({ status: 'completed', rubric_sha256: hash('rubric'), context_sha256: hash('context'),
+    dimensions: [{ id: 'instruction_quality', score }], findings: [] });
+  const reference = (input) => {
+    const value = { schema_version: 1, project_id: project, skill_key: key, source_path: source,
+      source_commit: 'a'.repeat(40), project_tree_sha256: hash('project'), input_sha256: input,
+      original_version_id: original, rubric_sha256: hash('rubric'), quality_context_sha256: hash('context'),
+      evaluator_sha256: hash('evaluator'), policy_sha256: hash('policy'), plan_sha256: hash('plan'),
+      environment_sha256: hash('images'), protected_sha256: hash('protected'),
+      original_checks: checks, base_quality: quality(2) };
+    return { ...value, reference_sha256: H(value) };
+  };
+  const artifact = (item, name) => ({ project_id: project, run_id: item.report.run_id,
+    path: name === 'replay' ? 'replay-evaluation.json' : `${name}.json`, sha256: H(item[name]) });
+  let parent = original;
+  for (const [i, split, score] of [[1, 'development', 2], [2, 'development', 3], [3, 'confirmation', 3]]) {
+    const item = make(`${100 + i}-1`, i === 1 || unchangedSecond ? 'Round one\n' : 'Round two\n');
+    const version = item.envelope.bindings[0].candidate_version_id, input = hash(split);
+    const ref = reference(input);
+    const application = id => ({ version_id: id, staged_version_id: id, work_sha256: input,
+      output_sha256: hash('output'), activated: true, changed: true, task_outcome: 'satisfied',
+      measurement: { cost_nano_aiu: 12.25, elapsed_seconds: 2.25 } });
+    item.replay = { schema_version: 1, project_id: project, run_id: item.report.run_id,
+      report_sha256: H(item.report), execution_mode: mode, reference: ref,
+      generation: i === 3 ? null : { parent_version_id: parent, feedback_sha256: hash(`feedback-${i}`),
+        addressed_findings: ['instruction_quality'], hypothesis: '<img src=x onerror="window.traceXss=true">' },
+      evaluation: { skill_key: key, source_path: source, base_version_id: original, candidate_version_id: version,
+        work: { task_id: split, input_sha256: input, split, provenance: 'recorded',
+          checks: { plan_sha256: hash('plan'), protected_sha256: hash('protected'),
+            required_case_ids: [split], required_gate_ids: [] } },
+        reference_sha256: ref.reference_sha256, quality: { base: quality(2), candidate: quality(score) },
+        applications: { base: application(original), candidate: application(version) },
+        checks: { original: checks, base: checks, candidate: checks },
+        decision: { policy_id: 'replay-v1', status: i === 1 ? 'not_improved' : 'improved',
+          reasons: [], regression: { status: 'passed', reasons: [], regressions: [] } }, errors: [] } };
+    item.summary.replay_evaluation = `${item.report.run_id}/replay-evaluation.json`;
+    parent = version;
+  }
+  const cycle = make(cycleId, unchangedSecond ? 'Round one\n' : 'Round two\n');
+  cycle.cycle = { schema_version: 1, project_id: project, run_id: cycleId, report_sha256: H(cycle.report),
+    execution_mode: mode, cycle_id: cycleId, skill_key: key, source_path: source,
+    input_sha256: hash('development'), reference_sha256: items[0].replay.reference.reference_sha256,
+    original_version_id: original, max_rounds: 2,
+    budget: { max_invocations: 30, max_seconds: 600, max_ai_credits_per_session: null },
+    rounds: items.slice(0, 2).map((item, i) => ({ round_id: `${cycleId}-r${i + 1}`, round_number: i + 1,
+      run_id: item.report.run_id, parent_version_id: item.replay.generation.parent_version_id,
+      candidate_version_id: item.replay.evaluation.candidate_version_id, input_sha256: hash('development'),
+      reference_sha256: item.replay.reference.reference_sha256, feedback_source_round_id: i ? `${cycleId}-r1` : null,
+      feedback_sha256: item.replay.generation.feedback_sha256, evaluation_ref: artifact(item, 'replay'),
+      decision: item.replay.evaluation.decision, stop_reason: i ? 'improved' : null })),
+    stop_reason: 'improved', selected_candidate_version_id: parent, confirmation_ref: artifact(items[2], 'replay'),
+    confirmation_status: 'passed' };
+  cycle.summary.cycle = `${cycleId}/cycle.json`;
+  const adopted = make('105-1', unchangedSecond ? 'Round one\n' : 'Round two\n');
+  const approval = { approval_id: 'approval-one', project_id: project, skill_key: key,
+    candidate_version_id: parent, cycle_id: cycleId, evidence_sha256: H(cycle.cycle),
+    approved_at: '2026-09-17T12:01:00Z', approved_by: 'local_operator', trust_scope: 'local_environment',
+    previous_active_version_id: null };
+  const receipt = { execution_id: 'execution-one', run_id: '105-1', project_id: project, skill_key: key,
+    approval_id: approval.approval_id, evidence_sha256: approval.evidence_sha256, work_input_sha256: hash('next work'),
+    approved_version_id: parent, loaded_version_id: use === 'failed' ? original : parent,
+    skill_version_verified: use !== 'failed', observed_at: '2026-09-17T12:02:00Z',
+    status: use === 'failed' ? 'failed' : 'verified', reason_code: use === 'failed' ? 'skill_version_mismatch' : null };
+  adopted.adoption = { schema_version: 1, project_id: project, run_id: '105-1',
+    report_sha256: H(adopted.report), execution_mode: mode, approvals: [approval],
+    executions: use === 'none' ? [] : [receipt] };
+  adopted.summary.adoption = '105-1/adoption.json';
+  return { items, cycle, adopted, key };
+}
+async function tracePage(page, fixture, run = '104-1') {
+  const origin = 'https://dashboard.test';
+  await page.route(`${origin}/results/sample_repo/index.json`, route => route.fulfill({
+    json: { schema_version: 1, history: fixture.items.map(item => item.summary) },
+  }));
+  for (const item of fixture.items) {
+    for (const [field, file] of Object.entries({ report: 'report.json', envelope: 'skill-evolution.json',
+      replay: 'replay-evaluation.json', cycle: 'cycle.json', adoption: 'adoption.json' })) {
+      if (item[field]) await page.route(`${origin}/results/sample_repo/${item.report.run_id}/${file}`,
+        route => route.fulfill({ contentType: 'application/json', body: publicBytes(item[field]) }));
+    }
+  }
+  await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
+    history_count: fixture.items.length, current_run: null }] }, 200, origin);
+  await page.goto(`${origin}/?project=sample_repo&run=${run}&skill=${encodeURIComponent(fixture.key)}`);
+}
+
+test('trace links original, two parents, feedback, confirmation and verified use without claiming task success or Active', async ({ page }) => {
+  const fixture = traceFixture({ mode: 'live' });
+  await tracePage(page, fixture);
+  const panel = page.locator('#evidence-trace');
+  await expect(panel).toContainText('최초 원본');
+  await expect(panel.locator('[data-round]')).toHaveCount(2);
+  await expect(panel).toContainText('104-1-r1');
+  await expect(panel).toContainText('confirmation: passed');
+  await expect(panel).toContainText('검증된 사용');
+  await expect(panel).toContainText('작업 성공을 의미하지 않습니다');
+  await expect(panel).toContainText('현재 로컬 Active: 공개 근거로 확인 불가');
+  await expect(panel).toContainText('GitHub 운영 적용 권한');
+  await expect(page.locator('#summary-adoptions')).toContainText('선택 실행 근거에서 확인');
+  await panel.locator('a[data-trace-run="102-1"]').first().click();
+  await expect(page).toHaveURL(/run=102-1/);
+  await expect(page.locator('#guide')).toContainText('2 → 3');
+  await expect(page.locator('#task-results')).toContainText('development');
+  await expect(page.locator('#improvement-evidence')).toContainText('<img');
+  expect(await page.evaluate(() => window.traceXss)).toBeUndefined();
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+});
+for (const [use, label] of [['none', '승인됐지만 사용 미기록'], ['failed', '사용 실패']]) {
+  test(`trace distinguishes local approval/use: ${use}`, async ({ page }) => {
+    await tracePage(page, traceFixture({ mode: 'live', use }), '105-1');
+    await expect(page.locator('#evidence-trace')).toContainText(label);
+    await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+  });
+}
+for (const mode of ['offline_test', 'sample']) {
+  test(`trace labels ${mode} separately from live adoption and measured improvement`, async ({ page }) => {
+    await tracePage(page, traceFixture({ mode }), '102-1');
+    await expect(page.locator('#trace-mode')).toContainText(mode);
+    await expect(page.locator('#trace-mode')).toContainText('실측 성과·실제 채택 근거 아님');
+    await expect(page.locator('#quality-summary')).not.toContainText('실제 버전 평가');
+  });
+}
+test('legacy missing sidecars stay unrecorded, not N=1 or no approval', async ({ page }) => {
+  await evolutionPage(page, evolutionFixture());
+  await expect(page.locator('#evidence-trace')).toContainText('반복 평가: 미기록');
+  await expect(page.locator('#evidence-trace')).toContainText('승인·사용: 미기록');
+  await expect(page.locator('#evidence-trace')).not.toContainText('승인 없음');
+  await expect(page.locator('#summary-adoptions')).not.toContainText('채택 기록 없음');
+});
+for (const [name, mutate] of [
+  ['report hash', f => { f.cycle.cycle.report_sha256 = hash('tamper'); }],
+  ['foreign project', f => { f.cycle.cycle.rounds[0].evaluation_ref.project_id = 'other'; }],
+  ['unsafe path', f => { f.cycle.cycle.rounds[0].evaluation_ref.path = '../replay-evaluation.json'; }],
+  ['orphan round', f => { f.cycle.cycle.rounds[0].evaluation_ref.run_id = '999-1'; }],
+  ['round hash', f => { f.cycle.cycle.rounds[0].evaluation_ref.sha256 = hash('tamper'); }],
+  ['changed parent', f => { f.cycle.cycle.rounds[1].parent_version_id = f.cycle.cycle.original_version_id; }],
+  ['false confirmation', f => { f.cycle.cycle.confirmation_status = 'failed'; }],
+  ['local identity leak', f => { f.adopted.adoption.approvals[0].approved_by = 'private-user'; }],
+  ['private extra field', f => { f.adopted.adoption.environment_id = 'private-environment'; }],
+  ['forged verified mismatch', f => { f.adopted.adoption.executions[0].loaded_version_id = f.cycle.cycle.original_version_id; }],
+  ['boolean round cap', f => { f.cycle.cycle.max_rounds = true; }],
+  ['array execution identity', f => { f.adopted.adoption.executions[0].execution_id = ['execution-one']; }],
+  ['invalid observation date', f => { f.adopted.adoption.executions[0].observed_at = '2026-02-30T12:00:00Z'; }],
+]) {
+  test(`trace rejects ${name} without falling back`, async ({ page }) => {
+    const fixture = traceFixture({ mode: 'live' });
+    mutate(fixture);
+    await tracePage(page, fixture);
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+    await expect(page.locator('#trace-error')).not.toContainText('private-user');
+  });
+}
+
+test('public parser rejects duplicate keys, nonfinite numbers and fractional integer metadata but preserves Python hash encoding', async ({ page }) => {
+  await evolutionPage(page, evolutionFixture());
+  const result = await page.evaluate(async () => {
+    const { parsePublic } = await import('/trace.js');
+    const rejected = [];
+    for (const raw of ['{"schema_version":1,"schema_version":1}\n',
+      '{\n  "schema_version": 1.0\n}\n', '{\n  "max_rounds": 1e0\n}\n', '{\n  "cost": 1e999\n}\n']) {
+      try { parsePublic(raw); rejected.push(false); } catch { rejected.push(true); }
+    }
+    const raw = '{\n  "cost": 1.0,\n  "label": "\\ud55c\\uae00",\n  "reference_sha256": "omit"\n}\n';
+    const parsed = parsePublic(raw);
+    return { rejected, hash: await parsed.hashObject(parsed.value, 'reference_sha256') };
+  });
+  expect(result.rejected).toEqual([true, true, true, true]);
+  expect(result.hash).toBe(hash('{\n  "cost": 1.0,\n  "label": "\\ud55c\\uae00"\n}\n'));
+});
+
+for (const bad of ['missing', 'oversize', 'duplicate']) {
+  test(`trace ${bad} attachment cannot become a successful older run`, async ({ page }) => {
+    const fixture = traceFixture();
+    await tracePage(page, fixture);
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(2);
+    await page.route('https://dashboard.test/results/sample_repo/104-1/cycle.json', route =>
+      route.fulfill({ status: bad === 'missing' ? 404 : 200, contentType: 'application/json',
+        body: bad === 'oversize' ? ' '.repeat(1048576) + publicBytes(fixture.cycle.cycle) :
+          bad === 'duplicate' ? publicBytes(fixture.cycle.cycle).replace('"max_rounds": 2,', '"max_rounds": 1,\n  "max_rounds": 2,') : '{}' }));
+    await page.reload();
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page).toHaveURL(/run=104-1/);
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+  });
+}
+
+test('completed confirmation without a published approval is pending, not a claim of no approvals', async ({ page }) => {
+  const fixture = traceFixture({ mode: 'live' });
+  fixture.items = fixture.items.filter(item => item !== fixture.adopted);
+  await tracePage(page, fixture);
+  await expect(page.locator('#evidence-trace')).toContainText('승인 대기');
+  await expect(page.locator('#evidence-trace')).toContainText('승인·사용: 미기록');
+  await expect(page.locator('#evidence-trace')).not.toContainText('승인 없음');
+});
+
+test('cycle and later use projections remain selectable without redundant local captures or approval copies', async ({ page }) => {
+  const fixture = traceFixture({ mode: 'live' });
+  const approvalRun = structuredClone(fixture.adopted);
+  approvalRun.report.run_id = '106-1';
+  approvalRun.report.created_at = '2026-09-17T12:03:00Z';
+  approvalRun.adoption.run_id = '106-1';
+  approvalRun.adoption.report_sha256 = H(approvalRun.report);
+  approvalRun.adoption.executions = [];
+  approvalRun.summary = { ...approvalRun.report, guide_status: 'completed', execution_status: 'completed', adoption: '106-1/adoption.json' };
+  delete approvalRun.envelope;
+  fixture.adopted.adoption.approvals = [];
+  for (const item of [fixture.cycle, fixture.adopted]) {
+    delete item.envelope;
+    delete item.summary.skill_evolution;
+    delete item.summary.evolution_skills;
+  }
+  fixture.items.push(approvalRun);
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#evidence-trace')).toContainText('검증된 사용');
+  await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(2);
+  await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+test('same parent bytes cannot become a newly generated improved round even when every digest matches', async ({ page }) => {
+  await tracePage(page, traceFixture({ mode: 'live', unchangedSecond: true }));
+  await expect(page.locator('#trace-error')).toBeVisible();
+  await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+});
+
+test('approval-only Skill remains selectable alongside an unrelated captured Skill', async ({ page }) => {
+  const fixture = traceFixture({ mode: 'live' }), item = fixture.adopted;
+  const other = 'other:captured';
+  for (const row of [...item.envelope.records.identities, ...item.envelope.records.sources,
+    ...item.envelope.records.skill_versions, ...item.envelope.bindings, ...item.summary.evolution_skills]) row.skill_key = other;
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  await expect(page.locator('#evidence-trace')).toContainText('검증된 사용');
+  await expect(page.locator('#evolution-metadata')).toBeHidden();
+  await expect(page.locator('#skill-changes')).not.toContainText('Round two');
+  await expect(page.locator('#error')).toBeHidden();
+});
+
+test('interrupted generation retains round and cap without inventing a candidate or confirmation', async ({ page }) => {
+  const fixture = traceFixture();
+  const cycle = fixture.cycle.cycle;
+  cycle.rounds = [{ ...cycle.rounds[0], candidate_version_id: null, evaluation_ref: null, decision: null, stop_reason: 'call_limit' }];
+  Object.assign(cycle, { stop_reason: 'call_limit', selected_candidate_version_id: null, confirmation_ref: null, confirmation_status: 'not_run' });
+  fixture.items = [fixture.cycle];
+  await tracePage(page, fixture);
+  await expect(page.locator('#evidence-trace')).toContainText('종료 사유: call_limit');
+  await expect(page.locator('#evidence-trace')).toContainText('후보: 미기록');
+  await expect(page.locator('#evidence-trace')).toContainText('confirmation: not_run');
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+for (const target of ['project', 'skill']) {
+  test(`late cycle response cannot replace a different ${target} selection`, async ({ page }) => {
+    const fixture = traceFixture();
+    await tracePage(page, fixture);
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(2);
+    const other = 'other:skill';
+    await page.route('https://dashboard.test/results/index.json', route => route.fulfill({ json: {
+      schema_version: 1, projects: [
+        { id: 'sample_repo', state: 'active', history_count: 5, current_run: null,
+          detected_skills: [{ skill_key: other, display_name: 'Other', source_path: 'skills/other' }] },
+        { id: 'other-project', state: 'active', history_count: 0, current_run: null },
+      ],
+    } }));
+    await page.route('https://dashboard.test/results/other-project/index.json', route => route.fulfill({
+      json: { schema_version: 1, history: [] },
+    }));
+    let release, started;
+    const waiting = new Promise(resolve => { started = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    await page.route('https://dashboard.test/results/sample_repo/104-1/cycle.json', async route => {
+      started(); await gate; await route.fulfill({ contentType: 'application/json', body: publicBytes(fixture.cycle.cycle) });
+    });
+    await page.getByRole('button', { name: '새로고침', exact: true }).click();
+    await waiting;
+    if (target === 'project') await page.locator('[data-project="other-project"]').click();
+    else await page.locator('#skill-select').selectOption(other);
+    await expect(page.locator('#detail')).toBeHidden();
+    const response = page.waitForResponse('**/104-1/cycle.json');
+    release(); await response;
+    await expect(page.locator('#detail')).toBeHidden();
+    if (target === 'project') await expect(page.locator('#project-title')).toHaveText('other-project');
+    else await expect(page.locator('#skill-select')).toHaveValue(other);
+    await expect(page.locator('#error')).toBeHidden();
+  });
+}
+
 function pythonDecisionCases() {
   return JSON.parse(require('node:child_process').execFileSync('python3', ['-c',
     'import sys,json; sys.path.insert(0,"tests"); from test_skill_assessments import decision_cases; print(json.dumps(decision_cases()))',
@@ -848,6 +1168,17 @@ test('completed assessment selection preselects its Skill and renders evidence w
   await expect(page.locator('#skill-select')).toHaveValue(assessed.details.skills[0].skill_key);
   await expect(page.locator('#quality-summary')).toHaveText('선택 Skill · 실제 버전 평가');
   await expect(page.locator('#execution .decision-title')).toHaveText('품질 점수 상승 (회귀 없음)');
+});
+
+test('equal code outputs do not present a quality score increase as developer productivity', async ({ page }) => {
+  const fixture = assessmentFixture();
+  const row = fixture.details.skills[0];
+  row.applications.candidate.output_sha256 = row.applications.base.output_sha256;
+  await page.route(`https://dashboard.test/results/sample_repo/${fixture.report.run_id}/skill-assessments.json`,
+    route => route.fulfill({ json: fixture.details }));
+  await evolutionPage(page, fixture);
+  await expect(page.locator('#task-results')).toContainText('코드 출력 해시 동일');
+  await expect(page.locator('#task-results')).toContainText('생산성 향상의 증거가 아닙니다');
 });
 
 test('assessment dimensions use Korean labels with recorded IDs and hypotheses stay collapsed and inert', async ({ page }) => {
@@ -1220,7 +1551,7 @@ test('projects without assessments show unevaluated decisions and no numeric can
   await expect(page.locator('#summary-completed')).toContainText(stamp);
   await expect(page.locator('#summary-completed code')).toHaveText(fixture.completed.source_commit.slice(0, 12));
   await expect(page.locator('#summary-completed code')).toHaveAttribute('title', fixture.completed.source_commit);
-  await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+  await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
   await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
   await expect(page.locator('#project-summary details')).toHaveJSProperty('open', false);
   await expect(page.locator('#project-summary details summary')).toHaveText('이 요약은 무엇을 세나요?');
@@ -1399,7 +1730,7 @@ test('project assessment summaries count stored decisions and compare only the n
   await expect(page.locator('#summary-usage')).not.toContainText('합계');
   await expect(page.locator('#cost-card .big-number')).toHaveText('+16%');
   await expect(page.locator('#time-card .big-number')).toHaveText('+32%');
-  await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+  await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
 });
 
 test('project assessment summary changes stay missing for absent measurements or a zero baseline', async ({ page }) => {

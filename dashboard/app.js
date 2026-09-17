@@ -1,6 +1,7 @@
 import { $, node, labels, purposes, stamp, renderReport, summarizeHistory, renderProjectSummary } from './views.js';
 import { validateEvolutionSummary, validateEvolution, renderEvolution, clearEvolution } from './evolution.js';
 import { validateAssessmentSummary, validateAssessments, renderAssessment } from './assessments.js';
+import { validateTraceSummary, loadTraceSkills, loadTrace, renderTrace, clearTrace, traceError } from './trace.js';
 
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const runPattern = /^(?:[0-9]+-[0-9]+|(?:import-|local-|sample-)?[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12})$/;
@@ -14,7 +15,7 @@ let sample = null;
 let sampleSkill = null;
 let sampleMode = false;
 let selectedSkill = null;
-const newCache = () => ({ histories: new Map(), reports: new Map(), runs: new Map() });
+const newCache = () => ({ histories: new Map(), reports: new Map(), runs: new Map(), traces: new Map() });
 let cache = newCache();
 
 function linkedSelection() {
@@ -76,6 +77,14 @@ function loadHistory(project, store) {
       }
       validateEvolutionSummary(run);
       validateAssessmentSummary(run);
+      validateTraceSummary(run);
+      if (run.cycle || run.adoption) {
+        try {
+          run.trace_skills = await loadTraceSkills(project, run, await loadReport(project, run, store), load);
+        } catch {
+          run.trace_discovery_error = true;
+        }
+      }
     }
     return [...data.history].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
   });
@@ -109,7 +118,7 @@ function loadRun(project, run, store) {
       const data = await load(`/results/${project.id}/${run.skill_assessments}`);
       assessments = await validateAssessments(data, report, loaded.raw, lifecycle);
     }
-    return { report, snapshots, lifecycle, assessments };
+    return { report, rawReport: loaded.raw, snapshots, lifecycle, assessments };
   });
 }
 function loadEvidence(project, runs, store) {
@@ -132,6 +141,7 @@ function resetSelection(isSample) {
   activeRun = null; history = [];
   selectedSkill = null;
   clearEvolution();
+  clearTrace();
   $('project-summary').hidden = true;
   $('project-summary').replaceChildren();
   $('detail').hidden = true;
@@ -217,7 +227,8 @@ function skillGroups() {
   return [...groups.values()].map(group => ({ ...group, versions: group.hashes.size }));
 }
 function runSkills(run) {
-  if (run.evolution_skills) return run.evolution_skills.map(item => ({
+  if (run.evolution_skills || run.trace_skills) return [...new Map(
+    [...(run.trace_skills || []), ...(run.evolution_skills || [])].map(item => [item.skill_key, item])).values()].map(item => ({
     id: item.skill_key, name: item.display_name || item.skill_key, registered: true,
     hashes: [item.base_version_id, item.candidate_version_id],
   }));
@@ -296,6 +307,7 @@ async function selectRun(run, token, requiredSkill = null) {
   const request = ++reportSelection;
   $('detail').hidden = true;
   $('report-link').removeAttribute('href');
+  clearTrace();
   $('error').hidden = true;
   try {
     let report, detail = null, snapshots = null, lifecycle = null, assessments = null;
@@ -314,17 +326,36 @@ async function selectRun(run, token, requiredSkill = null) {
       if (request !== reportSelection || token !== selection) return;
       ({ report, snapshots, lifecycle, assessments } = bundle);
       $('report-link').href = `/results/${project.id}/${run.run_id}/report.json`;
-      const skills = runSkills(run).filter(skill => !assessments || assessments.skills.some(row => row.skill_key === skill.id));
+      const skills = runSkills(run);
       if (requiredSkill && !skills.some(item => item.id === requiredSkill)) throw new Error('Linked Skill evidence unavailable');
       if (requiredSkill) selectedSkill = requiredSkill;
-      selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : skills[0]?.id ?? null;
+      selectedSkill = skills.some(item => item.id === selectedSkill) ? selectedSkill : assessments?.skills[0]?.skill_key ?? skills[0]?.id ?? null;
       $('skill-select').value = selectedSkill || '';
     }
     if (request !== reportSelection || token !== selection) return;
-    renderReport(report, activeProject, detail, snapshots);
+    const boundSnapshots = snapshots && (!selectedSkill ||
+      selectedSkill === `legacy:${activeProject.id}:${snapshots.skill_id}` ||
+      lifecycle?.bindings.get(selectedSkill)?.legacy_skill_id === snapshots.skill_id) ? snapshots : null;
+    renderReport(report, activeProject, detail, boundSnapshots);
     clearEvolution();
-    if (lifecycle) renderEvolution(lifecycle, selectedSkill, history, next => selectRun(next, selection));
-    if (assessments) renderAssessment(assessments, selectedSkill, report.origin);
+    if (lifecycle?.bindings.has(selectedSkill)) renderEvolution(lifecycle, selectedSkill, history, next => selectRun(next, selection));
+    if (assessments?.skills.some(row => row.skill_key === selectedSkill)) renderAssessment(assessments, selectedSkill, report.origin);
+    if (!sampleMode) {
+      const project = activeProject, store = cache, skill = selectedSkill, runs = history;
+      try {
+        if (run.trace_discovery_error) throw new Error('Public trace discovery failed');
+        const trace = await cached(store.traces, `${project.id}/${run.run_id}/${skill}`, () =>
+          loadTrace({ project, run, skill, history: runs, read: load,
+            loadBundle: row => loadRun(project, row, store) }));
+        if (request !== reportSelection || token !== selection) return;
+        renderTrace(trace);
+      } catch (error) {
+        if (request !== reportSelection || token !== selection) return;
+        traceError();
+      }
+    } else {
+      $('evidence-trace').append(node('p', '합성 샘플 · 실제 replay·승인·사용 근거가 아닙니다.', 'reason'));
+    }
     activeRun = run.run_id;
     $('detail').hidden = false;
     renderHistory();
