@@ -2,6 +2,8 @@
 
 ## Current foundation
 
+- The owner-operated public dashboard was reachable on September 16, 2026.
+  The automatic-evaluation changes require their own release and live verification.
 - The controlled sample lives in `projects/sample_repo/`; its deliberately defective application
   modules are unchanged. A project-local Skill and conventional tests exercise automatic onboarding.
 - `project_profiles.json` retains compatibility with the legacy `issue-management-v2` adapter;
@@ -37,6 +39,137 @@ source and protected test context are frozen before candidate generation. If eve
 passes, or no suitable work can be derived, quality and candidate results are still retained but
 execution effect is **unverified**. This is not replay of a real historical user task.
 Remove an existing profile entry when removing its configured project. Historical results remain.
+
+## Reproducible sample preparation
+
+The checked-in snapshots cover both missing-skill insertion and existing-skill
+preservation. They are source exports, not nested Git checkouts or submodules.
+
+| Project | Pinned upstream source | Preparation |
+| --- | --- | --- |
+| `sample_repo` | Existing issue-management seeds | Add a copy of root `skills/develop/SKILL.md`; leave the three deliberately defective source files unchanged. |
+| `project-a` | `dbader/schedule`, `1.2.2`, `82a43db1b938d8fdf60103bd41f329e06c8d3651` | Preserve 32 source files and the MIT license; add the selected `schedule-development` draft. |
+| `project-b` | `obra/superpowers`, `v6.3.0`, `b36e0829c6d0140e93cfef2ca599b1b07d4a7797` | Preserve 194 ordinary files and existing skills/license; omit and record the upstream `AGENTS.md` symlink. |
+
+Verify the existing snapshots, or prepare a **new, unused** project ID:
+
+```bash
+python3 project_samples.py verify --project project-a
+python3 project_samples.py verify --project project-b
+python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
+python3 project_samples.py import --project schedule-demo --repository dbader/schedule \
+  --commit 82a43db1b938d8fdf60103bd41f329e06c8d3651 \
+  --skill project_templates/schedule-development/SKILL.md
+```
+
+The standalone helper uses Python 3.12+ standard-library modules on Windows or
+Linux; the existing evaluator still requires Linux. Imports accept public GitHub
+`owner/repository` identifiers and full commit IDs, not arbitrary download URLs.
+They do not run setup scripts, hooks, tests, or instructions from the imported
+repository. Existing project directories are never replaced. An explicit
+`{"adapter": null}` profile is optional for the automatic path; do not assign
+`issue-management-v2` to an unrelated repository.
+
+`.skillops-source.json` schema 1 records the source commit, original file hashes,
+license paths and omitted symlinks. `.skillops-bootstrap.json` schema 2 records
+only intentionally added skills and labels them `unvalidated_draft`. Imported
+bootstraps bind the exact source-manifest SHA-256; built-in bootstrap-only projects
+use a null binding. A deleted or modified bound manifest blocks verification,
+and legacy bootstrap metadata is not silently downgraded or upgraded. These
+preparation schemas do not change the public report schema.
+The helper rejects unsafe paths,
+links/junctions, special files, case collisions, metadata collisions and excessive
+archive expansion before publishing a new snapshot. Symlinks in the archive are
+omitted without following their targets. Compressed downloads are limited to
+16 MiB, in addition to the project/input limits above. PAX metadata is bounded and
+allowlisted before parsing; the 50-project cap is checked before downloading and
+again before publishing a new directory.
+
+Existing skills, including malformed ones, are preserved rather than silently
+repaired. A repository with no skill requires an explicitly selected draft;
+there is no automatic generic fallback. Only newly supplied template bytes are
+normalized from CRLF to LF. Upstream source bytes remain unchanged, and
+`.gitattributes` defaults snapshots to byte-preserving storage; imported attribute
+rules can override that default, so verify hashes after checkout too. Review all
+imported files before staging; public upstream content is not automatically trusted.
+`verify` checks recorded file integrity, not source trust or skill effectiveness.
+
+## What sample verification proves
+
+Preparation is separate from assessment. Legacy baseline registration pins the common root
+`skills/develop/SKILL.md`. The automatic project path instead discovers local Skills and binds
+each applied version to its staged bundle bytes. Adding a local Skill or passing preparation
+checks alone does not prove that live execution exercised it.
+
+With model execution disabled, the existing evaluator records:
+
+| Project | Guide | Execution |
+| --- | --- | --- |
+| `sample_repo` | `blocked / guide_integration_pending` | `blocked / live_disabled` |
+| `project-a`, `project-b` | `blocked / guide_integration_pending` | `blocked / live_disabled` |
+
+No scores or adoption decisions are invented for these states. Schedule's full
+upstream tests require platform timezone support (`time.tzset`), and some cases
+use optional `pytz`; importing it does not execute or certify that suite.
+
+The existing workflow's unprivileged `contracts` job runs the complete Python
+regression suite and pinned-image Docker controls, then invokes the existing
+project evaluator with `SKILLOPS_LIVE_EVALUATION_ENABLED=false`. It requires the
+expected blocked exit code **2**, validates each report/index, and checks that
+there is exactly one **new** actual report per catalog project with the checked-out
+commit, run ID, project tree and evaluator identities. The output starts from the
+checked-in history; all older report and optional sidecar bytes must remain
+unchanged, with no missing or unexpected report identities. Rebuilt indices retain
+validated sidecar references. Empty output fails.
+The distinct `sample-onboarding-results` artifact contains report/index JSON
+plus optional validated `skill-snapshots.json`, `skill-evolution.json` and `skill-assessments.json` sidecars,
+and is never consumed by the live result publisher. Contract success means
+these behaviors were verified, not that guide or model evaluation passed.
+
+Feature-branch manual dispatch can run this contract job without enabling the
+main-only evaluation, persistence or Azure deployment jobs. Reviewed actual
+artifact bytes may be preserved under `results/<project>/<run-id>/report.json`;
+their original evaluated source commit and evaluator fingerprint stay unchanged
+in later evidence or integration commits. New evaluator code on main can make old
+results non-current; never rewrite their provenance to match it.
+Synthetic test reports exist only in temporary directories. This preparation
+does not create the data branch, enable paid calls, install upstream skills into
+the user's agent, or provision Azure resources.
+
+## Owner dashboard direction
+
+The owner's September 16, 2026 direction separates automatic baseline checks
+from project evaluation and keeps the dashboard read-only. PR #8 implements an
+evidence-first layout and a separately labeled, opt-in synthetic sample screen.
+The real history still uses public v1 reports, with optional validated snapshot
+and evolution sidecars now supporting reviewed skill versions and dashboard history.
+The new assessment sidecar adds actual project-scoped guide and candidate evidence when available.
+
+Keep these evidence scopes distinct:
+
+- **Baseline validation workflow:** regression tests of the evaluator, container
+  controls and historical evidence checks, without live model calls.
+- **Baseline model run:** a record with `purpose: baseline`, evaluating a specific
+  skill version. A green baseline-validation CI job is not this model run.
+- **Project assessment:** a project-scoped report with separate guide/execution
+  states, with per-Skill comparisons supplied by validated assessment sidecars.
+
+| Proposed project view | Required evidence and current boundary |
+| --- | --- |
+| Project, target skill, base/candidate selection | Bind actual Skill identities, versions and bundle hashes to a run; the automatic path selects each supported project-local Skill independently. |
+| Skill quality and improvement evidence | Separate Anthropic-inspired static/rubric findings from APO-style hypotheses, changed instructions and re-evaluation. Display measured evidence only when its bound assessment sidecar exists. |
+| Project execution | Compare original/base/candidate outputs using existing protected checks and the frozen failed-check repair criterion. Disclose unsupported frameworks and missing work as unverified; legacy five-task results remain separate. |
+| Skill changes | Show only reviewed version documents and diffs with recorded generation/parent/adoption metadata. Public v1 reports still reject raw skill bodies; optional validated snapshot/evolution sidecars provide the reviewed, bounded export contract described below. |
+| History | Preserve project/run identities, evaluation kind, source/evaluator hashes, timestamps and current/stale/historical distinctions. Do not merge records merely because they share a skill name. |
+
+The screenshot's rejected candidate, 5/5 results and cost/time changes describe
+historical issue-management evidence, not the new Schedule or Superpowers samples.
+Do not copy those values into new project assessments. Likewise, static validation,
+LLM rubric results, an improvement hypothesis, a completed execution and adoption
+authorization are separate states; missing evidence must stay explicit.
+
+Sample preparation verifies inputs and report/history contracts. It does not itself run model
+evaluation or authorize activation; the automatic pipeline uses the additive evidence contract below.
 
 ## Local commands
 
@@ -79,6 +212,10 @@ deadlines; only explicitly owned containers, networks and image tags are cleaned
 model execution share the run deadline; dependency preparation is additionally capped at 180
 seconds and each check observation at 120 seconds. Cleanup has its own bounded overhead.
 Arm order is varied from a run-specific hash rather than always running the baseline first.
+Unsupported or failed dependency preparation is recorded as an explicit check-stage error.
+It does not prevent independent Skill quality evaluation and candidate generation; execution
+remains unverified. In particular, importing Schedule/Superpowers does not add support for
+their legacy packaging or shell-based test harnesses.
 
 `skill-assessments.json` is an optional, immutable, report-bound attachment for per-Skill quality,
 generation, paired application and project-check observations. It requires matching captured
@@ -117,6 +254,20 @@ Before enabling live evaluation, configure repository settings deliberately:
 - Positive finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION`, forwarded to each Copilot CLI session.
 - Secret `SKILLOPS_SWA_DEPLOYMENT_TOKEN`: the intended Static Web App's deployment credential.
 - An existing writable `evaluation-results` branch for the validated data writer.
+
+For a bounded first run, manual dispatch accepts an optional `project` catalog ID and a `live`
+checkbox (default false). This explicitly authorizes only that dispatch without enabling automatic
+billable runs on later pushes; the same configured invocation/time/credit limits are still required.
+CLI callers can use `--project <id>`; unknown IDs fail before assessment. Omit the selector to
+evaluate the catalog. Automatic main-push evaluation requires the repository enable variable.
+
+On September 16, 2026, PR #7 added 11 reviewed reports to main. A later read-only
+check confirmed the existing `evaluation-results` branch and the owner's PR #8
+workflow run `35070021220`: its contracts, persistence and deployment succeeded,
+while evaluation recorded `live_disabled`. These production steps were performed
+by the owner's workflow, not this sample task. A deployed blocked report is not
+successful model evaluation. Sample contract checks do not create or write the
+data branch, modify activation settings, or deploy to Azure.
 
 The workflow does not change repository settings or silently enable live evaluation. Missing
 settings create explicit blocked records without model invocation.
@@ -167,11 +318,9 @@ Selecting a project shows four sections in order:
    the whole detail view. **실행 이력** retains all records, including runs without
    a recorded Skill identity.
 
-Existing public v1 reports remain unchanged. Full quality findings, improvement
-traces and task-level checks still require a reviewed producer contract; the
-viewer reports missing fields explicitly. Reviewed Skill text can now be attached
-through the optional immutable sidecar described below, without inventing these
-other fields.
+Existing public v1 reports remain unchanged. Quality findings, improvement traces and project
+checks use the optional immutable assessment contract above. Missing sidecars remain explicit.
+Reviewed Skill text uses the snapshot/evolution contracts below, never mutable current files.
 
 ### Reviewed archived Skill snapshots
 
@@ -308,4 +457,4 @@ az bicep build --file infra/public-dashboard.bicep
 ```
 
 Offline tests do not claim a live model-backed Actions run. Do not merge or enable
-billable workflows solely because the skeleton's validation passed.
+billable workflows solely because offline validation passed.

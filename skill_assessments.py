@@ -96,7 +96,7 @@ def validate_skill(row):
     require(isinstance(row["errors"], list) and len(row["errors"]) <= 16, "invalid_skill_assessment")
     for error in row["errors"]:
         exact(error, "stage code")
-        require(error["stage"] in ("original_checks", "base_quality", "generation", "candidate_quality",
+        require(error["stage"] in ("preparation", "discovery", "original_checks", "base_quality", "generation", "candidate_quality",
                                   "base_application", "candidate_application", "work"),
                 "invalid_skill_assessment")
         require(matches(r"[a-z0-9_]{1,128}", error["code"]), "invalid_skill_assessment")

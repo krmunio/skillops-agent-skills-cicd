@@ -16,8 +16,8 @@ from copilot_runtime import RuntimeFailure
 
 class SkillPipelineTests(unittest.TestCase):
     def test_actual_skill_versions_drive_paired_outputs_and_regression_decision(self):
-        for regression in (False, True):
-            with self.subTest(regression=regression), tempfile.TemporaryDirectory() as folder:
+        for regression, check_error in ((False, None), (True, None), (False, "unsupported_dependencies")):
+            with self.subTest(regression=regression, check_error=check_error), tempfile.TemporaryDirectory() as folder:
                 root = Path(folder)
                 project = root / "project"
                 path = project / ".github/skills/develop/SKILL.md"
@@ -86,16 +86,22 @@ class SkillPipelineTests(unittest.TestCase):
                         skill_pipeline.project_checks, "execute", side_effect=check):
                     assessed, captures = skill_pipeline.evaluate_skill(
                         runtime, "gpt-6-astra", project, bundle, "skillops:develop",
-                        {"dimensions": ["workflow_clarity"]}, images, root / "run", deadline=9999999999)
-                self.assertEqual(assessed["decision"]["status"], "rejected" if regression else "improved")
+                        {"dimensions": ["workflow_clarity"]}, images, root / "run",
+                        deadline=9999999999, check_error=check_error)
+                self.assertEqual(assessed["decision"]["status"],
+                                 "unverified" if check_error else "rejected" if regression else "improved")
                 self.assertEqual(len(calls), 2)
                 self.assertEqual(len(captures), 2)
-                self.assertEqual(len(applications), 2)
-                self.assertNotEqual(applications[0], applications[1])
+                self.assertEqual(len(applications), 0 if check_error else 2)
+                if not check_error:
+                    self.assertNotEqual(applications[0], applications[1])
                 self.assertEqual((project / "api.py").read_text(), "VALUE = 0\n")
                 self.assertNotIn("preserve every", path.read_text())
-                self.assertEqual(assessed["applications"]["candidate"]["measurement"],
-                                 {"cost_nano_aiu": 123, "elapsed_seconds": 2})
+                if not check_error:
+                    self.assertEqual(assessed["applications"]["candidate"]["measurement"],
+                                     {"cost_nano_aiu": 123, "elapsed_seconds": 2})
+                else:
+                    self.assertIn({"stage": "preparation", "code": check_error}, assessed["errors"])
                 self.assertEqual(json.loads((root / "run/assessment.json").read_text()), assessed)
                 skill_assessments.validate_skill(assessed)
 

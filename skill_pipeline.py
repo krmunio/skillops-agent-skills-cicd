@@ -236,7 +236,8 @@ def application(runtime, model, project, files, version, name, work, sources, pl
         return receipt, checked
 
 
-def evaluate_skill(runtime, model, project, bundle, skill_key, rubric, images, artifact, *, deadline=None):
+def evaluate_skill(runtime, model, project, bundle, skill_key, rubric, images, artifact, *,
+                   deadline=None, check_error=None):
     project, artifact = Path(project), Path(artifact)
     artifact.mkdir(parents=True, exist_ok=False)
     project_identity = project_results.tree_hash(project)
@@ -260,9 +261,13 @@ def evaluate_skill(runtime, model, project, bundle, skill_key, rubric, images, a
             row["errors"].append({"stage": stage, "code": code})
             return None
 
-    plan = project_checks.discover(project)
-    row["checks"]["original"] = attempt(
-        "original_checks", lambda: project_checks.execute(project, plan, images, deadline=deadline))
+    plan = attempt("discovery", lambda: project_checks.discover(project))
+    if check_error is not None:
+        require(isinstance(check_error, str) and re.fullmatch(r"[a-z0-9_]{1,128}", check_error), "invalid_error")
+        row["errors"].append({"stage": "preparation", "code": check_error})
+    elif plan is not None:
+        row["checks"]["original"] = attempt(
+            "original_checks", lambda: project_checks.execute(project, plan, images, deadline=deadline))
     row["quality"]["base"] = attempt("base_quality", lambda: assess_quality(
         runtime, model, project, bundle["path"], rubric, artifact / "base-quality"))
     derived = attempt("work", lambda: derive_work(project, row["checks"]["original"]))

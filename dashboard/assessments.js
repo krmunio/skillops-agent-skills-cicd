@@ -183,7 +183,7 @@ export async function validateAssessments(data, report, rawReport, lifecycle) {
     check(Array.isArray(row.errors) && row.errors.length <= 16);
     for (const error of row.errors) {
       exact(error, 'stage code');
-      check(['original_checks', 'base_quality', 'generation', 'candidate_quality', 'base_application',
+      check(['preparation', 'discovery', 'original_checks', 'base_quality', 'generation', 'candidate_quality', 'base_application',
         'candidate_application', 'work'].includes(error.stage) && /^[a-z0-9_]{1,128}$/.test(error.code));
     }
     check(canonical(row.decision) === canonical(decide(row)));

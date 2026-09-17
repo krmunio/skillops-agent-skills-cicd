@@ -1,6 +1,7 @@
 """Project orchestration with explicit live-evaluation gates and public-only output."""
 
 import argparse
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -96,10 +97,10 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
     before = budget["calls"]
     try:
         bundles = skill_guide.discover(folder)
-        images = resolve_images(folder)
-        preparation_seconds = min(180, budget["deadline"] - time.monotonic())
-        results.require(preparation_seconds > 0, "time_limit")
         if not bundles:
+            images = resolve_images(folder)
+            preparation_seconds = min(180, budget["deadline"] - time.monotonic())
+            results.require(preparation_seconds > 0, "time_limit")
             with project_checks.prepared_images(folder, images, timeout=preparation_seconds) as prepared:
                 checked = project_checks.execute(
                     folder, project_checks.discover(folder), prepared, deadline=budget["deadline"])
@@ -114,7 +115,17 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
         runtime = BudgetRuntime(raw_runtime, budget)
         rubric = results.read_json(root / "eval/skill-guide-rubric.json")
         evaluated, failures = [], []
-        with project_checks.prepared_images(folder, images, timeout=preparation_seconds) as prepared, raw_runtime.locked():
+        with raw_runtime.locked(), ExitStack() as setup:
+            check_error = None
+            try:
+                images = resolve_images(folder)
+                preparation_seconds = min(180, budget["deadline"] - time.monotonic())
+                results.require(preparation_seconds > 0, "time_limit")
+                prepared = setup.enter_context(
+                    project_checks.prepared_images(folder, images, timeout=preparation_seconds))
+            except (RuntimeFailure, OSError) as error:
+                check_error = error.code if isinstance(error, RuntimeFailure) else "io_error"
+                prepared = {}
             for bundle in bundles:
                 key = skill_pipeline.skill_key(bundle["path"], history)
                 identifier = sha256(key.encode()).hexdigest()
@@ -122,7 +133,7 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
                 try:
                     evaluated.append(skill_pipeline.evaluate_skill(
                         runtime, "gpt-6-astra", folder, bundle, key, rubric, prepared, artifact,
-                        deadline=budget["deadline"]))
+                        deadline=budget["deadline"], check_error=check_error))
                 except (RuntimeFailure, OSError) as error:
                     failure = {"source_path": bundle["path"],
                                "code": error.code if isinstance(error, RuntimeFailure) else "io_error"}
@@ -184,11 +195,16 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--source-commit", required=True)
+    parser.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
     parser.add_argument("--history", type=Path, help="Previously validated results, used for stable Skill identity.")
     args = parser.parse_args()
     try:
         results.require(results.matches(results.RUN, args.run_id))
         results.require(results.matches(r"[a-f0-9]{40}", args.source_commit))
+        projects = results.catalog(args.root)
+        if args.project is not None:
+            projects = [project for project in projects if project["id"] == args.project]
+            results.require(bool(projects), "unknown_project")
         policy = policy_from_environment()
         prior = {}
         if args.history is not None:
@@ -199,7 +215,7 @@ def main():
                 if key in assessments:
                     prior.setdefault(item["project_id"], []).append(assessments[key])
         failures = 0
-        for project in results.catalog(args.root):
+        for project in projects:
             row, lifecycle, assessment = assess_with_details(
                 args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()))
             results.store(args.output, row)
