@@ -190,7 +190,8 @@ def policy_from_environment():
     except ValueError:
         return policy
     if 0 < calls <= 1000 and 0 < seconds <= 7200:
-        policy["budget"] = {"calls": 0, "max_calls": calls, "deadline": time.monotonic() + seconds}
+        policy["budget"] = {"calls": 0, "max_calls": calls, "max_seconds": seconds,
+                            "deadline": time.monotonic() + seconds}
         credit = os.environ.get("SKILLOPS_MAX_AI_CREDITS_PER_SESSION")
         if credit is not None:
             try:
@@ -203,6 +204,18 @@ def policy_from_environment():
                 return policy
             policy["budget"]["max_ai_credits"] = credit
     return policy
+
+
+def budget_limits(budget):
+    results.require(isinstance(budget, dict)
+                    and type(budget.get("max_calls")) is int and 0 < budget["max_calls"] <= 1000
+                    and type(budget.get("max_seconds")) is int and 0 < budget["max_seconds"] <= 7200,
+                    "missing_limits")
+    credit = budget.get("max_ai_credits")
+    results.require(credit is None or (type(credit) in (int, float) and math.isfinite(credit)
+                                      and credit >= MIN_AI_CREDITS), "missing_limits")
+    return {"max_invocations": budget["max_calls"], "max_seconds": budget["max_seconds"],
+            "max_ai_credits_per_session": credit}
 
 
 def changed_projects(root, projects, before, source_commit):
