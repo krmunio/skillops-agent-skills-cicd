@@ -23,6 +23,37 @@ Projects without Skills receive `not_assessed / no_skills` for Skill quality; su
 checks can still run. Unsupported execution prerequisites remain explicit, not invented scores.
 Live model use and deployment require the activation and authorization described below.
 
+## Core CI checks
+
+The repository's `SkillOps validation` workflow is **not** the Anthropic/APO-inspired
+Skill baseline assessment. Its existing `offline-and-container` job identity is unchanged
+so the required branch check remains stable.
+
+| Stage | Selected checks | Model execution |
+| --- | --- | --- |
+| Repository validation | Python tests, real isolated-container controls, immutable result contracts | None |
+| Project workflow `contracts` | Catalog discovery, blocked-report persistence/validation, workflow trigger and permission contracts | None |
+| Project workflow `evaluate` | Original quality, one generated candidate, candidate quality, paired applications and project regression checks | Explicitly enabled trusted-main execution only |
+| Project workflow `persist` | Validate and append public results, including unsuccessful evaluations, without rewriting history | None |
+| Project workflow `deploy` | Publish validated results using separate deployment credentials | None |
+
+PRs run validation without model or deployment secrets. Changes under `projects/**`,
+including a new project or changed Skill resources, match the existing main-push trigger.
+Result-branch publication does not retrigger evaluation. Manual dispatch defaults to
+`live=false`; its optional project selector limits the current run to one catalog project.
+The evaluate job uses one sequential orchestrator and shared invocation/time/credit limits,
+not independent copies of the budget in a job matrix.
+
+The existing live-disabled main path deliberately records blocked outcomes and fails
+`evaluate`; persistence and publication can still succeed. It is not a successful assessment.
+On September 17, 2026, run `35184714110` verified this path; PR run `35184542810`
+verified that privileged jobs are skipped; explicitly authorized sample-only run
+`35184191312` completed all four stages and published validated original/candidate results.
+These observations do not establish successful evaluation of the whole catalog.
+Changed-project-only selection and additional automatic-loop controls remain core
+implementation follow-ups; advanced evaluation-set selection and dashboard redesign
+are outside this CI step.
+
 ## Add a project
 
 Add a reviewed ordinary source directory under `projects/<safe-id>/` and commit
