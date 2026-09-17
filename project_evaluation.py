@@ -267,7 +267,7 @@ def main():
             assessments = results.load_assessments(args.history, rows)
             for item in sorted(rows, key=lambda row: (row["created_at"], row["run_id"]), reverse=True):
                 key = (item["project_id"], item["run_id"])
-                if key in assessments:
+                if item["origin"] != "sample" and key in assessments:
                     prior.setdefault(item["project_id"], []).append(assessments[key])
         failures = 0
         for project in projects:

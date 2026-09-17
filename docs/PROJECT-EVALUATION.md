@@ -551,6 +551,17 @@ Historical scope, missing provenance, stale results and unassessed states remain
 visible. Guide scores, execution quality and skill adoption are different concepts.
 No Anthropic certification or successful deployment of a candidate is claimed.
 
+Project catalog entries additionally carry `detected_skills` (stable `skill_key`,
+`display_name`, relative `source_path`) and nullable `skill_discovery_error`.
+Reindexing uses the existing read-only discovery and project/path identity rules,
+including previously assessed identities. No source text or invented assessment is
+published in the inventory. Discovery failures remain explicit.
+The Skill dropdown includes detected, unevaluated Skills and historically linked
+Skills; equal display names do not merge different paths. Selecting an unevaluated
+Skill clears previous details and displays `미평가`. Unlinked runs remain available
+in execution history, not as a fake Skill option. Older catalogs without inventory
+continue to use recorded Skill bindings.
+
 ### Evidence-first layout
 
 Selecting a project shows four sections in order:
@@ -624,7 +635,38 @@ candidate and comparison records receive attachments. No current-file fallback
 or rewriting of original report.json is allowed. Guide and calibration records
 without appropriate Skill evidence remain unlinked.
 
-The **샘플 화면 보기** control opens `dashboard/sample-data.json`, a bundled,
+### Native layout-development results
+
+Project-a and project-b each have three checked-in result rounds: improved,
+unchanged and regressed. They are stored at `results/<project>/sample-<run>/`
+with normal `report.json`, `skill-assessments.json` and `skill-evolution.json`
+contracts. The ordinary project/Skill history opens these records with no separate
+example mode or badge. Original and candidate instructions, bounded diffs,
+generation evidence, seven baseline/candidate quality dimensions, and five
+project check cases per Skill use the existing renderer and validators.
+The current inventory yields **6 project rounds and 45 candidate examples**
+(project-a: 1 Skill; project-b: 14), not 45 model-generated candidates.
+
+`origin: sample` remains in the report and inspectable provenance. Sample-prefixed
+run IDs require this origin; provenance fields for real source commits/evaluators
+are null, CLI invocation counts are zero and adoption decisions are absent.
+Names and paths come from discovery, but instruction bodies, timestamps,
+checks, scores and usage measurements are layout fixtures, not observed execution.
+Samples never become the catalog's current measured run or enter live assessment
+history. Qualification within a fixture describes its scenario, not evidence
+that a real Skill improved. Candidate qualification is never adoption.
+
+`python3 dashboard_samples.py --results <directory>` deterministically generates
+the fixture set through normal immutable stores. Changes to its content produce
+new content-derived run IDs rather than rewriting existing results.
+`python3 project_results.py merge-samples --results <directory>` validates and
+appends only checked-in sample-origin records. The trusted publisher runs this
+before appending Actions reports, so `evaluation-results` and the deployed
+dashboard retain the same result files. Build remains a read-only projection
+of its supplied results and never generates evaluation records. Ordinary JSON
+and evolution bounds remain 1 MiB and 2 MiB respectively.
+
+The legacy **샘플 화면 보기** control still opens `dashboard/sample-data.json`, a bundled,
 invented layout example with two Skills and three records. Its banner, labels,
 source panels and history identify synthetic content. It is opt-in and separate
 from `results/`, catalog counts, real assessment APIs and candidate adoption.

@@ -173,6 +173,8 @@ class ProjectSampleReportTests(unittest.TestCase):
             self.assertFalse(any(body in text for text in strings))
 
     def assert_indices(self, output, run_id, history_counts):
+        from skill_pipeline import skill_key
+
         index = self.results.read_json(output / "index.json")
         self.assertEqual(set(index), {"schema_version", "projects"})
         self.assertEqual(index["schema_version"], 1)
@@ -185,14 +187,24 @@ class ProjectSampleReportTests(unittest.TestCase):
         assessments = self.results.load_assessments(output, reports, lifecycles)
         for entry in index["projects"]:
             active = entry["id"] in self.catalog
+            matching = sorted((report for report in reports if report["project_id"] == entry["id"]),
+                              key=lambda report: (report["created_at"], report["run_id"]), reverse=True)
+            prior = [assessments[(entry["id"], report["run_id"])] for report in matching
+                     if (entry["id"], report["run_id"]) in assessments]
+            detected = []
+            if active:
+                project = ROOT / "projects" / entry["id"]
+                for skill in sorted(project_skills(project)):
+                    source_path = skill.parent.relative_to(project).as_posix()
+                    detected.append({"skill_key": skill_key(entry["id"], source_path, prior),
+                                     "display_name": skill.parent.name, "source_path": source_path})
             self.assertEqual(entry, {
                 "id": entry["id"], "state": "active" if active else "removed",
                 "history_count": history_counts[entry["id"]],
                 "current_run": run_id if active else None, "index": f"{entry['id']}/index.json",
+                "detected_skills": detected, "skill_discovery_error": None,
             })
             project_index = self.results.read_json(output / entry["index"])
-            matching = sorted((report for report in reports if report["project_id"] == entry["id"]),
-                              key=lambda report: (report["created_at"], report["run_id"]), reverse=True)
             self.assertEqual(len(matching), history_counts[entry["id"]])
             history = [{
                 "run_id": report["run_id"], "created_at": report["created_at"], "origin": report["origin"],

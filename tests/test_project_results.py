@@ -109,6 +109,65 @@ class ProjectResultsTests(unittest.TestCase):
             (root / "projects/sample_repo").rmdir()
             self.assertEqual(m.reindex(root, root / "results")["projects"][0]["state"], "removed")
 
+    def test_index_lists_detected_skills_without_evaluation_history(self):
+        import skill_guide
+        import skill_pipeline
+        m = self.module()
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp:
+            index = m.reindex(root, Path(temp))
+            for identifier, count in (("project-a", 1), ("project-b", 14)):
+                entry = next(row for row in index["projects"] if row["id"] == identifier)
+                expected = skill_guide.discover(root / "projects" / identifier)
+                self.assertEqual(entry["history_count"], 0)
+                self.assertEqual(len(entry.get("detected_skills", [])), count)
+                self.assertEqual([row["source_path"] for row in entry["detected_skills"]],
+                                 [row["path"] for row in expected])
+                for row in entry["detected_skills"]:
+                    self.assertEqual(row["skill_key"], skill_pipeline.skill_key(identifier, row["source_path"], []))
+                self.assertIsNone(entry["skill_discovery_error"])
+
+    def test_inventory_reuses_assessed_identity_for_the_same_path(self):
+        from test_skill_assessments import fixture
+        m = self.module()
+        report, lifecycle, assessment = fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "projects/sample_repo" / assessment["skills"][0]["source_path"]
+            path.mkdir(parents=True)
+            (path / "SKILL.md").write_text("---\nname: example\n---\nInstructions\n")
+            (root / "project_profiles.json").write_text('{"schema_version":1,"projects":{}}')
+            m.store(root / "results", report)
+            m.store_evolution(root / "results", lifecycle)
+            m.store_assessments(root / "results", assessment)
+            entry = m.reindex(root, root / "results")["projects"][0]
+            self.assertEqual(entry.get("detected_skills", [{}])[0].get("skill_key"),
+                             assessment["skills"][0]["skill_key"])
+
+    def test_inventory_discovery_failure_is_explicit(self):
+        import skill_guide
+        m = self.module()
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(
+            skill_guide, "discover", side_effect=m.RuntimeFailure("unsafe_skill_path", "private detail"),
+        ):
+            index = m.reindex(root, Path(temp))
+            for entry in index["projects"]:
+                self.assertEqual(entry.get("skill_discovery_error"), "unsafe_skill_path")
+                self.assertEqual(entry["detected_skills"], [])
+                self.assertNotIn("private detail", json.dumps(entry))
+
+    def test_oversized_inventory_is_blocked_per_project(self):
+        import skill_guide
+        m = self.module()
+        root = Path(__file__).resolve().parents[1]
+        bundles = [{"path": f"skills/example-{i}"} for i in range(257)]
+        with tempfile.TemporaryDirectory() as temp, mock.patch.object(skill_guide, "discover", return_value=bundles):
+            index = m.reindex(root, Path(temp))
+            for entry in index["projects"]:
+                self.assertEqual(entry["detected_skills"], [])
+                self.assertEqual(entry["skill_discovery_error"], "skill_inventory_limit")
+
     def test_legacy_export_excludes_free_text_and_preserves_unknown_provenance(self):
         m = self.module()
         raw = {

@@ -103,6 +103,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("needs: evaluate", persist)
         self.assertIn("needs.evaluate.result == 'failure'", persist)
         self.assertIn("python3 project_results.py validate --results ci-results", persist)
+        self.assertIn('python3 project_results.py merge-samples --results "$target/results"', persist)
         self.assertIn("contents: write", persist)
         self.assertNotIn("copilot-requests:", persist)
         self.assertIn("needs: persist", deploy)
