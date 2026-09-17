@@ -159,6 +159,10 @@ function renderQuality(report, detail) {
     const pair = node('span', undefined, 'check-pair');
     pair.append(badge(check.base));
     if (detail.candidate) pair.append(node('span', '→'), badge(check.candidate));
+    if (check.base_score !== undefined) {
+      pair.append(node('small', check.base_score === null ? '합성 점수 · 적용 제외' :
+        `합성 점수 ${number(check.base_score)} → ${number(check.candidate_score)} / 4`));
+    }
     summary.append(name, pair);
     item.append(summary, node('p', check.finding));
     list.append(item);
@@ -182,6 +186,16 @@ function renderEvidence(detail) {
     chain.append(step);
   }
   container.replaceChildren(chain, node('p', evidence.conclusion, 'conclusion'));
+  if (detail.generation) {
+    const generation = detail.generation;
+    if (generation.synthetic !== true || generation.status !== 'completed' || generation.candidate_count !== 1 ||
+        generation.model_invocations !== 0 || generation.adoption !== 'not_adopted' ||
+        generation.requires_explicit_approval !== true || generation.candidate_version !== detail.candidate.version_id) {
+      throw new Error('Invalid synthetic candidate generation');
+    }
+    container.prepend(node('p', '합성 후보 생성 완료 · 후보 1개 · 실제 모델 호출 0회', 'conclusion'));
+    container.append(node('p', '미채택 · 명시적 승인 필요 · 원본 Skill 변경 없음', 'reason'));
+  }
   if (evidence.source_run) {
     const link = node('button', '근거가 된 기준 평가 보기');
     link.type = 'button';
@@ -190,7 +204,7 @@ function renderEvidence(detail) {
   }
 }
 
-export function renderMetric(container, title, key, metrics) {
+export function renderMetric(container, title, key, metrics, synthetic = false) {
   container.replaceChildren(node('h3', title));
   const base = metrics[`base_${key}`];
   const candidate = metrics[`candidate_${key}`];
@@ -225,7 +239,7 @@ export function renderMetric(container, title, key, metrics) {
     row.append(node('span', label), track, node('span', display, 'bar-value'));
     bars.append(row);
   }
-  container.append(line, bars, node('p', cost ?
+  container.append(line, bars, node('p', synthetic ? '합성 예시 · 실제 CLI 측정값이 아닙니다.' : cost ?
     'AIU는 CLI가 기록한 Copilot 사용량 단위입니다.' : '초 · 기록된 실행 시간', 'metric-note'));
   return Number.isFinite(change) ? change : null;
 }
@@ -238,7 +252,8 @@ function renderExecution(report, detail) {
   if (decision !== null && decision !== undefined && !decisions[decision]) throw new Error('Invalid decision');
   container.className = `outcome-card ${decision === 'rejected' ? 'rejected' : ''}`;
   const heading = node('div', undefined, 'decision-heading');
-  heading.append(node('strong', decisions[decision] || labels[report.execution.status], 'decision-title'));
+  heading.append(node('strong', detail?.generation ? '후보 미채택 · 명시적 승인 필요' :
+    decisions[decision] || labels[report.execution.status], 'decision-title'));
   container.replaceChildren(node('h3', '선택한 실행의 판단'), heading);
   container.append(!detail && report.execution.status !== 'completed' ? explanation(reasons[report.execution.reason_code]) :
     node('p', detail ? '합성 평가 예시 · 실제 성과 아님' : reasons[report.execution.reason_code], 'reason'));
@@ -252,8 +267,8 @@ function renderExecution(report, detail) {
   }
   $('execution-scope').textContent = detail?.scope ||
     '공개 기록에 세부 작업 범위가 없습니다. 이 결과를 프로젝트 전체의 종합 검증으로 해석하지 않습니다.';
-  const changes = [renderMetric($('cost-card'), '실행 비용 · 기존 → 후보', 'cost_nano_aiu', metrics),
-    renderMetric($('time-card'), '실행 시간 · 기존 → 후보', 'elapsed_seconds', metrics)];
+  const changes = [renderMetric($('cost-card'), '실행 비용 · 기존 → 후보', 'cost_nano_aiu', metrics, Boolean(detail)),
+    renderMetric($('time-card'), '실행 시간 · 기존 → 후보', 'elapsed_seconds', metrics, Boolean(detail))];
   if (changes.some(change => change !== null && change > 5)) {
     heading.append(node('span', '비용·시간 증가 주의', 'badge review efficiency-warning'));
   }
@@ -382,7 +397,7 @@ export function renderReport(report, project, detail = null, snapshots = null) {
   for (const axis of [report.guide, report.execution]) {
     if (!axis || !labels[axis.status] || !reasons[axis.reason_code]) throw new Error('Invalid assessment');
   }
-  $('run-title').textContent = purposes[report.purpose];
+  $('run-title').textContent = detail && report.round_label ? `${report.round_label} · ${purposes[report.purpose]}` : purposes[report.purpose];
   $('origin').textContent = detail ? '합성 샘플' : report.origin === 'historical_import' ? '과거 로컬 이력' : '저장된 평가';
   $('run-time').textContent = stamp(report.created_at);
   $('selection-summary').textContent = `${purposes[report.purpose]} / ${stamp(report.created_at)}`;

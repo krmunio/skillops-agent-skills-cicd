@@ -85,6 +85,48 @@ function blockedHistory() {
     historyRun(2, 'comparison', 'blocked'), historyRun(1, 'comparison', 'completed')];
 }
 
+test('detected Skills are selectable before any evaluation and do not invent history', async ({ page }) => {
+  const skills = ['first', 'second'].map((name, i) => ({
+    skill_key: `path:${String(i).repeat(24)}`, display_name: name, source_path: `skills/${name}`,
+  }));
+  await page.route('http://dashboard.test/results/project-b/index.json', route => route.fulfill({
+    json: { schema_version: 1, history: [] },
+  }));
+  await pageWith(page, { schema_version: 1, projects: [{
+    id: 'project-b', state: 'active', history_count: 0, current_run: null, detected_skills: skills,
+  }] });
+  await expect(page.locator('#skill-select')).toBeEnabled();
+  await expect(page.locator('#skill-select option')).toHaveCount(2);
+  await page.locator('#skill-select').selectOption(skills[1].skill_key);
+  await expect(page.locator('#skill-select')).toHaveValue(skills[1].skill_key);
+  await expect(page.locator('#origin')).toHaveText('미평가');
+  await expect(page.locator('#selection-summary')).toContainText('second');
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#history-count')).toHaveText('0건');
+  await expect(page.locator('#error')).toBeHidden();
+});
+
+test('choosing an unevaluated detected Skill clears a previously visible run', async ({ page }) => {
+  const report = historyRun(1, 'baseline', 'completed', 'completed');
+  await page.route('http://dashboard.test/results/sample_repo/index.json', route => route.fulfill({
+    json: { schema_version: 1, history: [{ ...report, execution_status: 'completed', guide_status: 'completed' }] },
+  }));
+  await page.route('http://dashboard.test/results/sample_repo/1-1/report.json', route => route.fulfill({ json: report }));
+  const key = `path:${'a'.repeat(24)}`;
+  await pageWith(page, { schema_version: 1, projects: [{
+    id: 'sample_repo', state: 'active', history_count: 1, current_run: null,
+    detected_skills: [{ skill_key: key, display_name: 'unassessed', source_path: 'skills/unassessed' }],
+  }] });
+  await expect(page.locator('#detail')).toBeVisible();
+  await expect(page.locator('#skill-select option')).toHaveCount(1);
+  await expect(page.locator('#skill-list .skill-item[aria-pressed="true"]')).toHaveCount(0);
+  await page.locator('#skill-select').selectOption(key);
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#selection-summary')).toContainText('unassessed');
+  await expect(page.locator('#origin')).toHaveText('미평가');
+  await expect(page.locator('#error')).toBeHidden();
+});
+
 test('project selection opens the newest fully completed run before historical comparisons or partial runs', async ({ page }) => {
   const historical = { ...historyRun(1, 'comparison', 'completed'), origin: 'historical_import' };
   await historyPage(page, [historical, historyRun(6, 'project_assessment', 'blocked', 'completed'),
@@ -301,6 +343,183 @@ test('sample skill and run selection keep baseline and candidate evidence separa
   await expect(page.locator('#skill-changes')).toContainText('후보 Skill이 없습니다');
   await expect(page.locator('#improvement-evidence')).toContainText('개선 근거가 공개 기록에 없습니다');
   await expect(page.locator('#cost-card')).not.toContainText('1.64%');
+});
+
+let generatedProjectSamples;
+function projectSampleData() {
+  if (!generatedProjectSamples) {
+    const { execFileSync } = require('node:child_process');
+    generatedProjectSamples = JSON.parse(execFileSync('python3', ['-c', `
+import json, tempfile
+from pathlib import Path
+import project_results, dashboard_samples
+with tempfile.TemporaryDirectory() as folder:
+    entries = project_results.reindex(Path.cwd(), Path(folder))["projects"]
+    projects = [entry for entry in entries if entry["id"] in dashboard_samples.PROJECTS]
+    print(json.dumps({"projects": projects, "samples": {
+        entry["id"]: dashboard_samples.project_sample(entry["id"], entry["detected_skills"])
+        for entry in projects}}, ensure_ascii=False))
+`], { encoding: 'utf8' }));
+  }
+  return generatedProjectSamples;
+}
+
+async function projectSamplesPage(page) {
+  const data = projectSampleData();
+  for (const project of data.projects) {
+    await page.route(`http://dashboard.test/results/${project.id}/index.json`, route => route.fulfill({
+      json: { schema_version: 1, history: [] },
+    }));
+    await page.route(`http://dashboard.test/sample-${project.id}.json`, route => route.fulfill({
+      json: data.samples[project.id],
+    }));
+  }
+  await pageWith(page, { schema_version: 1, projects: data.projects });
+  return data;
+}
+
+test('project samples include all detected Skills and three unadopted candidate rounds each', async ({ page }) => {
+  const data = await projectSamplesPage(page);
+  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  for (const project of data.projects) {
+    await page.locator('#sample-project-select').selectOption(project.id);
+    await expect(page.locator('#project-title')).toHaveText(`${project.id} · 합성 평가 샘플`);
+    await expect(page.locator('#skill-select option')).toHaveCount(project.detected_skills.length);
+    for (const skill of data.samples[project.id].skills) {
+      await page.locator('#skill-select').selectOption(skill.id);
+      await expect(page.locator('#skill-history-runs .skill-run')).toHaveCount(3);
+      for (let i = 0; i < 3; i++) {
+        await page.locator('#skill-history-runs .skill-run').nth(i).click();
+        await expect(page.locator('#run-title')).toContainText(`${i + 1}회차`);
+        await expect(page.locator('#improvement-evidence')).toContainText('후보 1개');
+        await expect(page.locator('#improvement-evidence')).toContainText('명시적 승인');
+        await expect(page.locator('#execution')).toContainText('미채택');
+        await expect(page.locator('#guide')).toContainText('합성 점수');
+        await expect(page.locator('#skill-changes')).toContainText(`합성 후보 ${i + 1}`);
+        await expect(page.locator('#cost-card')).toContainText('실제 CLI 측정값이 아닙니다');
+        await expect(page.locator('#error')).toBeHidden();
+      }
+      await page.getByRole('button', { name: '변경 비교', exact: true }).click();
+      await expect(page.locator('#skill-diff')).toContainText('Synthetic candidate 3');
+    }
+  }
+  await page.getByRole('button', { name: '실제 기록으로 돌아가기', exact: true }).click();
+  await expect(page.locator('#sample-banner')).toBeHidden();
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#origin')).toHaveText('미평가');
+  await expect(page.locator('#history-count')).toHaveText('0건');
+  await page.getByRole('button', { name: /^project-b/ }).click();
+  await expect(page.locator('#skill-select option')).toHaveCount(14);
+  await expect(page.locator('#error')).toBeHidden();
+});
+
+test('late project sample response cannot overwrite a newer sample selection', async ({ page }) => {
+  await projectSamplesPage(page);
+  let finish, started;
+  const waiting = new Promise(resolve => { started = resolve; });
+  const release = new Promise(resolve => { finish = resolve; });
+  await page.route('http://dashboard.test/sample-project-a.json', async route => {
+    started();
+    await release;
+    await route.fulfill({ json: projectSampleData().samples['project-a'] });
+  });
+  await page.locator('#sample-project-select').selectOption('project-a');
+  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  await waiting;
+  await page.locator('#sample-project-select').selectOption('project-b');
+  await expect(page.locator('#project-title')).toHaveText('project-b · 합성 평가 샘플');
+  const response = page.waitForResponse('http://dashboard.test/sample-project-a.json');
+  finish();
+  await response;
+  await expect(page.locator('#project-title')).toHaveText('project-b · 합성 평가 샘플');
+  await expect(page.locator('#skill-select option')).toHaveCount(14);
+});
+
+test('project samples reject adoption claims and render on mobile without overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await projectSamplesPage(page);
+  await page.locator('#sample-project-select').selectOption('project-b');
+  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  await expect(page.locator('#detail')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const forged = structuredClone(projectSampleData().samples['project-a']);
+  forged.skills[0].reports[0].details.generation.adoption = 'adopted';
+  await page.route('http://dashboard.test/sample-project-a.json', route => route.fulfill({ json: forged }));
+  await page.locator('#sample-project-select').selectOption('project-a');
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#detail')).toBeHidden();
+});
+
+test('sample project loading disables stale Skill choices until the new inventory arrives', async ({ page }) => {
+  await projectSamplesPage(page);
+  await page.locator('#sample-project-select').selectOption('project-b');
+  await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+  await expect(page.locator('#skill-select option')).toHaveCount(14);
+  let finish, started;
+  const waiting = new Promise(resolve => { started = resolve; });
+  const release = new Promise(resolve => { finish = resolve; });
+  await page.route('http://dashboard.test/sample-project-a.json', async route => {
+    started();
+    await release;
+    await route.fulfill({ json: projectSampleData().samples['project-a'] });
+  });
+  await page.locator('#sample-project-select').selectOption('project-a');
+  await waiting;
+  try {
+    await expect(page.locator('#skill-select')).toBeDisabled();
+    await expect(page.locator('#skill-list .skill-item')).toHaveCount(0);
+  } finally {
+    finish();
+  }
+  await expect(page.locator('#project-title')).toHaveText('project-a · 합성 평가 샘플');
+  await expect(page.locator('#skill-select')).toBeEnabled();
+  await expect(page.locator('#skill-select option')).toHaveCount(1);
+  await expect(page.locator('#error')).toBeHidden();
+});
+
+test('duplicate detected identities fail rather than merge different Skill paths', async ({ page }) => {
+  const key = `path:${'b'.repeat(24)}`;
+  await pageWith(page, { schema_version: 1, projects: [{
+    id: 'project-b', state: 'active', history_count: 0, current_run: null,
+    detected_skills: ['first', 'second'].map(name => ({
+      skill_key: key, display_name: name, source_path: `skills/${name}`,
+    })),
+  }] });
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#detail')).toBeHidden();
+});
+
+test('late discovery errors stay with their project instead of contaminating a new selection', async ({ page }) => {
+  let finish, started;
+  const waiting = new Promise(resolve => { started = resolve; });
+  const release = new Promise(resolve => { finish = resolve; });
+  const report = { ...historyRun(1, 'baseline', 'completed', 'completed'), project_id: 'project-a' };
+  await page.route('http://dashboard.test/results/project-a/index.json', route => route.fulfill({
+    json: { schema_version: 1, history: [{ ...report, guide_status: 'completed', execution_status: 'completed' }] },
+  }));
+  await page.route('http://dashboard.test/results/project-a/1-1/report.json', async route => {
+    started();
+    await release;
+    await route.fulfill({ json: report });
+  });
+  await page.route('http://dashboard.test/results/project-b/index.json', route => route.fulfill({
+    json: { schema_version: 1, history: [] },
+  }));
+  await pageWith(page, { schema_version: 1, projects: [
+    { id: 'project-a', state: 'active', history_count: 1, current_run: null,
+      detected_skills: [], skill_discovery_error: 'unsafe_skill_path' },
+    { id: 'project-b', state: 'active', history_count: 0, current_run: null, detected_skills: [] },
+  ] });
+  await waiting;
+  await page.locator('.project[data-project="project-b"]').click();
+  await expect(page.locator('#selection-summary')).toHaveText('평가 기록이 없습니다.');
+  const pending = page.waitForResponse('http://dashboard.test/results/project-a/1-1/report.json');
+  finish();
+  const response = await pending;
+  await response.finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator('#project-title')).toHaveText('project-b');
+  await expect(page.locator('#error')).toBeHidden();
 });
 
 test('mobile layout remains within the viewport including sample code and history', async ({ page }) => {

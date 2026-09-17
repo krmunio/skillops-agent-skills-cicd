@@ -540,6 +540,17 @@ Historical scope, missing provenance, stale results and unassessed states remain
 visible. Guide scores, execution quality and skill adoption are different concepts.
 No Anthropic certification or successful deployment of a candidate is claimed.
 
+Project catalog entries additionally carry `detected_skills` (stable `skill_key`,
+`display_name`, relative `source_path`) and nullable `skill_discovery_error`.
+Reindexing uses the existing read-only discovery and project/path identity rules,
+including previously assessed identities. No source text or invented assessment is
+published in the inventory. Discovery failures remain explicit.
+The Skill dropdown includes detected, unevaluated Skills and historically linked
+Skills; equal display names do not merge different paths. Selecting an unevaluated
+Skill clears previous details and displays `미평가`. Unlinked runs remain available
+in execution history, not as a fake Skill option. Older catalogs without inventory
+continue to use recorded Skill bindings.
+
 ### Evidence-first layout
 
 Selecting a project shows four sections in order:
@@ -613,7 +624,30 @@ candidate and comparison records receive attachments. No current-file fallback
 or rewriting of original report.json is allowed. Guide and calibration records
 without appropriate Skill evidence remain unlinked.
 
-The **샘플 화면 보기** control opens `dashboard/sample-data.json`, a bundled,
+The **샘플 프로젝트** selector offers project-a/project-b examples when their
+detected inventory is available, plus the existing layout example. Select a project
+and open **샘플 화면 보기**. Changing the sample project while viewing a sample
+loads that project's examples.
+
+The static build generates `sample-project-a.json` and `sample-project-b.json`
+using `dashboard_samples.py`, outside `results/`. Each project has three rounds:
+improved, unchanged and regressed. Every detected Skill has one synthetic original
+and three distinct candidate examples, one per round. With the current inventory,
+this is **6 project rounds, 45 Skill comparisons and 45 synthetic candidates**
+(project-a: 1 Skill; project-b: 14). These are not 45 model-generated candidates.
+Each comparison contains seven baseline/candidate quality dimensions, generation
+status and a unified diff, observation/hypothesis/change/reevaluation examples,
+and five synthetic project tasks with illustrative correctness, Judge, cost and time.
+
+Only names and paths come from actual discovery. Instruction bodies, timestamps,
+scores, tasks and measurements are deliberately synthetic and labelled as such.
+All candidates remain **not adopted / explicit approval required**; no model is
+called, source Skill overwritten or approval action performed. The sample files
+retain the ordinary 1 MiB JSON bound. Actual immutable report/assessment/evolution
+files, history counts and qualification decisions are unchanged. Samples are never
+publisher inputs or evidence for real improvement or adoption.
+
+The existing layout choice opens `dashboard/sample-data.json`, a bundled,
 invented layout example with two Skills and three records. Its banner, labels,
 source panels and history identify synthetic content. It is opt-in and separate
 from `results/`, catalog counts, real assessment APIs and candidate adoption.

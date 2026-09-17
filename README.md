@@ -89,6 +89,14 @@ Manual Actions runs can specify `max_invocations`, `max_seconds` (up to 7200), a
 `max_ai_credits` for an explicit `project`. All its Skills share the call/time budget;
 Credit limits remain per session. Omitting overrides preserves repository defaults.
 
+The Skill dropdown combines detected inventory and retained history, including
+unevaluated Skills. **샘플 프로젝트 → 샘플 화면 보기** offers three synthetic rounds
+(improved, unchanged, regressed) for each of project-a and project-b. Every detected
+Skill has synthetic original/candidate text, generation rationale/diff, baseline quality
+and project reevaluation examples. Only names and paths are real discovery data;
+text, measurements and timestamps are invented. Static builds generate these samples
+separately from real history, with no paid calls, source changes or adopted candidates.
+
 ### Prepared project samples
 
 - `projects/sample_repo`: original issue-management seeds plus an explicitly added development skill.
