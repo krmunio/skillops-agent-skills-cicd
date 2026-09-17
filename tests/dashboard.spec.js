@@ -1075,7 +1075,7 @@ test('approval-only Skill remains selectable alongside an unrelated captured Ski
 test('interrupted generation retains round and cap without inventing a candidate or confirmation', async ({ page }) => {
   const fixture = traceFixture();
   const cycle = fixture.cycle.cycle;
-  cycle.rounds = [{ ...cycle.rounds[0], candidate_version_id: null, evaluation_ref: null, decision: null, stop_reason: 'call_limit' }];
+  cycle.rounds = [{ ...cycle.rounds[0], run_id: null, candidate_version_id: null, evaluation_ref: null, decision: null, stop_reason: 'call_limit' }];
   Object.assign(cycle, { stop_reason: 'call_limit', selected_candidate_version_id: null, confirmation_ref: null, confirmation_status: 'not_run' });
   fixture.items = [fixture.cycle];
   await tracePage(page, fixture);
@@ -1083,6 +1083,36 @@ test('interrupted generation retains round and cap without inventing a candidate
   await expect(page.locator('#evidence-trace')).toContainText('후보: 미기록');
   await expect(page.locator('#evidence-trace')).toContainText('confirmation: not_run');
   await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+test('unsaved generated candidate keeps its identity without inventing a run link', async ({ page }) => {
+  const fixture = traceFixture(), cycle = fixture.cycle.cycle;
+  cycle.rounds = [{ ...cycle.rounds[0], run_id: null, evaluation_ref: null, decision: null, stop_reason: 'time_limit' }];
+  Object.assign(cycle, { stop_reason: 'time_limit', selected_candidate_version_id: null,
+    confirmation_ref: null, confirmation_status: 'not_run' });
+  fixture.items = [fixture.cycle];
+  await tracePage(page, fixture);
+  await expect(page.locator('#evidence-trace')).toContainText(cycle.rounds[0].candidate_version_id);
+  await expect(page.locator('#evidence-trace')).toContainText('재평가: 미기록');
+  await expect(page.locator('#evidence-trace [data-round] a')).toHaveCount(0);
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+test('a non-null unsaved run ID is rejected by the revision 1.3 contract', async ({ page }) => {
+  const fixture = traceFixture(), cycle = fixture.cycle.cycle;
+  cycle.rounds = [{ ...cycle.rounds[0], candidate_version_id: null, evaluation_ref: null, decision: null, stop_reason: 'call_limit' }];
+  Object.assign(cycle, { stop_reason: 'call_limit', selected_candidate_version_id: null,
+    confirmation_ref: null, confirmation_status: 'not_run' });
+  fixture.items = [fixture.cycle];
+  await tracePage(page, fixture);
+  await expect(page.locator('#trace-error')).toBeVisible();
+});
+
+test('a null run ID cannot refer to a saved evaluation', async ({ page }) => {
+  const fixture = traceFixture();
+  fixture.cycle.cycle.rounds[0].run_id = null;
+  await tracePage(page, fixture);
+  await expect(page.locator('#trace-error')).toBeVisible();
 });
 
 for (const target of ['project', 'skill']) {
