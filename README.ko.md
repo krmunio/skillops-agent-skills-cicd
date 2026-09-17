@@ -117,8 +117,9 @@ Credit은 세션별 soft cap이며 전체 금액의 보장된 상한이 아닙�
 Confirmation은 `not_run` 및 `confirmation_isolation_unverified`로 남고 승인 가능 여부는 항상 false입니다.
 개발 평가의 개선은 최종 확인·승인·다음 실행의 검증된 사용을 뜻하지 않으며 Active는 변경하지 않습니다.
 개발 반복은 아래 `iterate` 명령으로 연결했습니다.
-승인/다음 실행 CLI·Actions·대시보드 게시는 별도 연결 범위입니다.
-새 sidecar의 게시도 계속 차단합니다. 오프라인 통합 테스트는 모델·컨테이너 경계만 대체하고
+승인/다음 실행 CLI와 실제 반복 평가 Actions는 별도 연결 범위입니다.
+공식 게시 경로는 이제 검증된 replay/cycle 근거를 보존하지만 adoption 게시는 계속 차단합니다.
+오프라인 통합 테스트는 모델·컨테이너 경계만 대체하고
 결과를 `offline_test`로 표시하며 실측 모델 개선으로 표시하지 않습니다.
 
 ### 제한된 개발 반복과 오프라인 데모
@@ -158,8 +159,23 @@ python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feed
 cycle/run ID와 해시가 남습니다. N=2 피드백, 조기 종료, 최대 라운드, 예산 소진,
 미저장 시도와 저장 실패를 확인할 수 있습니다.
 모든 결과는 `offline_test`이며 confirmation은 미검증·미실행 상태입니다.
-기존 경로는 덮어쓰지 않습니다. 대시보드 자산·결과 연결과 공개 배포는 별도 조율·승인이 필요하며,
-디자인 PR #32는 이번 데모에 포함하지 않습니다.
+기존 경로는 덮어쓰지 않습니다. 공식 빌드에는 `trace.js`와 해시로 검증한 replay/cycle 연결이 포함됩니다.
+공개 배포는 여전히 별도 승인이 필요하며 디자인 PR #32는 이번 데모에 포함하지 않습니다.
+
+읽기 전용 로컬 화면은 검토한 과거 실제 보고서와 생성된 `n2-feedback`을 새 결과 경로에 합친 뒤
+공식 빌드로 준비합니다. 비공개 runtime 디렉터리를 통째로 복사하지 마세요.
+
+```bash
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
+```
+
+로컬 서버의 `/?project=<project>&run=<exact-cycle-id>&skill=<skill-key>`로 시작합니다.
+정확한 cycle/run ID는 생성기 manifest에 있습니다. 화면은 `offline_test`를 비실측으로 구분하고
+최종 확인·승인 미완료를 유지합니다. 과거 실제 보고서의 본문·판정·수치는 변경하지 않습니다.
+서버 없이 열 수 있는 스크린샷 갤러리를 백업으로 보관하세요.
 
 ### 준비된 프로젝트 샘플
 

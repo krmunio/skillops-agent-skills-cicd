@@ -572,3 +572,58 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "confirmation_isolation_unverified")
         self.assertEqual(self.raw.calls, [])
         self.assertFalse(self.output.exists())
+
+    def test_official_publication_preserves_real_cycle_graph_and_legacy_bytes(self):
+        cycle = self.run_iterations()
+        code_root = Path(runner.__file__).parent
+        merged, site = self.root / "merged", self.root / "site"
+        results.merge_results(code_root, code_root / "results", merged)
+        legacy = {p.relative_to(merged): p.read_bytes() for p in merged.glob("*/*/*.json")}
+        results.merge_results(code_root, self.output, merged)
+        results.build(code_root, merged, site)
+        for relative, raw in legacy.items():
+            self.assertEqual((site / "results" / relative).read_bytes(), raw)
+        for path in self.output.glob("*/*/*.json"):
+            self.assertEqual((site / "results" / path.relative_to(self.output)).read_bytes(), path.read_bytes())
+        loaded = results.load_cycles(site / "results")[("sample_repo", cycle["cycle_id"])]
+        self.assertEqual(loaded, cycle)
+        history = results.read_json(site / "results/sample_repo/index.json")["history"]
+        summaries = {r["run_id"]: r for r in history}
+        self.assertEqual(summaries[cycle["cycle_id"]]["cycle"], f"{cycle['cycle_id']}/cycle.json")
+        for row in cycle["rounds"]:
+            run = row["run_id"]
+            self.assertEqual(summaries[run]["replay_evaluation"], f"{run}/replay-evaluation.json")
+            self.assertEqual(summaries[run]["skill_evolution"], f"{run}/skill-evolution.json")
+        self.assertEqual(len(list(site.glob("trace.*.js"))), 1)
+        self.assertFalse((site / "trace.js").exists())
+
+    def test_offline_trace_is_never_indexed_as_current_measured_run(self):
+        cycle = self.run_iterations()
+        report = results.load_reports(self.output)[0]
+        with patch.object(results, "evaluator_hash", return_value=report["evaluator_sha256"]):
+            index = results.reindex(self.root, self.output)
+        self.assertIsNone(index["projects"][0]["current_run"])
+        self.assertEqual(results.load_cycles(self.output)[("sample_repo", cycle["cycle_id"])], cycle)
+
+    def test_publication_rejects_broken_cycle_before_creating_output(self):
+        cycle = self.run_iterations()
+        code_root = Path(runner.__file__).parent
+        path = self.output / "sample_repo" / cycle["cycle_id"] / "cycle.json"
+        cycle["rounds"][0]["evaluation_ref"]["sha256"] = "0" * 64
+        path.write_bytes(results.encoded(cycle))
+        for operation in ("merge", "build"):
+            destination = self.root / operation
+            with self.subTest(operation=operation), self.assertRaises(RuntimeFailure):
+                if operation == "merge":
+                    results.merge_results(code_root, self.output, destination)
+                else:
+                    results.build(code_root, self.output, destination)
+            self.assertFalse(destination.exists())
+
+    def test_contract_ci_tests_exact_head_with_live_execution_disabled(self):
+        workflow = (Path(runner.__file__).parent / ".github/workflows/project-evaluation.yml").read_text()
+        contracts = workflow.split("\n  contracts:", 1)[1].split("\n  evaluate:", 1)[0]
+        self.assertIn("SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}", contracts)
+        self.assertIn("ref: ${{ env.SOURCE_SHA }}", contracts)
+        self.assertIn('test "$(git rev-parse HEAD)" = "$SOURCE_SHA"', contracts)
+        self.assertIn("SKILLOPS_LIVE_EVALUATION_ENABLED: 'false'", contracts)
