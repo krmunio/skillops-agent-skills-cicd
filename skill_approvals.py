@@ -29,12 +29,12 @@ import skill_pipeline
 APPROVAL_FIELDS = (
     "schema_version approval_id project_id skill_key source_path source_commit "
     "project_tree_sha256 candidate_version_id cycle_id evidence_sha256 approved_by "
-    "approved_at environment_id previous_active_version_id"
+    "approved_at environment_id previous_active_version_id previous_active_execution_sha256"
 )
 EXECUTION_FIELDS = (
     "schema_version execution_id run_id project_id skill_key approval_id approval_sha256 "
     "evidence_sha256 environment_id work_input_sha256 approved_version_id loaded_version_id "
-    "skill_version_verified observed_at status reason_code previous_active_version_id"
+    "skill_version_verified observed_at status reason_code previous_active_version_id previous_active_execution_sha256"
 )
 
 
@@ -48,6 +48,18 @@ def _digest(data):
 
 def _version(value, *, nullable=False):
     _require((nullable and value is None) or evolution.matches(evolution.VERSION_ID, value))
+
+
+def _pair(version_id, execution_sha256):
+    _version(version_id, nullable=True)
+    _require((version_id is None and execution_sha256 is None)
+             or (version_id is not None and evolution.matches(evolution.DIGEST, execution_sha256)),
+             "invalid_active_pair")
+    return {"version_id": version_id, "execution_sha256": execution_sha256}
+
+
+def _previous(record):
+    return _pair(record["previous_active_version_id"], record["previous_active_execution_sha256"])
 
 
 def _identity(project_id, skill_key):
@@ -137,7 +149,7 @@ def _approval(folder, environment, approval_id):
     _identity(value["project_id"], value["skill_key"])
     evolution.relative_path(value["source_path"])
     _version(value["candidate_version_id"])
-    _version(value["previous_active_version_id"], nullable=True)
+    _previous(value)
     _require(type(value["schema_version"]) is int and value["schema_version"] == 1
              and value["approval_id"] == approval_id and value["environment_id"] == environment
              and value["approved_by"] == _operator(), "approval_binding_mismatch")
@@ -162,7 +174,7 @@ def _execution(value, approval):
              "invalid_execution")
     _require(all(value[key] == approval[key] for key in
                  ("project_id", "skill_key", "approval_id", "evidence_sha256",
-                  "environment_id", "previous_active_version_id"))
+                  "environment_id", "previous_active_version_id", "previous_active_execution_sha256"))
              and value["approved_version_id"] == approval["candidate_version_id"]
              and value["approval_sha256"] == _digest(approval), "execution_binding_mismatch")
     _require(evolution.matches(evolution.DIGEST, value["work_input_sha256"]), "invalid_execution")
@@ -213,11 +225,13 @@ def _active(folder, environment):
     return value
 
 
-def _active_version(folder, state, project_id, skill_key):
+def _active_snapshot(folder, state, project_id, skill_key):
     pointer = state["selections"].get(project_id, {}).get(skill_key)
     if pointer is None:
-        return None
-    return _read(folder / "executions" / (pointer["execution_id"] + ".json"))["loaded_version_id"]
+        return _pair(None, None)
+    receipt = _read(folder / "executions" / (pointer["execution_id"] + ".json"))
+    _require(_digest(receipt) == pointer["execution_sha256"], "changed_active_receipt")
+    return _pair(receipt["loaded_version_id"], pointer["execution_sha256"])
 
 
 def _source(root, project_id, reference):
@@ -332,27 +346,26 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
 
 
 def approve(root, *, project_id, skill_key, candidate_version_id, cycle_id,
-            evidence_sha256, expected_active_version_id, results):
+            evidence_sha256, expected_active_version_id, expected_active_execution_sha256, results):
     """Persist an exact local binding after the CLI's separate human confirmation."""
     _local_only()
     _identity(project_id, skill_key)
-    _version(expected_active_version_id, nullable=True)
+    expected = _pair(expected_active_version_id, expected_active_execution_sha256)
     with repositories._state(root) as (folder, _):
         environment = _environment(folder, create=True)
         active = _active(folder, environment)
-        _require(_active_version(folder, active, project_id, skill_key) == expected_active_version_id, "stale_active")
-        # Contract revision needed: version-only CAS cannot detect same-version/ABA selections.
-        _require(expected_active_version_id is None, "active_revision_unavailable")
+        _require(_active_snapshot(folder, active, project_id, skill_key) == expected, "active_conflict")
         source, _ = _evidence(root, project_id=project_id, skill_key=skill_key,
                               candidate_version_id=candidate_version_id, cycle_id=cycle_id,
                               evidence_sha256=evidence_sha256, results=results)
         _require(_environment(folder) == environment, "local_environment_mismatch")
-        _require(_active(folder, environment) == active, "stale_active")
+        _require(_active(folder, environment) == active, "active_conflict")
         binding = {
             "schema_version": 1, "project_id": project_id, "skill_key": skill_key, **source,
             "candidate_version_id": candidate_version_id, "cycle_id": cycle_id, "evidence_sha256": evidence_sha256,
             "approved_by": _operator(), "environment_id": environment,
             "previous_active_version_id": expected_active_version_id,
+            "previous_active_execution_sha256": expected_active_execution_sha256,
         }
         identifier = "approval-" + _digest(binding)[:48]
         path = folder / "approvals" / (identifier + ".json")
@@ -371,20 +384,18 @@ def resolve_approved(root, *, project_id, skill_key, approval_id, candidate_vers
     with repositories._state(root) as (folder, _):
         environment = _environment(folder)
         approved = _approval(folder, environment, approval_id)
-        _require(approved["previous_active_version_id"] is None, "active_revision_unavailable")
         _require(all(approved[key] == value for key, value in (
             ("project_id", project_id), ("skill_key", skill_key), ("candidate_version_id", candidate_version_id),
             ("evidence_sha256", evidence_sha256))), "approval_binding_mismatch")
         active = _active(folder, environment)
-        _require(_active_version(folder, active, project_id, skill_key) == approved["previous_active_version_id"],
-                 "stale_active")
+        _require(_active_snapshot(folder, active, project_id, skill_key) == _previous(approved), "active_conflict")
         source, candidate = _evidence(root, project_id=project_id, skill_key=skill_key,
                                        candidate_version_id=candidate_version_id, cycle_id=approved["cycle_id"],
                                        evidence_sha256=evidence_sha256, results=results)
         _require(all(approved[key] == value for key, value in source.items()), "approval_source_changed")
         _require(_environment(folder) == environment, "local_environment_mismatch")
         _require(_approval(folder, environment, approval_id) == approved, "approval_binding_mismatch")
-        _require(_active(folder, environment) == active, "stale_active")
+        _require(_active(folder, environment) == active, "active_conflict")
         return approved, candidate
 
 
@@ -400,7 +411,6 @@ def record_execution(root, *, approval, receipt):
         _require(isinstance(approval, dict) and "approval_id" in approval)
         saved = _approval(folder, environment, approval["approval_id"])
         _require(saved == approval, "approval_binding_mismatch")
-        _require(saved["previous_active_version_id"] is None, "active_revision_unavailable")
         _execution(receipt, saved)
         _source(root, saved["project_id"], saved)
         active = _active(folder, environment)
@@ -411,10 +421,9 @@ def record_execution(root, *, approval, receipt):
             _require(_read(path) == receipt, "immutable_local_record")
             if receipt["status"] == "verified":
                 _require(active["selections"].get(project_id, {}).get(skill_key) == pointer,
-                         "active_transition_uncommitted")
+                         "active_conflict")
             return receipt
-        _require(_active_version(folder, active, project_id, skill_key) == saved["previous_active_version_id"],
-                 "stale_active")
+        _require(_active_snapshot(folder, active, project_id, skill_key) == _previous(saved), "active_conflict")
         if (folder / "executions").exists():
             for existing in (folder / "executions").glob("*.json"):
                 _require(_read(existing)["run_id"] != receipt["run_id"], "execution_run_exists")
@@ -424,10 +433,10 @@ def record_execution(root, *, approval, receipt):
         _source(root, saved["project_id"], saved)
         if receipt["status"] == "verified":
             # ponytail: one registry lock serializes all Skills; shard only if contention matters.
-            _require(_active(folder, environment) == active, "stale_active")
+            _require(_active(folder, environment) == active, "active_conflict")
             active["selections"].setdefault(project_id, {})[skill_key] = pointer
             _write(folder / "active.json", active, immutable=False)
             _require(_environment(folder) == environment, "local_environment_mismatch")
-            _require(_active_version(folder, _active(folder, environment), project_id, skill_key)
-                     == receipt["loaded_version_id"], "active_write_unverified")
+            _require(_active_snapshot(folder, _active(folder, environment), project_id, skill_key)
+                     == _pair(receipt["loaded_version_id"], _digest(receipt)), "active_write_unverified")
         return receipt
