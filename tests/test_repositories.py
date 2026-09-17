@@ -120,6 +120,14 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual((self.root / ".skillops/registry.json").read_bytes(), before)
         self.assertEqual(self.r.resolve(self.root, "a")["skill"], self.base)
 
+    def test_active_snapshot_does_not_infer_a_pair_from_legacy_pin(self):
+        self.register()
+        before = (self.root / ".skillops/registry.json").read_bytes()
+        self.assertTrue(callable(getattr(self.r, "active_snapshot", None)), "Atomic Active snapshot is missing.")
+        self.assertEqual(self.r.active_snapshot(self.root, project_id="a", skill_key="skillops:develop"),
+                         {"version_id": None, "execution_sha256": None})
+        self.assertEqual((self.root / ".skillops/registry.json").read_bytes(), before)
+
     def test_snapshot_is_stable_across_relative_and_absolute_roots(self):
         self.register()
         relative_root = Path(os.path.relpath(self.root))

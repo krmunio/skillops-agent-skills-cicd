@@ -13,7 +13,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from copilot_runtime import RuntimeFailure
 import evolution_records as evolution
@@ -31,6 +31,11 @@ def digest(value):
 
 
 class ApprovalTests(unittest.TestCase):
+    """State-machine unit tests with synthetic evidence-provider doubles.
+
+    Real common-provider and replay integration is exercised separately below;
+    no positive transition here establishes live or confirmation evidence.
+    """
     def setUp(self):
         self.assertIsNotNone(importlib.util.find_spec("skill_approvals"),
                              "Local approval implementation is missing.")
@@ -140,7 +145,7 @@ class ApprovalTests(unittest.TestCase):
         results.store(self.output, report)
         self.cycle["report_sha256"] = digest(report)
         self.save_cycle()
-        # Only the not-yet-delivered common providers are doubled. Real report,
+        # Only the evidence providers are doubled for local state-machine tests. Real report,
         # evolution, capture, byte hashes, Git identity and local I/O are exercised.
         for module, name, callback in (
             (results, "load_cycles", lambda *a, **kw: {("sample_repo", self.cycle_id): deepcopy(self.cycle)}),
@@ -165,7 +170,8 @@ class ApprovalTests(unittest.TestCase):
     def approve(self, **changes):
         args = dict(project_id="sample_repo", skill_key=self.key,
                     candidate_version_id=self.candidate[0]["version_id"], cycle_id=self.cycle_id,
-                    evidence_sha256=self.evidence, expected_active_version_id=None, results=self.output)
+                    evidence_sha256=self.evidence, expected_active_version_id=None,
+                    expected_active_execution_sha256=None, results=self.output)
         return self.a.approve(self.root, **{**args, **changes})
 
     def resolve(self, approval, **changes):
@@ -183,11 +189,46 @@ class ApprovalTests(unittest.TestCase):
             "loaded_version_id": approval["candidate_version_id"], "skill_version_verified": True,
             "observed_at": datetime.now(timezone.utc).isoformat(), "status": "verified", "reason_code": None,
             "previous_active_version_id": approval["previous_active_version_id"],
+            "previous_active_execution_sha256": approval["previous_active_execution_sha256"],
         }
         return {**row, **changes}
 
     def active(self):
         return repositories.active_version(self.root, project_id="sample_repo", skill_key=self.key)
+
+    def snapshot(self):
+        self.assertTrue(callable(getattr(repositories, "active_snapshot", None)), "Atomic Active snapshot is missing.")
+        return repositories.active_snapshot(self.root, project_id="sample_repo", skill_key=self.key)
+
+    def test_atomic_active_snapshot_and_required_hash_signature(self):
+        import inspect
+        self.assertIn("expected_active_execution_sha256", inspect.signature(self.a.approve).parameters)
+        self.assertEqual(self.snapshot(), {"version_id": None, "execution_sha256": None})
+        approved = self.approve()
+        self.assertIsNone(approved["previous_active_execution_sha256"])
+        receipt = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        self.assertEqual(self.snapshot(), {"version_id": approved["candidate_version_id"],
+                                          "execution_sha256": digest(receipt)})
+
+    def test_snapshot_cannot_pair_changed_receipt_bytes_with_an_old_hash(self):
+        approved = self.approve()
+        receipt = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        path = self.root / ".skillops/executions" / (receipt["execution_id"] + ".json")
+        sync = self.a._fsync_directory
+        directory_reads = 0
+        def change_after_validation(folder):
+            nonlocal directory_reads
+            sync(folder)
+            if Path(folder) == self.root / ".skillops":
+                directory_reads += 1
+                if directory_reads == 2:
+                    changed = {**receipt, "loaded_version_id": self.base[0]["version_id"]}
+                    path.write_bytes(results.encoded(changed))
+        with patch.object(self.a, "_fsync_directory", side_effect=change_after_validation):
+            with self.assertRaises(RuntimeFailure):
+                self.snapshot()
 
     def test_approval_and_resolution_do_not_activate_or_modify_sources(self):
         self.assertIsNone(self.active())
@@ -400,27 +441,83 @@ class ApprovalTests(unittest.TestCase):
         self.assertTrue((self.root / ".skillops/executions/execution-fixture.json").exists())
         self.assertFalse((self.root / ".skillops/active.json").exists())
 
-    def test_existing_active_approval_is_blocked_until_pointer_revision_contract(self):
+    def test_same_version_different_receipt_conflicts_at_all_three_boundaries(self):
         approved = self.approve()
-        self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
-        with self.assertRaises(RuntimeFailure) as caught:
-            self.approve(expected_active_version_id=approved["candidate_version_id"])
-        self.assertEqual(caught.exception.code, "active_revision_unavailable")
-        self.assertEqual(len(list((self.root / ".skillops/approvals").glob("*.json"))), 1)
-
-    def test_nonnull_predecessor_records_cannot_bypass_revision_block(self):
-        approved = self.approve()
-        binding = {key: value for key, value in approved.items() if key not in ("approval_id", "approved_at")}
-        binding["previous_active_version_id"] = self.candidate[0]["version_id"]
-        pending = {**binding, "approval_id": "approval-" + digest(binding)[:48],
-                   "approved_at": approved["approved_at"]}
-        results.atomic_json(self.root / ".skillops/approvals" / (pending["approval_id"] + ".json"), pending)
-        for action in (lambda: self.resolve(pending),
-                       lambda: self.a.record_execution(self.root, approval=pending, receipt=self.receipt(pending))):
+        first = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=first)
+        args = {"expected_active_version_id": approved["candidate_version_id"],
+                "expected_active_execution_sha256": digest(first)}
+        pending = self.approve(**args)
+        self.assertEqual(self.approve(**args), pending)
+        self.assertEqual(self.resolve(pending)[0], pending)
+        second = self.receipt(pending, execution_id="second-use",
+                              run_id="local-20260917T140000Z-555555555555")
+        self.a.record_execution(self.root, approval=pending, receipt=second)
+        current = self.snapshot()
+        self.assertEqual(current, {"version_id": approved["candidate_version_id"], "execution_sha256": digest(second)})
+        third = self.receipt(pending, execution_id="third-use",
+                             run_id="local-20260917T150000Z-666666666666")
+        for action in (lambda: self.approve(**args), lambda: self.resolve(pending),
+                       lambda: self.a.record_execution(self.root, approval=pending, receipt=third),
+                       lambda: self.a.record_execution(self.root, approval=approved, receipt=first)):
             with self.assertRaises(RuntimeFailure) as caught:
                 action()
-            self.assertEqual(caught.exception.code, "active_revision_unavailable")
-        self.assertIsNone(self.active())
+            self.assertEqual(caught.exception.code, "active_conflict")
+            self.assertEqual(self.snapshot(), current)
+        self.assertEqual(self.a.record_execution(self.root, approval=pending, receipt=second), second)
+        self.assertFalse((self.root / ".skillops/executions/third-use.json").exists())
+
+    def synthetic_pending(self, template, version):
+        """Seed only a CAS-unit-test private approval, not evaluated/live authority."""
+        current = self.snapshot()
+        binding = {key: value for key, value in template.items() if key not in ("approval_id", "approved_at")}
+        binding.update(candidate_version_id=version, previous_active_version_id=current["version_id"],
+                       previous_active_execution_sha256=current["execution_sha256"])
+        pending = {**binding, "approval_id": "approval-" + digest(binding)[:48],
+                   "approved_at": datetime.now(timezone.utc).isoformat()}
+        results.atomic_json(self.root / ".skillops/approvals" / (pending["approval_id"] + ".json"), pending)
+        return pending
+
+    def test_aba_change_cannot_reuse_an_unused_pending_approval(self):
+        approved = self.approve()
+        first = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=first)
+        pending = self.approve(expected_active_version_id=approved["candidate_version_id"],
+                               expected_active_execution_sha256=digest(first))
+        other = self.synthetic_pending(approved, self.base[0]["version_id"])
+        self.a.record_execution(self.root, approval=other, receipt=self.receipt(
+            other, execution_id="aba-b", run_id="local-20260917T160000Z-777777777777"))
+        back = self.synthetic_pending(approved, approved["candidate_version_id"])
+        last = self.receipt(back, execution_id="aba-a", run_id="local-20260917T170000Z-888888888888")
+        self.a.record_execution(self.root, approval=back, receipt=last)
+        self.assertEqual(self.active(), approved["candidate_version_id"])
+        self.assertNotEqual(self.snapshot()["execution_sha256"], digest(first))
+        for action in (lambda: self.resolve(pending),
+                       lambda: self.a.record_execution(self.root, approval=pending, receipt=self.receipt(
+                           pending, execution_id="stale-aba", run_id="local-20260917T180000Z-999999999999"))):
+            with self.assertRaises(RuntimeFailure) as caught:
+                action()
+            self.assertEqual(caught.exception.code, "active_conflict")
+        self.assertEqual(self.snapshot()["execution_sha256"], digest(last))
+
+    def test_half_null_invalid_and_missing_predecessor_hashes_are_rejected(self):
+        for version, value in ((None, "0" * 64), (self.base[0]["version_id"], None),
+                               (self.base[0]["version_id"], True), (self.base[0]["version_id"], "bad")):
+            with self.subTest(version=version, digest=value), self.assertRaises(RuntimeFailure):
+                self.approve(expected_active_version_id=version, expected_active_execution_sha256=value)
+        approved = self.approve()
+        receipt = self.receipt(approved, previous_active_execution_sha256="0" * 64)
+        with self.assertRaises(RuntimeFailure):
+            self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        receipt.pop("previous_active_execution_sha256")
+        with self.assertRaises(RuntimeFailure):
+            self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        path = self.root / ".skillops/approvals" / (approved["approval_id"] + ".json")
+        old = dict(approved)
+        old.pop("previous_active_execution_sha256")
+        path.write_bytes(results.encoded(old))
+        with self.assertRaises(RuntimeFailure):
+            self.resolve(approved)
 
     def test_receipt_directory_sync_failure_leaves_active_unset(self):
         approved = self.approve()
@@ -513,6 +610,196 @@ class ApprovalTests(unittest.TestCase):
         path.symlink_to(self.cycle_path)
         with self.assertRaises(RuntimeFailure):
             self.resolve(approved)
+
+
+class ApprovalIntegrationTests(unittest.TestCase):
+    """Real validators/loaders/provider; only model and container transports are synthetic."""
+
+    def setUp(self):
+        from hackathon_fixtures import fixture as replay_fixture
+        import skill_approvals
+        self.a = skill_approvals
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        (self.root / "projects").mkdir()
+        self.data = replay_fixture(self.root / "projects")
+        self.project = self.data["project"]
+        self.output = self.root / "results"
+        self.enterContext(patch.dict(os.environ, {"CI": "", "GITHUB_ACTIONS": ""}))
+
+    def approve_cycle(self, cycle):
+        path = self.output / cycle["project_id"] / cycle["cycle_id"] / "cycle.json"
+        return self.a.approve(
+            self.root, project_id=cycle["project_id"], skill_key=cycle["skill_key"],
+            candidate_version_id=cycle["selected_candidate_version_id"], cycle_id=cycle["cycle_id"],
+            evidence_sha256=sha256(path.read_bytes()).hexdigest(),
+            expected_active_version_id=None, expected_active_execution_sha256=None, results=self.output)
+
+    def development_results(self):
+        from hackathon_fixtures import write_results
+        self.data["evaluations"].pop(("sample_repo", "103-1"))
+        self.data["cycle"].update(confirmation_ref=None, confirmation_status="unverified")
+        write_results(self.output, self.data)
+        return self.data["cycle"]
+
+    def test_real_common_loaders_keep_development_evidence_unapprovable(self):
+        cycle = self.development_results()
+        self.assertEqual(len(results.load_replays(self.output)), 2)
+        self.assertEqual(results.load_cycles(self.output)[("sample_repo", cycle["cycle_id"])], cycle)
+        self.assertEqual(skill_assessments.validate_work_item(
+            self.data["work_item"], project=self.project, source_commit=self.data["work_item"]["source_commit"]),
+            self.data["work_item"])
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.approve_cycle(cycle)
+        self.assertEqual(caught.exception.code, "cycle_not_approvable")
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+        self.assertEqual(repositories.active_snapshot(self.root, project_id="sample_repo", skill_key="skillops:develop"),
+                         {"version_id": None, "execution_sha256": None})
+
+    def test_real_common_loader_rejects_forged_confirmation_without_an_artifact(self):
+        cycle = self.development_results()
+        cycle["confirmation_status"] = "passed"
+        path = self.output / "sample_repo" / cycle["cycle_id"] / "cycle.json"
+        path.write_bytes(results.encoded(cycle))
+        for action in (lambda: results.load_cycles(self.output), lambda: self.approve_cycle(cycle)):
+            with self.assertRaises(RuntimeFailure) as caught:
+                action()
+            self.assertEqual(caught.exception.code, "cycle_confirmation_mismatch")
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+
+    def test_real_replay_provider_loaders_and_approval_preserve_confirmation_block(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "add", "projects"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Test",
+                        "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false",
+                        "commit", "-qm", "Offline integration fixture"], check=True)
+        work = deepcopy(self.data["work_item"])
+        work["source_commit"] = subprocess.check_output(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"], text=True).strip()
+        work["input_sha256"] = digest({k: v for k, v in work.items() if k != "input_sha256"})
+        skill_assessments.validate_work_item(work, project=self.project, source_commit=work["source_commit"])
+        runtime = Mock(project=self.root, cli="/offline/copilot", env={}, execution_mode="offline_test")
+        runtime.private = self.root / ".skillops-private"
+        runtime.private.mkdir(mode=0o700)
+        work_path = runtime.private / "work-items" / work["task_id"] / (work["input_sha256"] + ".json")
+        results.atomic_json(work_path, work, immutable=True)
+        quality_calls = []
+
+        def quality(*args):
+            quality_calls.append(args)
+            return {"status": "pass", "static": {"findings": []},
+                    "judge": {"dimensions": {"clarity": {"score": 2 if len(quality_calls) == 1 else 3}}}}
+
+        def check(project, plan, images, **kwargs):
+            return {
+                "plan_sha256": plan["sha256"], "environment_sha256": project_checks.digest(images),
+                "protected_sha256": project_checks.protected_digest(project, project_checks.protected_files(project)),
+                "status": "completed", "cases": [
+                    {"id": name, "status": "passed"} for name in ("confirmation", "development", "stable")],
+                "gates": [], "elapsed_seconds": 1,
+            }
+
+        def invoke(prompt, model, role, workdir, artifact, expected_skill=None, **kwargs):
+            self.assertNotIn("def test_confirmation", prompt)
+            if role == "generator":
+                return {"content": json.dumps({
+                    "instructions": "Check changes and boundaries.", "addressed_findings": ["clarity"],
+                    "hypothesis": "Offline transport fixture, not measured improvement.",
+                })}
+            from copilot_runtime import verify_staged_version
+            self.assertEqual(role, "developer")
+            self.assertIn(work["request"], prompt)
+            version = verify_staged_version(expected_skill, kwargs["expected_version"])
+            return {"content": json.dumps({"files": {"app.py": "value = 1\n"}}),
+                    "skill_version_verified": True, "skill_activated": True, "staged_version_id": version,
+                    "elapsed_seconds": 2, "usage": {"nano_aiu": {"value": 123}}}
+
+        runtime.invoke.side_effect = invoke
+        bundle = skill_guide.discover(self.project)[0]
+        cycle_id = "local-20260917T200000Z-aaaaaaaaaaaa"
+        run_id = "local-20260917T200001Z-bbbbbbbbbbbb"
+        before = results.tree_hash(self.project)
+        # No shared validation, decision, feedback, loading or Git function is patched.
+        with patch.object(skill_guide, "evaluate_bundle", side_effect=quality), patch.object(
+                project_checks, "execute", side_effect=check):
+            context = skill_pipeline.prepare_replay(
+                runtime, "offline-model", self.project, bundle, "skillops:develop",
+                self.data["rubric"], self.data["images"], runtime.private / "prepare",
+                work_item=work, deadline=9999999999)
+            generation, candidate = skill_pipeline.generate_candidate(
+                runtime, "offline-model", context["original"], context["feedback"],
+                runtime.private / "generate", deadline=9999999999)
+            row, captures = skill_pipeline.evaluate_candidate(
+                runtime, "offline-model", context, candidate, runtime.private / "evaluate", deadline=9999999999)
+            row_bytes = results.encoded(row)
+            feedback = skill_pipeline.development_feedback(
+                runtime, context, row, source_round_id=cycle_id + "-r1")
+            self.assertEqual(results.encoded(row), row_bytes)
+            self.assertEqual(feedback["source_round_id"], cycle_id + "-r1")
+            confirmation = deepcopy(work)
+            confirmation.update(task_id="confirmation-task", split="confirmation", request="Confirm a distinct task.")
+            confirmation["checks"]["required_case_ids"] = ["confirmation"]
+            confirmation["input_sha256"] = digest({k: v for k, v in confirmation.items() if k != "input_sha256"})
+            calls = runtime.invoke.call_count
+            with self.assertRaises(RuntimeFailure) as caught:
+                skill_pipeline.prepare_replay(
+                    runtime, "offline-model", self.project, bundle, "skillops:develop",
+                    self.data["rubric"], self.data["images"], runtime.private / "confirmation",
+                    work_item=confirmation, deadline=9999999999)
+            self.assertEqual(caught.exception.code, "confirmation_isolation_unverified")
+            self.assertEqual(runtime.invoke.call_count, calls)
+        self.assertEqual(row["decision"]["status"], "improved")
+        self.assertEqual(context["execution_mode"], "offline_test")
+        self.assertEqual(results.tree_hash(self.project), before)
+        report = deepcopy(self.data["cycle_report"])
+        report.update(run_id=run_id, **{key: context["reference"][key] for key in
+                                       ("source_commit", "project_tree_sha256", "evaluator_sha256")})
+        lifecycle = deepcopy(self.data["evaluations"][("sample_repo", "102-1")]["lifecycle"])
+        lifecycle.update(run_id=run_id, report_sha256=digest(report))
+        lifecycle["records"]["versions"] = [capture[0] for capture in captures]
+        lifecycle["records"]["skill_versions"] = [
+            {"skill_key": row["skill_key"], "version_id": capture[0]["version_id"]} for capture in captures]
+        lifecycle["bindings"][0].update(base_version_id=row["base_version_id"],
+                                         candidate_version_id=row["candidate_version_id"])
+        lifecycle["file_contents"] = [
+            {"version_id": version["version_id"], "path": path, "encoding": "base64",
+             "data": base64.b64encode(raw).decode()}
+            for version, files in captures for path, raw in files.items()]
+        replay = {"schema_version": 1, "project_id": "sample_repo", "run_id": run_id,
+                  "report_sha256": digest(report), "execution_mode": "offline_test",
+                  "reference": context["reference"], "generation": generation, "evaluation": row}
+        skill_assessments.validate_replay(replay, report=report, lifecycle=lifecycle)
+        results.store(self.output, report)
+        results.store_evolution(self.output, lifecycle)
+        results.atomic_json(self.output / "sample_repo" / run_id / "replay-evaluation.json", replay, immutable=True)
+        cycle_report = {**report, "run_id": cycle_id}
+        results.store(self.output, cycle_report)
+        cycle = {
+            **deepcopy(self.data["cycle"]), "run_id": cycle_id, "cycle_id": cycle_id,
+            "report_sha256": digest(cycle_report), "input_sha256": work["input_sha256"],
+            "reference_sha256": context["reference"]["reference_sha256"],
+            "original_version_id": row["base_version_id"], "max_rounds": 1,
+            "selected_candidate_version_id": row["candidate_version_id"],
+            "confirmation_ref": None, "confirmation_status": "unverified",
+            "rounds": [{
+                "round_id": cycle_id + "-r1", "round_number": 1, "run_id": run_id,
+                "parent_version_id": generation["parent_version_id"], "candidate_version_id": row["candidate_version_id"],
+                "input_sha256": work["input_sha256"], "reference_sha256": row["reference_sha256"],
+                "feedback_source_round_id": None, "feedback_sha256": generation["feedback_sha256"],
+                "evaluation_ref": {"project_id": "sample_repo", "run_id": run_id,
+                                   "path": "replay-evaluation.json", "sha256": digest(replay)},
+                "decision": row["decision"], "stop_reason": "improved",
+            }],
+        }
+        results.validate_cycle(cycle, report=cycle_report, evaluations={
+            ("sample_repo", run_id): {"report": report, "lifecycle": lifecycle, "replay": replay}})
+        results.atomic_json(self.output / "sample_repo" / cycle_id / "cycle.json", cycle, immutable=True)
+        self.assertEqual(results.load_replays(self.output)[("sample_repo", run_id)], replay)
+        self.assertEqual(results.load_cycles(self.output)[("sample_repo", cycle_id)]["confirmation_status"], "unverified")
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.approve_cycle(cycle)
+        self.assertEqual(caught.exception.code, "cycle_not_approvable")
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+        self.assertIsNone(repositories.active_version(self.root, project_id="sample_repo", skill_key="skillops:develop"))
 
 
 if __name__ == "__main__":
