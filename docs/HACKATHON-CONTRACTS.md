@@ -1,9 +1,18 @@
 # Hackathon contracts: replay, bounded improvement, explicit adoption
 
-Contract revision: **1**. Code baseline: `3a6a2a3` on `origin/main`.
+Contract revision: **1.2** (session 2 issue #25 accepted handoff).
+Original code baseline: `3a6a2a3`.
 The operator confirmed **explicit local CLI approval** on September 17, 2026.
 This PR specifies interfaces; it does not implement them or authorize model calls.
-The remaining contract requires review before dependent implementation begins.
+Revision 1 was accepted in PR #24. This follow-up fixes the provider boundaries
+requested by sessions 3 and 4; API declarations below are not implementation evidence.
+Revision 1.2 supersedes revision 1.1's `development_scope` and context-only
+feedback signature. It accepts session 2's issue #25 proposal, with the explicit
+binding checks below. Commit `9a2ce57` provides replay source/outcome helpers only;
+it is not completion of `prepare_replay`, `generate_candidate` or `evaluate_candidate`.
+It also accepts session 4's ABA/concurrent-Active correction: private approval
+and execution records bind both the previous version and previous execution
+receipt hash. Public adoption projections remain unchanged.
 Dependent PRs must name the accepted contract commit; changes go through the
 integration owner, not independent reinterpretations by each session.
 No presentation file was available in this checkout or conversation attachments;
@@ -138,7 +147,8 @@ reference_sha256
 `reference_sha256 = H(reference without reference_sha256)`.
 `original_checks` and `base_quality` reuse current observation/quality shapes.
 `policy_sha256` binds the unchanged `candidates.POLICY` plus the replay decision
-rule identifier `replay-v1`. Rubric, model/CLI quality context, evaluator, plan,
+rule identifier `replay-v1`, specifically `H({"policy": POLICY, "rule": "replay-v1"})`.
+Rubric, model/CLI quality context, evaluator, plan,
 prepared image identities, protected files and original version remain fixed.
 Recheck them before and after every application. A changed input ends the cycle.
 
@@ -217,12 +227,12 @@ For initial feedback, `source_round_id` and `decision` are null,
 `quality` is base quality, `checks` is filtered original checks and `application` is null.
 Later packets contain the previous candidate quality/checks/application and
 decision, with `source_round_id` equal to that previous round ID. `application`
-is the candidate receipt, not the base/candidate map. Filter check cases and
-decision reasons/regressions to development-visible evidence, excluding every
-confirmation-only case, gate and diagnostic before computing the packet hash.
-If filtering cannot preserve a valid observation, stop explicitly rather than
-expose confirmation evidence. Hash the packet with `H`; validate it against that
-same deterministic projection of retained evaluation bytes. Expose only bounded,
+is the candidate receipt, not the base/candidate map. Filter check cases to the
+development-visible scope. The source decision is included unchanged only when
+it is reproducible from that scope alone; otherwise block rather than remove
+reasons/regressions or expose excluded diagnostics. Hash the packet with `H`;
+validate it against that deterministic projection of retained evaluation bytes.
+Expose only bounded,
 redacted development evidence to the generator.
 
 Each round record has exactly:
@@ -266,6 +276,10 @@ Credit soft caps and claim an enforced aggregate monetary ceiling.
 
 `selected_candidate_version_id` is the first fully verified improved candidate,
 or null. `confirmation_status` is `not_run`, `passed`, `failed` or `unverified`.
+With no confirmation artifact, `confirmation_ref` is null: `not_run` means no
+attempt, while `unverified` means preparation was attempted but blocked before
+an evaluation could be emitted (including the phase-1 isolation guard).
+Neither state permits approval; passed/failed require a validated artifact.
 The selected bytes are frozen before confirmation. Confirmation evaluates them
 once against a different, precommitted `split: confirmation` WorkItem and the
 same original Skill. Its reference has that task's input hash and original check
@@ -308,12 +322,15 @@ The proposed command surface below is not implemented by this document:
 python3 skillops.py approve --project <project> --skill-key <key> \
   --candidate-version sha256:<complete-bundle-hash> \
   --evidence-sha256 <cycle-file-hash> --cycle <cycle-id> \
-  --expected-active-version <version-or-none> --results <results-directory>
+  --expected-active-version <version-or-none> \
+  --expected-active-execution-sha256 <receipt-hash-or-none> \
+  --results <results-directory>
 ```
 
 No `--latest`, auto-approve flag, approval based only on a score, or browser write
 endpoint. Reject CI/Actions invocation and require an interactive confirmation
-showing project, Skill, full candidate hash, evidence hash and previous Active.
+showing project, Skill, full candidate hash, evidence hash and both previous
+Active version and execution receipt hash.
 This is a guardrail within a trusted local operator environment, not proof against
 malicious software with the same OS account or proof of a GitHub identity.
 
@@ -329,15 +346,24 @@ Private approval record fields are exactly:
 schema_version approval_id project_id skill_key source_path source_commit
 project_tree_sha256 candidate_version_id cycle_id evidence_sha256
 approved_by approved_at environment_id previous_active_version_id
+previous_active_execution_sha256
 ```
 
 `approved_by` is host-derived local operator identity, never a model claim or
 caller-supplied GitHub login. `environment_id` identifies the owner-only local
-approval store, not a portable authorization token. Previous Active is null if
-none was recorded; never infer it from an entrypoint-only legacy pin.
+approval store, not a portable authorization token.
+`previous_active_version_id` and `previous_active_execution_sha256` are both
+null only when no Active pointer exists. Otherwise both are required: a complete
+version ID and the lowercase SHA-256 of the actual canonical private execution
+receipt bytes referenced by Active. A half-null pair, missing/invalid receipt,
+unverified receipt or mismatched target/environment is invalid state, not absence.
+Never infer an Active pair from an entrypoint-only legacy pin.
 Serialize approval writes using the existing local registry lock pattern and
-compare the recorded Active with `--expected-active-version`. Concurrent or stale
-approval attempts fail. A repeat with identical binding returns the existing
+compare the recorded Active pair with both `--expected-active-*` values under
+that same lock. CLI literal `none` maps to Python `None`; never accept a missing
+hash as a wildcard. Concurrent or stale approval attempts fail. The accepted pair
+is stored in the approval, not reconstructed later from the version alone.
+A repeat with identical binding returns the existing
 receipt; changed evidence requires a new explicit approval.
 
 Approval does **not** overwrite original Skill files, change the recorded Active,
@@ -370,17 +396,29 @@ schema_version execution_id run_id project_id skill_key approval_id
 approval_sha256 evidence_sha256 environment_id work_input_sha256
 approved_version_id loaded_version_id skill_version_verified observed_at
 status reason_code previous_active_version_id
+previous_active_execution_sha256
 ```
 
 `status` is `verified`, `failed` or `blocked`. `loaded_version_id` is null when
 not observed. `verified` requires matching full IDs, successful runtime activation
 verification and the same approval/evidence/environment binding. It proves
 observed Skill use, not task success; the execution report carries task outcomes.
-Persist that receipt before updating the private Active pointer under the lock,
-and reject a concurrent Active change rather than overwriting it.
+Both previous-Active fields must equal the approval's captured pair. Revalidate
+the pair when resolving approval, then compare again under the Active update lock
+immediately before persisting a successful transition. Hold that lock across
+comparison, receipt persistence and pointer replacement. Reject a changed version
+**or changed execution receipt hash**, including same-version re-execution and
+A -> B -> A, with `active_conflict`; leave the existing Active untouched.
+Persist the receipt before updating the private Active pointer to the new version
+and the hash of that exact receipt. The receipt's `execution_id` distinguishes
+separate executions even if they use identical Skill bytes.
 Any failure before a durable verified receipt leaves Active unchanged. If pointer
 persistence fails, report an error; do not claim an Active transition. Active reads
 validate their referenced receipt. A verified receipt alone is not a recovery rule.
+Retrying the exact same already-recorded execution is idempotent only if Active
+still points to that same version/receipt pair; never restore an earlier pointer
+after an intervening transition. A receipt orphaned by failed pointer persistence
+does not authorize automatic recovery.
 
 Active is keyed by local environment, project and Skill, and means the last
 successfully recorded explicit version selection. Approval pending first use,
@@ -491,6 +529,9 @@ does not authorize touching someone else's worktree or staging their changes.
 skill_assessments.validate_work_item(data, *, project, source_commit)  # -> WorkItem
 skill_assessments.validate_replay(data, *, report, lifecycle)         # -> wrapper
 skill_assessments.decide_replay(evaluation, *, work_item)             # -> decision
+skill_assessments.validate_development_feedback(
+    packet, *, context, evaluation, parent, source_round_id,
+)  # -> packet; pure semantic validation, not issuance or isolation certification
 project_results.validate_cycle(data, *, report, evaluations)         # -> cycle
 project_results.store_replay(results, data)                          # -> Path
 project_results.load_replays(results, rows=None)                     # -> {(project, run): wrapper}
@@ -529,10 +570,124 @@ skill_pipeline.evaluate_candidate(
 )  # -> (evaluation row, captures); no generation or persistence to public results
 ```
 
+The private context has exactly these keys (no closures or unspecified extras):
+
+| Key | Python type / invariant |
+| --- | --- |
+| `reference` | `dict`, exact reference in section 4 |
+| `work_item` | `dict`, validated full private WorkItem |
+| `original` | `tuple[dict, dict[str, bytes]]`, complete-bundle Capture |
+| `execution_mode` | `str`: `live`, `offline_test`, `sample`; never inferred from a passing result |
+| `source_project` | Absolute `pathlib.Path` to the original pinned project; recheck for drift |
+| `project` | Absolute `pathlib.Path` to a private pristine copy; no generated output is copied back |
+| `plan` | `dict`, the existing `project_checks.discover` result |
+| `images` | `dict[str, str]`, prepared language -> immutable image ID |
+| `rubric` | `dict`, independent copy of the pinned guide rubric |
+| `sources` | `dict[str, str]`, original UTF-8 editable contents, matching WorkItem byte hashes |
+| `feedback_scope` | `dict`, exactly `{input_sha256, case_ids, gate_ids, test_context_paths}` |
+| `feedback` | `dict`, issued initial development packet; `None` for future supported confirmation contexts |
+
+`reference` supplies project/Skill/source-path and all comparison hashes; do not
+duplicate these as alternative top-level identities. Artifact directories,
+runtime, model and shared deadline are explicit function arguments, not context
+state. Session 1 explicitly sets `runtime.execution_mode` before preparation;
+session 2 requires a literal string from the three allowed values and copies it.
+There is no default, credentials-based inference or truthy Mock acceptance.
+Every subsequent primitive checks it still matches the prepared/retained mode.
+Production CLI sets `live` only after the live gate; tests set `offline_test`.
+The three existing primitive signatures remain unchanged.
+
+Session 2 also owns the **only** development-feedback projection API:
+
+```python
+skill_pipeline.development_feedback(
+    runtime, context, evaluation, *, source_round_id,
+)  # -> issued section 5 packet; caller hashes with H(packet)
+```
+
+`prepare_replay` internally calls this boundary with `evaluation=None` and
+`source_round_id=None`, stores the returned packet in `context["feedback"]`,
+and privately retains its binding. Session 3 uses that packet for round 1.
+For later rounds, session 3 passes the actual retained development evaluation
+and the ID of the round that produced it. It must not hand-build the packet.
+Session 2 owns projection, private issuance and generation-time provenance checks;
+session 1 owns the pure validator above. Missing validation blocks, never falls
+back to a local always-valid substitute.
+
+Phase 1 accepts the WorkItem's `required_case_ids` and `required_gate_ids` as
+the **only** operator-declared development-visible IDs. `feedback_scope` is
+derived from those exact lists and the WorkItem's input hash; lists are sorted,
+unique and must occur in the retained original checker observations. An extra
+ID, changed input hash or scope widened to all discovered checks is invalid.
+`test_context_paths` is always `[]`: no protected test/fixture body, including
+mixed modules and imported fixtures, enters either developer or generator prompts.
+There is no `runtime.development_scope` attribute or implicit test-path discovery.
+An empty test-context list is not proof that the task is semantically held out.
+
+The packet still has the exact section 5 fields; no public split/parent fields
+are added. Packet `checks` is exactly `{cases, gates}` with only allowlisted
+`{id, status}` observations. Full-suite status, timings and diagnostic text are
+excluded. The application receipt is the actual development task receipt, not
+an aggregate checker receipt. Quality contains guide-only evidence.
+For later feedback, the decision must be the unchanged validated source decision
+and must also be reproducible from development-visible observations alone.
+If excluded cases/diagnostics affect it, block with
+`confirmation_isolation_unverified`; do not remove a rejection/unverified reason
+to manufacture passing feedback. Full observations remain in evaluation/reference
+and continue to govern regression/approval.
+
+Required validation and issuance sequence:
+
+1. Validate private WorkItem identity/source/check hashes, both pristine project
+   snapshots, reference digest, original complete Capture, runtime mode and exact
+   feedback scope. Reject any confirmation context before model invocation.
+2. For initial feedback, bind to the original Capture and reference's actually
+   retained preparation observations. For later feedback, require byte-identical
+   provider-retained `evaluate_candidate` output for the same input/reference,
+   project/Skill/source path and mode. Arbitrary self-hashed evaluation dictionaries
+   are not issuable evidence. Recompute the source decision from full observations.
+3. Bind later `parent` to that evaluation's exact candidate complete Capture,
+   not its base version or an entrypoint hash. Verify retained capture bytes,
+   inventory and version digest. Bind `source_round_id` to the existing cycle/
+   round naming rule; a retained evaluation cannot be reissued under a different
+   source-round ID. Session 3 supplies that ID immediately after its evaluation.
+4. Session 2 constructs the permitted projection; the session 1 validator checks
+   exact fields, projection content, source row decision, full WorkItem/reference,
+   initial/later null rules and parent matching. Success returns the packet only:
+   it is not `confirmation_isolated: true`, approval, or evidence of a live run.
+5. Session 2 retains an immutable private issuance binding: packet bytes/hash,
+   input hash, reference hash, full parent version, source-round ID, source
+   evaluation hash (null initially), and execution mode. Reuse the current
+   runtime-private artifacts; no registry service or generic token framework.
+6. Before invocation, `generate_candidate` requires the supplied packet **and**
+   parent Capture to match that issued binding and its retained source evidence
+   in the same runtime environment. A valid packet schema/hash alone, a retained
+   packet paired with another parent, or an unretained forged packet fails.
+   Confirmation evidence is never registered for generation.
+
+These checks establish evidence provenance and an explicit disclosure boundary,
+not a proof that no semantic information about confirmation was inferable from
+ordinary project sources. Session 2 therefore keeps `split=confirmation`
+preparation blocked with `confirmation_isolation_unverified` in phase 1.
+The caller records confirmation unverified, never passed; approval remains
+blocked. Lifting this guard needs a separately reviewed isolation mechanism,
+not merely tests that hash the same packet. The final confirmation contract in
+section 5 remains the integration acceptance target, not implemented capability.
+
+Provider tests must reject forged/unretained packets and evaluations, wrong parent
+bundles, changed mode/reference/input, conflicting source-round issuance, extra
+visible IDs and nonempty test-context paths before `invoke`. Use a distinctive
+hidden-case/fixture sentinel and assert absence in **both** prompt paths.
+Changing excluded outcomes/diagnostics/timings must either leave permitted packet
+bytes identical or explicitly block projection, never leak or erase a failure.
+Provider-retained full observations must remain unchanged. Fixture-only success
+does not establish confirmation isolation or live evaluation.
+
 `parent` is a Capture. `feedback` is the packet in section 5. `generation` is the
 section 4 object. `context` includes the frozen reference and validated WorkItem.
-The integration adapter calls existing `attachments`-compatible capture assembly,
-then creates the replay wrapper/report. Session 2 preserves the existing
+Session 1 assembles existing lifecycle capture/binding shapes independently of
+`attachments()`: that helper validates legacy generated-work rows and must not
+be called with replay rows. Session 2 preserves the existing
 `evaluate_skill` signature/return/default behavior and may extract its current
 generation/application logic rather than duplicate it. Generation consumes only
 development feedback; checks continue using the existing isolated runner.
@@ -547,7 +702,17 @@ skill_iterations.run_cycle(
 ```
 
 `runtime` is the caller's shared `BudgetRuntime`; `budget` is the same underlying
-live budget, not a copy. `confirmation_context` is a callable prepared by session
+live budget, not a copy. The live dictionary contains `calls: int`,
+`max_calls: int`, `max_seconds: int`, `deadline: float`, and optional
+`max_ai_credits: float`. `policy_from_environment` stores `max_seconds` at
+authorization time, alongside `deadline = monotonic() + max_seconds`.
+Only `calls` changes; never reconstruct authorized duration from remaining time.
+`project_evaluation.budget_limits(budget)` returns exactly the public budget
+object from section 5 using the stored caps and rejects missing `max_seconds`
+with `missing_limits`. Legacy direct `BudgetRuntime` use remains compatible;
+only the new cycle/persistence path requires the added cap.
+
+`confirmation_context` is a callable prepared by session
 1/2, invoked once only after candidate selection; it returns a replay context for
 the precommitted confirmation task without exposing it to generation.
 `persist_round(evaluation, captures, generation, reference)` is supplied by the
@@ -560,7 +725,8 @@ The module is the sole loop owner and must not call approval or Active APIs.
 ```python
 skill_approvals.approve(
     root, *, project_id, skill_key, candidate_version_id,
-    cycle_id, evidence_sha256, expected_active_version_id, results,
+    cycle_id, evidence_sha256, expected_active_version_id,
+    expected_active_execution_sha256, results,
 )  # -> private approval record; human CLI boundary only
 skill_approvals.resolve_approved(
     root, *, project_id, skill_key, approval_id,
@@ -568,6 +734,8 @@ skill_approvals.resolve_approved(
 )  # -> (approval record, verified Capture); never marks use
 skill_approvals.record_execution(root, *, approval, receipt)  # -> private use record
 repositories.active_version(root, *, project_id, skill_key)  # -> version ID or None
+repositories.active_snapshot(root, *, project_id, skill_key)
+# -> {"version_id": str | None, "execution_sha256": str | None}
 ```
 
 Session 1 owns CLI parsing/interactive confirmation and the execution adapter;
@@ -576,6 +744,23 @@ session 4 validates authorization bindings and owns all local state writes.
 the module verifies the immutable approval and current local environment before
 persisting it. Public records alone cannot be passed off as local approvals.
 The adapter requests and records a fresh `run_id`, never an old evaluation run.
+`active_snapshot` validates and reads one atomic pair in the local environment
+under the existing lock. Its empty result has both values null. `active_version`
+remains a read-only convenience, not a concurrency token: approval/update callers
+must use a single snapshot, never two separately timed reads. Session 4 owns the
+snapshot API, pair validation and locked compare-and-swap; session 1 owns CLI
+flags and display/confirmation of both values. `record_execution` keeps its
+signature and receives the extra field in `receipt`; `resolve_approved` keeps
+its signature and checks the approval's pair before returning a Capture.
+This adds no fields to public `adoption.json` projections. The private approval
+hash naturally changes when its previous execution binding changes; do not
+silently fill missing fields in older private records. Reject incomplete records
+and request a fresh explicit approval.
+CI/noninteractive rejection and human confirmation are **session 1 CLI** duties;
+complete-bundle selection, activation and post-invocation inventory checks are
+**session 1 execution-adapter** duties, using session 4's binding validation.
+Neither a declared interface nor a passing provider unit test proves these
+adapters are wired. Missing adapters must remain explicit integration blockers.
 
 ### Session 5: read-only consumer
 
@@ -624,6 +809,7 @@ Minimum acceptance checks, implemented as failing tests before code changes:
 | Approval separation | Iteration never calls approval; noninteractive/CI approval rejected; changed candidate/evidence/target/stale Active rejected |
 | Next use | Approved whole bundle is explicitly selected; mismatch, missing activation or different local environment blocks use; original Skill files remain byte-identical |
 | Durable local state | Approval alone preserves Active; receipt/pointer write failures and concurrent changes cannot claim completed adoption |
+| ABA/concurrent Active | Reject same-version different-receipt and A -> B -> A changes, half-null pairs and stale approval; compare both fields under one lock, preserve existing Active and keep the hash private |
 | Public trace | Report -> round/cycle -> approval/use evidence resolves to the selected dashboard run; browser is read-only and mock/sample states are visible |
 | No fake production path | Test doubles exist only in tests; integrated commands import real provider modules and do not substitute canned success |
 
