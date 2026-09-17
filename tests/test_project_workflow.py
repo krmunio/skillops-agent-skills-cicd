@@ -3,6 +3,19 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_manual_project_limits_are_not_replicated_per_skill(self):
+        root = Path(__file__).resolve().parents[1]
+        text = (root / ".github/workflows/project-evaluation.yml").read_text()
+        evaluate = text.split("\n  evaluate:\n", 1)[1].split("\n  persist:\n", 1)[0]
+        for name in ("max_invocations", "max_seconds", "max_ai_credits"):
+            self.assertIn(f"      {name}:", text)
+            self.assertIn(f"inputs.{name} || vars.", evaluate)
+        self.assertIn("(inputs.max_seconds || vars.SKILLOPS_MAX_SECONDS) > 1200 && 130 || 25", evaluate)
+        self.assertIn('if [ -n "$LIMIT_OVERRIDE" ] && [ -z "$PROJECT_ID" ]; then', evaluate)
+        self.assertIn("Explicit project required for limit overrides", evaluate)
+        self.assertEqual(evaluate.count("python3 project_evaluation.py "), 1)
+        self.assertNotIn("matrix:", evaluate)
+
     def test_push_selects_changed_projects_and_preserves_manual_selection(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / ".github/workflows/project-evaluation.yml").read_text()

@@ -189,7 +189,7 @@ def policy_from_environment():
         seconds = int(os.environ.get("SKILLOPS_MAX_SECONDS", ""))
     except ValueError:
         return policy
-    if 0 < calls <= 1000 and 0 < seconds <= 1200:
+    if 0 < calls <= 1000 and 0 < seconds <= 7200:
         policy["budget"] = {"calls": 0, "max_calls": calls, "deadline": time.monotonic() + seconds}
         credit = os.environ.get("SKILLOPS_MAX_AI_CREDITS_PER_SESSION")
         if credit is not None:

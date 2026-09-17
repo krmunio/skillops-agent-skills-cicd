@@ -12,6 +12,21 @@ from unittest.mock import patch, MagicMock
 
 
 class ProjectEvaluationTests(unittest.TestCase):
+    def test_explicit_long_project_window_remains_bounded(self):
+        m = self.module()
+        for seconds in ("7200", "7201", "0"):
+            with self.subTest(seconds=seconds), patch.dict(m.os.environ, {
+                    "SKILLOPS_MAX_INVOCATIONS": "96", "SKILLOPS_MAX_SECONDS": seconds,
+                    "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "60"}, clear=True), patch.object(
+                    m.time, "monotonic", return_value=100):
+                policy = m.policy_from_environment()
+                if seconds == "7200":
+                    self.assertIn("budget", policy)
+                    self.assertEqual(policy["budget"], {"calls": 0, "max_calls": 96,
+                                                       "deadline": 7300, "max_ai_credits": 60})
+                else:
+                    self.assertNotIn("budget", policy)
+
     def test_cli_selects_one_project_and_rejects_unknown_ids_before_assessment(self):
         m = self.module()
         root = Path(m.__file__).resolve().parent
