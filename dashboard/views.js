@@ -168,7 +168,9 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
   const container = $('project-summary');
   const title = node('h2', '프로젝트 평가 요약');
   title.id = 'project-summary-title';
-  container.replaceChildren(title);
+  const heading = node('div', undefined, 'summary-heading');
+  heading.append(title, node('span', '공개 기록 기준', 'summary-label'));
+  container.replaceChildren(heading);
   container.hidden = false;
   if (runs === null) {
     const loading = node('p', '공개 이력의 요약 근거를 불러오는 중입니다.', 'muted');
@@ -197,9 +199,24 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
   }
   const assessed = evidence.filter(item => item.run.skill_assessments);
   const skills = assessed.flatMap(item => item.bundle?.assessments?.skills || []);
-  entry('summary-decisions', '후보 판정', !assessed.length ? '후보 판정 없음' : !skills.length ? '미평가' :
-    [['improved', '상승'], ['not_improved', '변화 없음'], ['unverified', '검증 불충분'], ['rejected', '거절']]
-      .map(([status, label]) => `${label} ${skills.filter(row => row.decision.status === status).length}`).join(' · '), highlights);
+  const decisions = entry('summary-decisions', '후보 판정',
+    !assessed.length ? '후보 판정 없음' : !skills.length ? '미평가' : '', highlights);
+  if (assessed.length && skills.length) {
+    decisions.classList.add('has-decisions');
+    for (const [index, [status, label]] of [
+      ['improved', '상승'], ['not_improved', '변화 없음'], ['unverified', '검증 불충분'], ['rejected', '거절'],
+    ].entries()) {
+      if (index) {
+        const separator = node('span', ' · ', 'summary-separator');
+        separator.setAttribute('aria-hidden', 'true');
+        decisions.append(separator);
+      }
+      const item = node('span', undefined, `summary-decision ${status}`);
+      item.append(node('span', `${label} `, 'summary-decision-label'),
+        node('strong', String(skills.filter(row => row.decision.status === status).length), 'summary-decision-count'));
+      decisions.append(item);
+    }
+  }
   const adoptions = evidence.flatMap(item => item.bundle?.lifecycle?.data.records.adoptions || [])
     .filter(row => row.state !== 'unknown');
   entry('summary-adoptions', '채택 기록', adoptions.length ? `${adoptions.length}건` :
