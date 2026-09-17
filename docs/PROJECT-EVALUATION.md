@@ -2,8 +2,10 @@
 
 ## Current foundation
 
-- The sample lives in `projects/sample_repo/`; its source bytes are unchanged.
-- `project_profiles.json` selects the supported `issue-management-v2` execution adapter.
+- The controlled sample lives in `projects/sample_repo/`; its deliberately defective application
+  modules are unchanged. A project-local Skill and conventional tests exercise automatic onboarding.
+- `project_profiles.json` retains compatibility with the legacy `issue-management-v2` adapter;
+  a profile entry is not required for the automatic path.
 - `project_results.py` validates public records, imports reviewed historical summaries,
   appends immutable reports, rebuilds indices and builds an allowlisted static site.
 - `project_evaluation.py` emits independent guide/execution states. Live execution
@@ -12,10 +14,12 @@
   pushes and main-only manual dispatch record assessments or explicit blocked states.
 - Results persist on `evaluation-results`; main still requires a reviewed PR and CI.
 
-**The shared skill-guide producer is not integrated yet.** Projects with skills
-receive `blocked / guide_integration_pending`, not invented scores. Projects
-without skills receive `not_assessed / no_skills`. Unsupported execution adapters
-receive `configuration_required`; arbitrary project commands are never executed.
+The shared Skill-guide evaluator, one-candidate improvement pipeline and dashboard are connected.
+Original and candidate quality are assessed separately with the same committed rubric and model.
+Both versions can then be applied to the same frozen work item, followed by real project checks.
+Projects without Skills receive `not_assessed / no_skills` for Skill quality; supported project
+checks can still run. Unsupported execution prerequisites remain explicit, not invented scores.
+Live model use and deployment require the activation and authorization described below.
 
 ## Add a project
 
@@ -27,15 +31,12 @@ Limits: 50 projects, 10,000 files and 128 MiB per project, 1 MiB per input file.
 
 Project-local skills are discovered under `.github/skills`, `.claude/skills` and
 `skills`. Root `skills/develop` is not automatically attributed to every project.
-Execution requires an entry in the root-owned profile map:
-
-```json
-{"schema_version": 1, "projects": {"sample_repo": {"adapter": "issue-management-v2"}}}
-```
-
-The existing adapter expects the issue-management sample contracts; it does not
-run arbitrary tests for another language. Update the profile map when removing a
-configured project. Historical results are retained.
+No root profile edit or hand-authored task file is required for automatic evaluation.
+An existing failed project check supplies the current work criterion. Its identity, editable
+source and protected test context are frozen before candidate generation. If every check already
+passes, or no suitable work can be derived, quality and candidate results are still retained but
+execution effect is **unverified**. This is not replay of a real historical user task.
+Remove an existing profile entry when removing its configured project. Historical results remain.
 
 ## Local commands
 
@@ -56,25 +57,84 @@ and validated results, never project sources or raw logs.
 
 ## Actions activation
 
+### Automatic-evaluation support and boundaries
+
+`project_checks.discover` reads Python/Node configuration without importing project code.
+Supported test runners are unittest, pytest, `node --test`, direct Jest and `vitest run`.
+Declared npm build/lint/typecheck scripts are additional gates, not substitutes for individual
+test identities. Opaque test wrappers, shell-compound test commands, pretest/posttest hooks,
+yarn/pnpm and unsupported framework configurations remain explicit unsupported states.
+
+Dependencies are prepared once per project from supported manifests, without mounting project
+code in the resolver. Python accepts registry requirements and supported PEP 621 dependency groups,
+using wheels only. Node accepts supported registry dependencies and npm lockfiles v2/v3, with
+install hooks disabled. Local/VCS/URL dependencies, custom registries, npm workspaces/overrides,
+Poetry/uv locks and packages requiring install/build hooks are not supported.
+Resolution uses a restricted proxy for PyPI and npm's official registries; test/build execution
+has no network and receives no model or deployment credentials.
+
+Both arms use the same prepared immutable image, protected tests and configuration. Project code
+runs in fresh non-root containers with read-only root, CPU/memory/PID/output limits and finite
+deadlines; only explicitly owned containers, networks and image tags are cleaned up. Check and
+model execution share the run deadline; dependency preparation is additionally capped at 180
+seconds and each check observation at 120 seconds. Cleanup has its own bounded overhead.
+Arm order is varied from a run-specific hash rather than always running the baseline first.
+
+`skill-assessments.json` is an optional, immutable, report-bound attachment for per-Skill quality,
+generation, paired application and project-check observations. It requires matching captured
+versions in `skill-evolution.json`. The publisher validates, preserves, indexes and builds these
+attachments. The orchestrator produces them and the dashboard renders real quality, hypotheses,
+activation, measured application usage and the original/base/candidate test comparison.
+An invalid Skill cannot discard valid sibling assessments; failures before a safe version capture
+remain private diagnostics plus an explicit public error count.
+
+Qualification is computed from evidence rather than trusting a submitted decision:
+
+- Original and candidate quality use the same rubric and evaluator context. A supported
+  improvement cannot add errors or regress an applicable dimension.
+- Both applications identify the exact staged version and frozen work input. The runtime can
+  verify the staged entrypoint/resources before and after invocation, including same-name Skills.
+- Untouched source and both applied outputs use identical check-plan, environment and protected
+  input hashes. Comparisons use individual test identities, not only totals.
+- Newly failed/skipped/missing tests reject the candidate. An inherited failure is not itself a
+  new regression; missing coverage, unavailable required gates or mismatched inputs are unverified.
+- Task satisfaction currently requires observing the repair of an identified, pre-existing failed
+  project check. A nonempty irrelevant edit, no-op or model self-report is insufficient.
+
+The qualification states are `improved`, `not_improved`, `rejected` and `unverified`, not deployment
+states. A passing regression observation means only no regression detected within the checked scope.
+Public data contains bounded reviewed summaries and Skill captures, never raw prompts, project
+code or container output. Schema validation alone is not a disclosure review.
+
 Before enabling live evaluation, configure repository settings deliberately:
 
-- Secret `COPILOT_GITHUB_TOKEN`: an account/token authorized for the configured Copilot model.
+- The trusted evaluate job has `contents: read` and `copilot-requests: write`, and receives its
+  built-in `GITHUB_TOKEN`. Its Copilot policy/entitlement must allow the configured `gpt-6-astra`
+  model. Optional secret `COPILOT_GITHUB_TOKEN` overrides authentication when deliberately supplied.
 - Variable `SKILLOPS_LIVE_EVALUATION_ENABLED=true`: explicit billable-execution opt-in.
 - Positive `SKILLOPS_MAX_INVOCATIONS` (maximum 1000) and `SKILLOPS_MAX_SECONDS`
   (maximum 1200), shared across the workflow's sequential project evaluations.
+- Positive finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION`, forwarded to each Copilot CLI session.
 - Secret `SKILLOPS_SWA_DEPLOYMENT_TOKEN`: the intended Static Web App's deployment credential.
 - An existing writable `evaluation-results` branch for the validated data writer.
 
-No values are supplied or live evaluation enabled by this skeleton. Missing
+The workflow does not change repository settings or silently enable live evaluation. Missing
 settings create explicit blocked records without model invocation.
 The invocation cap bounds CLI sessions, **not internal model requests or money**.
-The remaining time is passed into the subprocess deadline. Record actual usage;
-do not infer a strict monetary cap from these controls.
+The remaining time is passed into subprocess deadlines. A CLI credit limit is not a guaranteed
+hard currency ceiling. Public cost/time measurements cover the individual Skill-application
+sessions only, not the complete quality/generation/check pipeline; absent usage remains null.
 
 Relevant main changes conservatively assess the catalog. A result-only update
 does not retrigger evaluation. A blocked assessment makes its evaluation job fail
 while the writer can still persist the public blocked result. Raw run directories
 are never uploaded as Actions artifacts.
+
+Trusted-main evaluation through persistence is serialized. Validated prior data is fetched inside
+that slot to reuse Skill identities, never executed as code. GitHub concurrency can coalesce pending
+runs: every intermediate commit is not guaranteed an evaluation, while existing persisted history
+is preserved. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
+and operational failures remain explicit non-success outcomes.
 
 Result writers validate incoming data and use bounded optimistic push retries on
 the dedicated branch, with no force push. A serialized deploy job fetches the

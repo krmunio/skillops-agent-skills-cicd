@@ -141,6 +141,101 @@ class RuntimeTests(unittest.TestCase):
             with self.subTest(rows=bad), self.assertRaises(self.runtime.RuntimeFailure):
                 self.runtime.disabled_skills(bad, expected)
 
+    def test_detected_skill_name_controls_inventory_and_activation(self):
+        expected = Path("/owned/.github/skills/review/SKILL.md")
+        rows = [{"name": "review", "path": str(expected), "enabled": True},
+                {"name": "develop", "path": "/other", "enabled": True}]
+        self.assertEqual(self.runtime.disabled_skills(rows, expected, skill_name="review"), ["develop"])
+        events = json.loads((Path(__file__).parent / "fixtures/cli-contract.json").read_text())["developer"]
+        for event in events:
+            if event["type"] == "tool.execution_start":
+                event["data"]["arguments"]["skill"] = "review"
+        encoded = "\n".join(map(json.dumps, events))
+        self.assertTrue(self.runtime.parse_events(encoded, "gpt-6-astra", "developer",
+                                                 skill_name="review")["skill_activated"])
+        with self.assertRaises(self.runtime.RuntimeFailure):
+            self.runtime.parse_events(encoded, "gpt-6-astra", "developer")
+        with self.assertRaises(self.runtime.RuntimeFailure):
+            self.runtime.disabled_skills(rows + rows[:1], expected, skill_name="review")
+
+    def test_staged_version_includes_resources_and_rejects_mutation(self):
+        import evolution_records as evolution
+        files = {"SKILL.md": b"---\nname: review\n---\nCheck.", "references/check.md": b"Check boundaries."}
+        version, _ = evolution.capture_version(files, capture_scope="complete_bundle",
+                                                complete_inventory=list(files))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, raw in files.items():
+                target = root / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(raw)
+            self.assertEqual(self.runtime.verify_staged_version(root / "SKILL.md", version), version["version_id"])
+            for name, raw in (("references/check.md", b"Different."), ("extra.md", b"Unexpected.")):
+                with self.subTest(name=name):
+                    target = root / name
+                    target.write_bytes(raw)
+                    with self.assertRaises(self.runtime.RuntimeFailure):
+                        self.runtime.verify_staged_version(root / "SKILL.md", version)
+                    if name in files:
+                        target.write_bytes(files[name])
+                    else:
+                        target.unlink()
+            (root / "references/check.md").unlink()
+            (root / "references/check.md").symlink_to(root / "SKILL.md")
+            with self.assertRaises(self.runtime.RuntimeFailure):
+                self.runtime.verify_staged_version(root / "SKILL.md", version)
+
+    def test_optional_credit_limit_is_explicit_and_validated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = self.runtime.CopilotRuntime(Path(directory))
+            command = runtime.model_command("prompt", "gpt-6-astra", "judge", max_ai_credits=2.5)
+            self.assertEqual(command[command.index("--max-ai-credits") + 1], "2.5")
+            self.assertNotIn("--max-ai-credits", runtime.model_command("prompt", "gpt-6-astra", "judge"))
+            for value in (0, -1, True, float("nan"), float("inf"), "unlimited"):
+                with self.subTest(value=value), self.assertRaises(self.runtime.RuntimeFailure):
+                    runtime.model_command("prompt", "gpt-6-astra", "judge", max_ai_credits=value)
+
+    def test_invocation_binds_exact_bundle_and_persists_staging_failures(self):
+        import evolution_records as evolution
+        from subprocess import CompletedProcess
+        events = json.loads((Path(__file__).parent / "fixtures/cli-contract.json").read_text())["developer"]
+        stdout = "\n".join(map(json.dumps, events))
+        for failure in (None, "before", "after", "removed"):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                runtime = self.runtime.CopilotRuntime(root)
+                staged = root / "work/.github/skills/develop/SKILL.md"
+                staged.parent.mkdir(parents=True)
+                staged.write_bytes(b"---\nname: develop\n---\nSelected instructions.")
+                version, _ = evolution.capture_version({"SKILL.md": staged.read_bytes()}, capture_scope="entrypoint_only")
+                artifact = root / "invocation.json"
+                if failure == "before":
+                    staged.write_text("Stale original.")
+
+                def capture(args, **kwargs):
+                    if failure == "after":
+                        staged.write_text("Mutated after activation.")
+                    if failure == "removed":
+                        staged.unlink()
+                    return CompletedProcess(args, 0, stdout, "")
+
+                with patch.object(runtime, "configure", return_value={}), patch.object(
+                        self.runtime, "capture", side_effect=capture) as call:
+                    if failure:
+                        with self.assertRaises(self.runtime.RuntimeFailure):
+                            runtime.invoke("prompt", "gpt-6-astra", "developer", root / "work",
+                                           artifact, staged, expected_version=version)
+                        saved = json.loads(artifact.read_text())
+                        self.assertEqual(saved["status"], "contract_error")
+                        self.assertNotIn("skill_version_verified", saved)
+                        if failure == "before":
+                            call.assert_not_called()
+                    else:
+                        saved = runtime.invoke("prompt", "gpt-6-astra", "developer", root / "work",
+                                               artifact, staged, expected_version=version)
+                        self.assertTrue(saved["skill_version_verified"])
+                        self.assertEqual(saved["staged_version_id"], version["version_id"])
+
     def test_strict_json_rejects_duplicate_keys_and_nonfinite_numbers(self):
         for text in ('{"x":1,"x":2}', '{"x":NaN}', '{"x":Infinity}'):
             with self.subTest(text=text), self.assertRaises(self.runtime.RuntimeFailure):

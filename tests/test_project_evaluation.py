@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import Mock
+from unittest.mock import patch, MagicMock
 
 
 class ProjectEvaluationTests(unittest.TestCase):
@@ -63,6 +64,68 @@ class ProjectEvaluationTests(unittest.TestCase):
                 result = m.assess(root, row, "123-1", "a" * 40, policy, runtime_factory=runtime)
                 self.assertEqual(result["execution"]["reason_code"], reason)
                 runtime.assert_not_called()
+
+    def test_discovered_skill_uses_new_pipeline_without_root_adapter_registration(self):
+        m = self.module()
+        from test_skill_assessments import fixture
+        import base64
+        report, lifecycle, assessment = fixture()
+        captures = [(version, {
+            item["path"]: base64.b64decode(item["data"]) for item in lifecycle["file_contents"]
+            if item["version_id"] == version["version_id"]
+        }) for version in lifecycle["records"]["versions"]]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            project = root / "projects/sample_repo"
+            skill = project / ".github/skills/develop/SKILL.md"
+            skill.parent.mkdir(parents=True)
+            skill.write_text("---\nname: develop\ndescription: Develop.\n---\nCheck.")
+            (root / "eval").mkdir()
+            (root / "eval/skill-guide-rubric.json").write_text('{"dimensions":["clarity"]}')
+            runtime = MagicMock()
+            runtime.private = root / "private"
+            runtime.private.mkdir()
+            policy = {"enabled": True, "authenticated": True,
+                      "budget": {"calls": 0, "max_calls": 8, "deadline": m.time.monotonic() + 60}}
+            row = {"id": "sample_repo", "adapter": None, "tree_sha256": "b" * 64, "error": None}
+            def evaluate(*args, **kwargs):
+                value = assessment["skills"][0]
+                value["skill_key"] = args[4]
+                return value, captures
+            bad = project / ".github/skills/bad/SKILL.md"
+            bad.parent.mkdir(parents=True)
+            bad.write_text("invalid")
+            def evaluate_one(*args, **kwargs):
+                if args[3]["path"].endswith("/bad"):
+                    raise m.RuntimeFailure("invalid_skill_name", "Invalid Skill name.")
+                return evaluate(*args, **kwargs)
+            with patch.object(m, "resolve_images", return_value={"python": "sha256:" + "a" * 64}), patch.object(
+                    m.skill_pipeline, "evaluate_skill", side_effect=evaluate_one) as evaluated, patch.object(
+                    m.project_checks, "prepared_images", wraps=m.project_checks.prepared_images) as prepared:
+                result, versions, details = m.assess_with_details(
+                    root, row, "123-1", "a" * 40, policy, runtime_factory=lambda path: runtime)
+            self.assertEqual(evaluated.call_count, 2)
+            prepared.assert_called_once()
+            self.assertEqual(result["execution"]["status"], "blocked")
+            self.assertEqual(result["guide"]["metrics"]["errors"], 1)
+            self.assertEqual(details["skills"][0]["decision"]["status"], "improved")
+            self.assertEqual(versions["report_sha256"], details["report_sha256"])
+            self.assertFalse((root / ".skillops/registry.json").exists())
+
+    def test_budget_forwards_credit_cap_and_accepts_job_scoped_auth(self):
+        m = self.module()
+        raw = Mock()
+        bounded = m.BudgetRuntime(raw, {"calls": 0, "max_calls": 2, "deadline": m.time.monotonic() + 20,
+                                       "max_ai_credits": 3})
+        bounded.invoke("prompt")
+        self.assertEqual(raw.invoke.call_args.kwargs["max_ai_credits"], 3)
+        with patch.dict(m.os.environ, {"GITHUB_TOKEN": "test-job-token",
+                                     "SKILLOPS_LIVE_EVALUATION_ENABLED": "true",
+                                     "SKILLOPS_MAX_INVOCATIONS": "8", "SKILLOPS_MAX_SECONDS": "120",
+                                     "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "3"}, clear=True):
+            policy = m.policy_from_environment()
+            self.assertTrue(policy["authenticated"])
+            self.assertEqual(policy["budget"]["max_ai_credits"], 3)
 
 
 if __name__ == "__main__":
