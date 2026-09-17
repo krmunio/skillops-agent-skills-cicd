@@ -1,6 +1,8 @@
 import { $, node, table, renderMetric } from './views.js';
 import { check, exact, canonical, safePath, digest } from './evolution.js';
 
+export { quality, observation, regression, exceedsEfficiencyLimit };
+
 const hash = /^[a-f0-9]{64}$/;
 const version = /^sha256:[a-f0-9]{64}$/;
 const states = { improved: '품질 점수 상승 (회귀 없음)', not_improved: '개선 미확인', rejected: '후보 거절', unverified: '검증 불충분' };
@@ -279,6 +281,10 @@ export function renderAssessment(data, key, origin) {
   $('task-results').replaceChildren(table(['검사 식별자', '원본 프로젝트', '기존 적용', '후보 적용'], tasks));
   $('task-results').append(node('p', row.work ? `자동 도출 작업 · 기존 실패 검사: ${row.work.check_id ?? '미기록'}` :
     '검증 가능한 자동 작업을 도출하지 못했습니다.', 'source-hash'));
+  if (row.applications.base && row.applications.candidate &&
+    row.applications.base.output_sha256 === row.applications.candidate.output_sha256) {
+    $('task-results').append(node('p', '기존·후보의 코드 출력 해시 동일 · 지침 품질 점수 상승만으로 생산성 향상의 증거가 아닙니다.', 'reason'));
+  }
   const metrics = {};
   for (const arm of ['base', 'candidate']) {
     for (const name of ['cost_nano_aiu', 'elapsed_seconds']) metrics[`${arm}_${name}`] = row.applications[arm]?.measurement?.[name] ?? null;
