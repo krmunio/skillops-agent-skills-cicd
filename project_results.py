@@ -15,6 +15,7 @@ import tempfile
 
 from copilot_runtime import RuntimeFailure, strict_json
 import evolution_records as evolution
+import skill_assessments as assessments
 
 
 ID = r"[a-z0-9][a-z0-9_-]{0,63}"
@@ -41,13 +42,14 @@ REASONS = {
     "no_skills", "no_adapter", "live_disabled", "missing_auth", "missing_limits",
     "guide_integration_pending", "historical_import", "evaluation_completed",
     "evaluation_failed", "unsupported_adapter", "unsafe_project", "runtime_error",
-    "call_limit", "time_limit",
+    "call_limit", "time_limit", "assessment_unverified",
 }
 STATES = {"completed", "failed", "blocked", "not_assessed", "configuration_required"}
 DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_passed", "calibration_failed"}
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py",
 )
 
 
@@ -301,16 +303,20 @@ def merge_results(root, incoming, results):
     rows = load_reports(incoming)
     snapshots = load_snapshots(incoming, rows)
     lifecycles = load_evolution(incoming, rows, snapshots)
+    skill_assessments = load_assessments(incoming, rows, lifecycles)
     existing_rows = load_reports(results)
     existing_snapshots = load_snapshots(results, existing_rows)
     existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
+    existing_assessments = load_assessments(results, existing_rows, existing_lifecycles)
     merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
     merged_snapshots = dict(existing_snapshots)
     merged_lifecycles = dict(existing_lifecycles)
+    merged_assessments = dict(existing_assessments)
     for mapping, values, name in (
         (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
         (merged_snapshots, snapshots, "skill-snapshots.json"),
         (merged_lifecycles, lifecycles, "skill-evolution.json"),
+        (merged_assessments, skill_assessments, "skill-assessments.json"),
     ):
         for key, value in values.items():
             path = safe_path(Path(results) / key[0] / key[1] / name)
@@ -318,13 +324,43 @@ def merge_results(root, incoming, results):
             mapping[key] = value
     for key, value in merged_lifecycles.items():
         validate_evolution(value, merged_rows[key], merged_snapshots.get(key))
+    for key, value in merged_assessments.items():
+        assessments.validate(value, merged_rows[key], merged_lifecycles.get(key))
     for row in rows:
         store(results, row)
     for data in snapshots.values():
         store_snapshots(results, data)
     for data in lifecycles.values():
         store_evolution(results, data)
+    for data in skill_assessments.values():
+        store_assessments(results, data)
     return reindex(root, results)
+
+
+def store_assessments(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = Path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    snapshot_path = safe_path(folder / "skill-snapshots.json")
+    snapshot = read_json(snapshot_path) if snapshot_path.exists() else None
+    lifecycle = validate_evolution(read_json(folder / "skill-evolution.json"), report, snapshot)
+    assessments.validate(data, report, lifecycle)
+    path = folder / "skill-assessments.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_assessments(results, rows=None, lifecycles=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): row for row in rows}
+    lifecycles = load_evolution(results, rows) if lifecycles is None else lifecycles
+    values = {}
+    for path in sorted(results.glob("*/*/skill-assessments.json")):
+        key = (path.parent.parent.name, path.parent.name)
+        require(key in reports, "orphan_skill_assessments")
+        values[key] = assessments.validate(read_json(path), reports[key], lifecycles.get(key))
+    return values
 
 
 def validate_evolution(data, report, snapshots=None):
@@ -583,6 +619,7 @@ def reindex(root, results):
     all_rows = load_reports(results)
     snapshots = load_snapshots(results, all_rows)
     lifecycles = load_evolution(results, all_rows, snapshots)
+    skill_assessments = load_assessments(results, all_rows, lifecycles)
     for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
@@ -614,6 +651,8 @@ def reindex(root, results):
             if lifecycle is not None:
                 summary.update(skill_evolution=f"{summary['run_id']}/skill-evolution.json",
                                evolution_skills=evolution_summary(lifecycle))
+            if (identifier, summary["run_id"]) in skill_assessments:
+                summary["skill_assessments"] = f"{summary['run_id']}/skill-assessments.json"
         atomic_json(Path(results) / identifier / "index.json", {"schema_version": 1, "project": entry, "history": summaries})
         entries.append(entry)
     index = {"schema_version": 1, "projects": entries}
@@ -684,8 +723,10 @@ def build(root, results, output):
     rows = load_reports(results)
     snapshots = load_snapshots(results, rows)
     lifecycles = load_evolution(results, rows, snapshots)
+    skill_assessments = load_assessments(results, rows, lifecycles)
     output.mkdir(parents=True)
-    for name in ("index.html", "styles.css", "app.js", "views.js", "evolution.js", "sample-data.json", "staticwebapp.config.json"):
+    for name in ("index.html", "styles.css", "app.js", "views.js", "evolution.js", "assessments.js",
+                 "sample-data.json", "staticwebapp.config.json"):
         raw = read_bytes(root / "dashboard" / name)
         (output / name).write_bytes(raw)
     for row in rows:
@@ -694,6 +735,8 @@ def build(root, results, output):
         store_snapshots(output / "results", data)
     for data in lifecycles.values():
         store_evolution(output / "results", data)
+    for data in skill_assessments.values():
+        store_assessments(output / "results", data)
     return reindex(root, output / "results")
 
 
@@ -741,6 +784,7 @@ def main():
             value = {"validated": len(load_reports(args.results))}
             load_snapshots(args.results)
             load_evolution(args.results)
+            load_assessments(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)

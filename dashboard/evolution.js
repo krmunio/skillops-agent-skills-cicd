@@ -8,6 +8,8 @@ const scopes = { entrypoint_only: 'SKILL.md만 보관 · 전체 번들 미확인
 const sourceScopes = { project: '프로젝트', shared: '공유', personal: '개인', plugin: '플러그인', unknown: '출처 범위 미기록' };
 const decisions = { rejected: '후보 거절', blocked: '판정 차단', eligible_for_canary: 'Canary 검토 후보 · 배포 승인 아님' };
 
+export { check, exact, canonical, safePath, digest };
+
 function check(value) {
   if (!value) throw new Error('Invalid Skill evolution evidence');
 }

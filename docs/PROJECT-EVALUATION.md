@@ -2,10 +2,12 @@
 
 ## Current foundation
 
-- The owner-operated [public dashboard](https://agreeable-pebble-0ea54a800.6.azurestaticapps.net/)
-  was reachable on September 16, 2026. This contribution does not redeploy it.
-- Reviewed snapshots live in `projects/`; the built-in sample's source bytes are unchanged.
-- `project_profiles.json` selects the supported `issue-management-v2` execution adapter.
+- The owner-operated public dashboard was reachable on September 16, 2026.
+  The automatic-evaluation changes require their own release and live verification.
+- The controlled sample lives in `projects/sample_repo/`; its deliberately defective application
+  modules are unchanged. A project-local Skill and conventional tests exercise automatic onboarding.
+- `project_profiles.json` retains compatibility with the legacy `issue-management-v2` adapter;
+  a profile entry is not required for the automatic path.
 - `project_results.py` validates public records, imports reviewed historical summaries,
   appends immutable reports, rebuilds indices and builds an allowlisted static site.
 - `project_evaluation.py` emits independent guide/execution states. Live execution
@@ -14,12 +16,12 @@
   pushes and main-only manual dispatch record assessments or explicit blocked states.
 - Results persist on `evaluation-results`; main still requires a reviewed PR and CI.
 
-The standalone Anthropic-inspired evaluator in `skill_guide.py` is implemented
-and integrated into baseline reports.
-**Its integration into the `project_evaluation.py` guide axis is still pending.**
-Projects with skills receive `blocked / guide_integration_pending`, not invented
-scores. Projects without skills receive `not_assessed / no_skills`. Unsupported execution adapters
-receive `configuration_required`; arbitrary project commands are never executed.
+The shared Skill-guide evaluator, one-candidate improvement pipeline and dashboard are connected.
+Original and candidate quality are assessed separately with the same committed rubric and model.
+Both versions can then be applied to the same frozen work item, followed by real project checks.
+Projects without Skills receive `not_assessed / no_skills` for Skill quality; supported project
+checks can still run. Unsupported execution prerequisites remain explicit, not invented scores.
+Live model use and deployment require the activation and authorization described below.
 
 ## Add a project
 
@@ -31,22 +33,12 @@ Limits: 50 projects, 10,000 files and 128 MiB per project, 1 MiB per input file.
 
 Project-local skills are discovered under `.github/skills`, `.claude/skills` and
 `skills`. Root `skills/develop` is not automatically attributed to every project.
-Execution requires an entry in the root-owned profile map:
-
-```json
-{
-  "schema_version": 1,
-  "projects": {
-    "project-a": {"adapter": null},
-    "project-b": {"adapter": null},
-    "sample_repo": {"adapter": "issue-management-v2"}
-  }
-}
-```
-
-The existing adapter expects the issue-management sample contracts; it does not
-run arbitrary tests for another language. Update the profile map when removing a
-configured project. Historical results are retained.
+No root profile edit or hand-authored task file is required for automatic evaluation.
+An existing failed project check supplies the current work criterion. Its identity, editable
+source and protected test context are frozen before candidate generation. If every check already
+passes, or no suitable work can be derived, quality and candidate results are still retained but
+execution effect is **unverified**. This is not replay of a real historical user task.
+Remove an existing profile entry when removing its configured project. Historical results remain.
 
 ## Reproducible sample preparation
 
@@ -74,9 +66,9 @@ The standalone helper uses Python 3.12+ standard-library modules on Windows or
 Linux; the existing evaluator still requires Linux. Imports accept public GitHub
 `owner/repository` identifiers and full commit IDs, not arbitrary download URLs.
 They do not run setup scripts, hooks, tests, or instructions from the imported
-repository. Existing project directories are never replaced. Add an explicit
-`{"adapter": null}` profile for a reviewed project without an execution adapter;
-do not assign `issue-management-v2` to an unrelated repository.
+repository. Existing project directories are never replaced. An explicit
+`{"adapter": null}` profile is optional for the automatic path; do not assign
+`issue-management-v2` to an unrelated repository.
 
 `.skillops-source.json` schema 1 records the source commit, original file hashes,
 license paths and omitted symlinks. `.skillops-bootstrap.json` schema 2 records
@@ -104,18 +96,17 @@ imported files before staging; public upstream content is not automatically trus
 
 ## What sample verification proves
 
-Preparation is separate from assessment. The current registration path pins the
-common root `skills/develop/SKILL.md`; it does **not** select each project's local
-skill. Adding a local skill does not prove that live execution exercised it.
-Per-project skill selection, project-assessment integration of the existing guide
-evaluator and additional execution adapters require follow-up integration.
+Preparation is separate from assessment. Legacy baseline registration pins the common root
+`skills/develop/SKILL.md`. The automatic project path instead discovers local Skills and binds
+each applied version to its staged bundle bytes. Adding a local Skill or passing preparation
+checks alone does not prove that live execution exercised it.
 
 With model execution disabled, the existing evaluator records:
 
 | Project | Guide | Execution |
 | --- | --- | --- |
 | `sample_repo` | `blocked / guide_integration_pending` | `blocked / live_disabled` |
-| `project-a`, `project-b` | `blocked / guide_integration_pending` | `configuration_required / no_adapter` |
+| `project-a`, `project-b` | `blocked / guide_integration_pending` | `blocked / live_disabled` |
 
 No scores or adoption decisions are invented for these states. Schedule's full
 upstream tests require platform timezone support (`time.tzset`), and some cases
@@ -131,7 +122,7 @@ checked-in history; all older report and optional sidecar bytes must remain
 unchanged, with no missing or unexpected report identities. Rebuilt indices retain
 validated sidecar references. Empty output fails.
 The distinct `sample-onboarding-results` artifact contains report/index JSON
-plus optional validated `skill-snapshots.json` and `skill-evolution.json` sidecars,
+plus optional validated `skill-snapshots.json`, `skill-evolution.json` and `skill-assessments.json` sidecars,
 and is never consumed by the live result publisher. Contract success means
 these behaviors were verified, not that guide or model evaluation passed.
 
@@ -152,7 +143,7 @@ from project evaluation and keeps the dashboard read-only. PR #8 implements an
 evidence-first layout and a separately labeled, opt-in synthetic sample screen.
 The real history still uses public v1 reports, with optional validated snapshot
 and evolution sidecars now supporting reviewed skill versions and dashboard history.
-These attachments do not populate the pending project-assessment guide axis.
+The new assessment sidecar adds actual project-scoped guide and candidate evidence when available.
 
 Keep these evidence scopes distinct:
 
@@ -161,13 +152,13 @@ Keep these evidence scopes distinct:
 - **Baseline model run:** a record with `purpose: baseline`, evaluating a specific
   skill version. A green baseline-validation CI job is not this model run.
 - **Project assessment:** a project-scoped report with separate guide/execution
-  states. It does not yet expose every skill/version comparison in the proposed UI.
+  states, with per-Skill comparisons supplied by validated assessment sidecars.
 
 | Proposed project view | Required evidence and current boundary |
 | --- | --- |
-| Project, target skill, base/candidate selection | Bind actual skill names, versions, hashes and parent relationships to a run. Preparation records skill paths/hashes, but the current execution adapter still pins the common root skill, not an arbitrary project-local selection. |
-| Skill quality and improvement evidence | Keep Anthropic-inspired static/rubric findings separate from APO-style observations, hypotheses, changed instructions, re-evaluation and hypothesis support. Link real evidence records; baseline guide evaluation exists, but its project-assessment guide-axis integration remains pending. |
-| Project execution | Compare the same declared tasks for base/candidate versions; show checks, judge, cost/time, heldout scope and policy/decision evidence. The supported scope is the built-in five Python tasks, not arbitrary imported repository tests. |
+| Project, target skill, base/candidate selection | Bind actual Skill identities, versions and bundle hashes to a run; the automatic path selects each supported project-local Skill independently. |
+| Skill quality and improvement evidence | Separate Anthropic-inspired static/rubric findings from APO-style hypotheses, changed instructions and re-evaluation. Display measured evidence only when its bound assessment sidecar exists. |
+| Project execution | Compare original/base/candidate outputs using existing protected checks and the frozen failed-check repair criterion. Disclose unsupported frameworks and missing work as unverified; legacy five-task results remain separate. |
 | Skill changes | Show only reviewed version documents and diffs with recorded generation/parent/adoption metadata. Public v1 reports still reject raw skill bodies; optional validated snapshot/evolution sidecars provide the reviewed, bounded export contract described below. |
 | History | Preserve project/run identities, evaluation kind, source/evaluator hashes, timestamps and current/stale/historical distinctions. Do not merge records merely because they share a skill name. |
 
@@ -177,9 +168,8 @@ Do not copy those values into new project assessments. Likewise, static validati
 LLM rubric results, an improvement hypothesis, a completed execution and adoption
 authorization are separate states; missing evidence must stay explicit.
 
-This sample work prepares inputs and verifies existing report/history contracts.
-It does not duplicate the owner's UI work, introduce a competing report schema,
-claim an APO or guide assessment ran, or enable live evaluation/publication.
+Sample preparation verifies inputs and report/history contracts. It does not itself run model
+evaluation or authorize activation; the automatic pipeline uses the additive evidence contract below.
 
 ## Local commands
 
@@ -200,14 +190,76 @@ and validated results, never project sources or raw logs.
 
 ## Actions activation
 
+### Automatic-evaluation support and boundaries
+
+`project_checks.discover` reads Python/Node configuration without importing project code.
+Supported test runners are unittest, pytest, `node --test`, direct Jest and `vitest run`.
+Declared npm build/lint/typecheck scripts are additional gates, not substitutes for individual
+test identities. Opaque test wrappers, shell-compound test commands, pretest/posttest hooks,
+yarn/pnpm and unsupported framework configurations remain explicit unsupported states.
+
+Dependencies are prepared once per project from supported manifests, without mounting project
+code in the resolver. Python accepts registry requirements and supported PEP 621 dependency groups,
+using wheels only. Node accepts supported registry dependencies and npm lockfiles v2/v3, with
+install hooks disabled. Local/VCS/URL dependencies, custom registries, npm workspaces/overrides,
+Poetry/uv locks and packages requiring install/build hooks are not supported.
+Resolution uses a restricted proxy for PyPI and npm's official registries; test/build execution
+has no network and receives no model or deployment credentials.
+
+Both arms use the same prepared immutable image, protected tests and configuration. Project code
+runs in fresh non-root containers with read-only root, CPU/memory/PID/output limits and finite
+deadlines; only explicitly owned containers, networks and image tags are cleaned up. Check and
+model execution share the run deadline; dependency preparation is additionally capped at 180
+seconds and each check observation at 120 seconds. Cleanup has its own bounded overhead.
+Arm order is varied from a run-specific hash rather than always running the baseline first.
+Unsupported or failed dependency preparation is recorded as an explicit check-stage error.
+It does not prevent independent Skill quality evaluation and candidate generation; execution
+remains unverified. In particular, importing Schedule/Superpowers does not add support for
+their legacy packaging or shell-based test harnesses.
+
+`skill-assessments.json` is an optional, immutable, report-bound attachment for per-Skill quality,
+generation, paired application and project-check observations. It requires matching captured
+versions in `skill-evolution.json`. The publisher validates, preserves, indexes and builds these
+attachments. The orchestrator produces them and the dashboard renders real quality, hypotheses,
+activation, measured application usage and the original/base/candidate test comparison.
+An invalid Skill cannot discard valid sibling assessments; failures before a safe version capture
+remain private diagnostics plus an explicit public error count.
+
+Qualification is computed from evidence rather than trusting a submitted decision:
+
+- Original and candidate quality use the same rubric and evaluator context. A supported
+  improvement cannot add errors or regress an applicable dimension.
+- Both applications identify the exact staged version and frozen work input. The runtime can
+  verify the staged entrypoint/resources before and after invocation, including same-name Skills.
+- Untouched source and both applied outputs use identical check-plan, environment and protected
+  input hashes. Comparisons use individual test identities, not only totals.
+- Newly failed/skipped/missing tests reject the candidate. An inherited failure is not itself a
+  new regression; missing coverage, unavailable required gates or mismatched inputs are unverified.
+- Task satisfaction currently requires observing the repair of an identified, pre-existing failed
+  project check. A nonempty irrelevant edit, no-op or model self-report is insufficient.
+
+The qualification states are `improved`, `not_improved`, `rejected` and `unverified`, not deployment
+states. A passing regression observation means only no regression detected within the checked scope.
+Public data contains bounded reviewed summaries and Skill captures, never raw prompts, project
+code or container output. Schema validation alone is not a disclosure review.
+
 Before enabling live evaluation, configure repository settings deliberately:
 
-- Secret `COPILOT_GITHUB_TOKEN`: an account/token authorized for the configured Copilot model.
+- The trusted evaluate job has `contents: read` and `copilot-requests: write`, and receives its
+  built-in `GITHUB_TOKEN`. Its Copilot policy/entitlement must allow the configured `gpt-6-astra`
+  model. Optional secret `COPILOT_GITHUB_TOKEN` overrides authentication when deliberately supplied.
 - Variable `SKILLOPS_LIVE_EVALUATION_ENABLED=true`: explicit billable-execution opt-in.
 - Positive `SKILLOPS_MAX_INVOCATIONS` (maximum 1000) and `SKILLOPS_MAX_SECONDS`
   (maximum 1200), shared across the workflow's sequential project evaluations.
+- Positive finite `SKILLOPS_MAX_AI_CREDITS_PER_SESSION`, forwarded to each Copilot CLI session.
 - Secret `SKILLOPS_SWA_DEPLOYMENT_TOKEN`: the intended Static Web App's deployment credential.
 - An existing writable `evaluation-results` branch for the validated data writer.
+
+For a bounded first run, manual dispatch accepts an optional `project` catalog ID and a `live`
+checkbox (default false). This explicitly authorizes only that dispatch without enabling automatic
+billable runs on later pushes; the same configured invocation/time/credit limits are still required.
+CLI callers can use `--project <id>`; unknown IDs fail before assessment. Omit the selector to
+evaluate the catalog. Automatic main-push evaluation requires the repository enable variable.
 
 On September 16, 2026, PR #7 added 11 reviewed reports to main. A later read-only
 check confirmed the existing `evaluation-results` branch and the owner's PR #8
@@ -217,16 +269,23 @@ by the owner's workflow, not this sample task. A deployed blocked report is not
 successful model evaluation. Sample contract checks do not create or write the
 data branch, modify activation settings, or deploy to Azure.
 
-No values are supplied or live evaluation enabled by this skeleton. Missing
+The workflow does not change repository settings or silently enable live evaluation. Missing
 settings create explicit blocked records without model invocation.
 The invocation cap bounds CLI sessions, **not internal model requests or money**.
-The remaining time is passed into the subprocess deadline. Record actual usage;
-do not infer a strict monetary cap from these controls.
+The remaining time is passed into subprocess deadlines. A CLI credit limit is not a guaranteed
+hard currency ceiling. Public cost/time measurements cover the individual Skill-application
+sessions only, not the complete quality/generation/check pipeline; absent usage remains null.
 
 Relevant main changes conservatively assess the catalog. A result-only update
 does not retrigger evaluation. A blocked assessment makes its evaluation job fail
 while the writer can still persist the public blocked result. Raw run directories
 are never uploaded as Actions artifacts.
+
+Trusted-main evaluation through persistence is serialized. Validated prior data is fetched inside
+that slot to reuse Skill identities, never executed as code. GitHub concurrency can coalesce pending
+runs: every intermediate commit is not guaranteed an evaluation, while existing persisted history
+is preserved. Candidate rejection does not itself fail the infrastructure job; incomplete evidence
+and operational failures remain explicit non-success outcomes.
 
 Result writers validate incoming data and use bounded optimistic push retries on
 the dedicated branch, with no force push. A serialized deploy job fetches the
@@ -259,11 +318,9 @@ Selecting a project shows four sections in order:
    the whole detail view. **실행 이력** retains all records, including runs without
    a recorded Skill identity.
 
-Existing public v1 reports remain unchanged. Full quality findings, improvement
-traces and task-level checks still require a reviewed producer contract; the
-viewer reports missing fields explicitly. Reviewed Skill text can now be attached
-through the optional immutable sidecar described below, without inventing these
-other fields.
+Existing public v1 reports remain unchanged. Quality findings, improvement traces and project
+checks use the optional immutable assessment contract above. Missing sidecars remain explicit.
+Reviewed Skill text uses the snapshot/evolution contracts below, never mutable current files.
 
 ### Reviewed archived Skill snapshots
 

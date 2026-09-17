@@ -18,8 +18,10 @@ is available; its screen design is evolving.
 See [project evaluation](docs/PROJECT-EVALUATION.md) for the `results/` schema,
 gated Actions workflow, data branch and static dashboard. The Anthropic-inspired
 guide evaluator in `skill_guide.py` is implemented and used by the baseline runner.
-Project-assessment guide integration remains pending; model-backed workflow
-execution still requires explicit settings and authentication.
+The project path now discovers local Skills, evaluates their quality, generates one candidate,
+reevaluates it and compares original/base/candidate project checks. No root adapter registration
+is required. Missing supported checks or a suitable work item leaves execution effect unverified.
+Model-backed workflow execution still requires explicit settings and authentication.
 
 ### Prepared project samples
 
@@ -41,14 +43,14 @@ existing skills. Draft installation is not successful behavioral evaluation.
 
 The project workflow's `sample-onboarding-results` artifact verifies actual
 non-model reports using the existing evaluator and schema. Project guide assessment
-is still `blocked / guide_integration_pending`; external execution is `no_adapter`,
-and the built-in sample is `live_disabled`. Green contract tests do not change these
+remains blocked in this deliberately non-model job, and execution is `live_disabled` for all
+prepared projects. Green contract tests do not change these
 blocked/unconfigured states or authorize Azure deployment.
 Existing published reports and optional validated skill-history sidecars are retained
 byte-for-byte when adding new sample runs.
 See the [owner's dashboard direction](docs/PROJECT-EVALUATION.md#owner-dashboard-direction)
 for baseline/project separation, target skill/version selection, guide/APO evidence,
-execution comparisons, skill diffs and history, including what still needs integration.
+execution comparisons, skill diffs, history and supported execution boundaries.
 
 ## Repository validation
 
