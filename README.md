@@ -128,8 +128,9 @@ Confirmation remains `not_run` with `confirmation_isolation_unverified` and
 approval eligibility is always false. Development improvement is not final
 confirmation, approval or verified next use. The command never updates Active.
 Development iteration is connected by the `iterate` command below.
-Approval/next-use CLI, Actions and dashboard publication remain separate;
-publication still rejects these new sidecars.
+Approval/next-use CLI and live iteration Actions remain separate.
+The official publisher now preserves validated replay/cycle graphs; unsupported
+adoption publication remains blocked.
 Offline integration tests simulate only model/container boundaries and label
 their results `offline_test`, never measured model improvement.
 
@@ -174,8 +175,26 @@ fixtures. The manifest contains the integration SHA, scenario directories,
 cycle/run IDs and hashes for N=2 feedback, early stop, maximum rounds, budget
 exhaustion, unsaved attempts and persistence failure. All results are explicitly
 `offline_test`; confirmation stays unverified/not run. Existing outputs are never
-overwritten. Dashboard assets/data wiring and public deployment require separate
-coordination and authorization; design PR #32 is not part of this demo.
+overwritten. The official builder includes `trace.js` and hash-verified replay/cycle
+links. Public deployment still requires separate authorization; design PR #32 is
+not part of this demo.
+
+To prepare the read-only local screen, merge reviewed historical reports and the
+generated `n2-feedback` directory into a new results directory, then use the
+official build (never copy private runtime directories):
+
+```bash
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
+```
+
+Use `/?project=<project>&run=<exact-cycle-id>&skill=<skill-key>` on the loopback
+server; cycle IDs and run references are in the exporter manifest. The screen
+labels `offline_test` as non-measured and keeps final confirmation/approval
+incomplete. Historical reports retain their original bytes and outcomes.
+Retain screenshots and a file-openable gallery as a no-server backup.
 
 ### Prepared project samples
 

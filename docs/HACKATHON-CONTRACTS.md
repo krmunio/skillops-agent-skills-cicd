@@ -585,9 +585,10 @@ The foundation implements `validate_work_item`, `validate_replay`,
 `validate_cycle` and `budget_limits`. These are validators/readers/cap snapshots,
 not the replay provider, local approval implementation or operational adapters.
 `project_results.py validate` also checks replay/cycle sidecars.
-Until lossless publishing is connected, `merge` and `build` explicitly fail with
-`replay_publication_pending` on replay/cycle/adoption attachments rather than
-silently dropping their evidence. Legacy publication remains unchanged.
+At the foundation stage, publishers rejected new sidecars until lossless
+publication was connected. The final demo integration supports validated replay
+and cycle graphs; unsupported adoption evidence still fails closed with
+`adoption_publication_pending`. Legacy report bytes remain unchanged.
 
 The reusable fixture is `tests/hackathon_fixtures.py`; invariant tests are
 `tests/test_hackathon_contracts.py`. Every generated fixture is `offline_test`,
@@ -677,8 +678,8 @@ is fabricated. The CLI reports `confirmation_status: not_run`,
 `approval_eligible: false`, even when the development decision is `improved`.
 At the PR #33 stage, iteration and cycle storage were separate unfinished
 integrations. The following handoff adds those two pieces only; adoption writers,
-human-approval/next-use CLI, Actions and lossless dashboard publication remain
-unfinished.
+human-approval/next-use CLI and live iteration Actions remain unfinished.
+The final demo publisher connects replay/cycle evidence, not adoption.
 
 `tests/test_hackathon_integration.py` exercises real provider/guide evaluator,
 common validation, staged-bundle verification and storage with explicitly
@@ -982,9 +983,49 @@ Without the replay command/options, existing single-cycle CLI and project
 evaluation behavior stays unchanged. Actions integration adds only explicit
 work/Skill/round selection and append-only publication; default model access
 remains disabled, and local approval is never an Actions execution credential.
-The local command is implemented; Actions and read-only UI/publication are
-separately coordinated. Shared CLI changes require synchronized English/Korean
-README updates.
+The local command and read-only replay/cycle publication are implemented.
+Live iteration Actions and operational approval remain separate. Shared CLI
+changes require synchronized English/Korean README updates.
+
+### Final demo publication boundary
+
+The official builder registers modules in dependency order:
+`views.js`, `evolution.js`, `assessments.js`, `trace.js`, `app.js`. All five
+filenames hash their final rewritten bytes; importers point to those exact
+hashed modules. Sources are not rewritten and there is no alternate demo builder.
+
+`merge`, `index` and `build` validate complete replay/cycle graphs with the same
+loaders used by CLI storage. Incoming result packets must contain their own
+transitive reports, captures and replay references. Merge preflights immutable
+conflicts before writing; build validates before creating its output directory.
+Only allowlisted public files are copied. Optional history keys are precisely
+`replay_evaluation: <run>/replay-evaluation.json` and
+`cycle: <run>/cycle.json`; referenced report and capture files are retained.
+Non-live replay/cycle runs are never selected as `current_run`, even when their
+input/evaluator hashes happen to match. This pointer is not an Active claim.
+
+Adoption publication remains unsupported and explicitly blocked; no operational
+approval or next-use API is enabled by the UI integration. The browser can show
+historical absence and unverified state but cannot approve or deploy.
+
+For the presentation, combine the reviewed N=2 `offline_test` package produced
+by the integration exporter with unchanged pre-run public reports, using the
+official commands:
+
+```text
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming <offline-package>/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server <port> --bind 127.0.0.1 --directory <new-site>
+```
+
+Start links use `/?project=<project>&run=<exact-cycle-or-report-id>&skill=<key>`.
+Check the official HTTP-served build, refresh/deep links, round navigation,
+read-only requests, offline labels and unchanged historical outcomes. Retain
+screenshots plus a file-openable gallery as backup; none is evidence of new live
+evaluation. Opening a final integration PR targeting main registers the existing
+CI jobs; both validation workflows check the exact PR head. No CI bypass,
+main merge or public deployment is part of this preparation.
 
 ## 9. Delivery order and acceptance evidence
 
