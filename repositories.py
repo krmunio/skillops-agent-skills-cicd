@@ -192,6 +192,17 @@ def list_repositories(root):
         return [{"repository_id": identifier, **row} for identifier, row in sorted(data["repositories"].items())]
 
 
+def active_version(root, *, project_id, skill_key):
+    """Read verified local use only; a legacy entrypoint pin is never Active."""
+    import skill_approvals
+
+    skill_approvals._identity(project_id, skill_key)
+    with _state(root) as (folder, _):
+        environment = skill_approvals._environment(folder)
+        active = skill_approvals._active(folder, environment)
+        return skill_approvals._active_version(folder, active, project_id, skill_key)
+
+
 def resolve(root, repository=None):
     root = Path(root)
     if repository is None:
