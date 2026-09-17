@@ -1,4 +1,4 @@
-import { $, node, stamp, renderSkill } from './views.js';
+import { $, node, stamp, renderSkill, hashValue } from './views.js';
 
 const keyPattern = /^[a-z0-9][a-z0-9-]{0,63}:[a-z0-9][a-z0-9-]{0,63}$/;
 const versionPattern = /^sha256:[a-f0-9]{64}$/;
@@ -250,14 +250,24 @@ export function renderEvolution(model, key, history, onSelectRun) {
   for (let i = 0; i < captured.length; i++) {
     const version = captured[i];
     panel.append(node('p', `${i ? 'To-Be' : 'As-Is'} · ${version ? scopes[version.capture_scope] : '캡처 미기록'}`, 'reason'));
-    if (version) panel.append(node('p', `${version.version_id} · ${version.files.length}개 파일`, 'source-hash'));
+    if (version) {
+      const summary = node('p', undefined, 'source-hash');
+      summary.append(hashValue(version.version_id), node('span', ` · ${version.files.length}개 파일`));
+      panel.append(summary);
+    }
   }
   const adoptions = rows.adoptions.filter(item => item.skill_key === key);
   if (!adoptions.length) panel.append(node('p', '채택 상태 미기록', 'reason'));
   for (const observation of adoptions) {
-    panel.append(node('p', observation.state === 'unknown' ? '채택 상태 미기록' :
-      `설정된 진입점 pin 관측 · ${stamp(observation.observed_at)} · ${observation.entrypoint_sha256}`, 'evolution-path'));
-    if (observation.registry_sha256) panel.append(node('p', `관측 근거 registry SHA-256 ${observation.registry_sha256}`, 'source-hash'));
+    const summary = node('p', observation.state === 'unknown' ? '채택 상태 미기록' :
+      `설정된 진입점 pin 관측 · ${stamp(observation.observed_at)} · `, 'evolution-path');
+    if (observation.entrypoint_sha256) summary.append(hashValue(observation.entrypoint_sha256));
+    panel.append(summary);
+    if (observation.registry_sha256) {
+      const registry = node('p', '관측 근거 registry SHA-256 ', 'source-hash');
+      registry.append(hashValue(observation.registry_sha256));
+      panel.append(registry);
+    }
   }
   panel.append(node('p', '캡처와 과거 설정 관측은 현재 설치·실행 또는 전체 번들 배포의 증거가 아닙니다.', 'reason'));
   const files = [...new Set(captured.flatMap(version => version?.files.map(file => file.path) || []))].sort(pathOrder);
@@ -281,13 +291,13 @@ export function renderEvolution(model, key, history, onSelectRun) {
         if (i && !hasCandidate) { detail[arm] = null; continue; }
         if (!file) {
           detail[arm] = { availability: version?.capture_scope === 'complete_bundle' ? 'absent' : 'uncaptured',
-            version: version?.version_id.slice(0, 19), content: null };
+            version: version?.version_id, content: null };
           continue;
         }
         let text = null;
         try { text = new TextDecoder('utf-8', { fatal: true }).decode(contents.get(`${version.version_id}/${file.path}`)); }
         catch (error) { if (!(error instanceof TypeError)) throw error; }
-        detail[arm] = { ...file, availability: 'captured', content: text, version: version.version_id.slice(0, 19) };
+        detail[arm] = { ...file, availability: 'captured', content: text, version: version.version_id };
       }
       renderSkill(detail, false);
     };
