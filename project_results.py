@@ -652,6 +652,9 @@ def import_skill_snapshots(source, results, project, candidate_run, skill_id):
 
 
 def reindex(root, results):
+    import skill_guide
+    from skill_pipeline import skill_key
+
     current = {row["id"]: row for row in catalog(root)}
     fingerprint = evaluator_hash(root)
     grouped = {}
@@ -674,7 +677,22 @@ def reindex(root, results):
             "id": identifier, "state": "removed" if active is None else ("blocked" if active["error"] else "active"),
             "history_count": len(rows), "current_run": matching[0]["run_id"] if matching else None,
             "index": f"{identifier}/index.json",
+            "detected_skills": [], "skill_discovery_error": None,
         }
+        if active and not active["error"]:
+            prior = [skill_assessments[(identifier, row["run_id"])] for row in rows
+                     if (identifier, row["run_id"]) in skill_assessments]
+            try:
+                bundles = skill_guide.discover(Path(root) / "projects" / identifier)
+                require(len(bundles) <= 256, "skill_inventory_limit")
+                entry["detected_skills"] = [{
+                    "skill_key": skill_key(identifier, bundle["path"], prior),
+                    "display_name": Path(bundle["path"]).name, "source_path": bundle["path"],
+                } for bundle in bundles]
+            except RuntimeFailure as error:
+                entry["skill_discovery_error"] = error.code
+        elif active:
+            entry["skill_discovery_error"] = active["error"]
         summaries = [{
             "run_id": row["run_id"], "created_at": row["created_at"], "origin": row["origin"],
             "purpose": row["purpose"], "guide_status": row["guide"]["status"],
@@ -758,6 +776,8 @@ def import_history(source, target, project):
 
 
 def build(root, results, output):
+    import dashboard_samples
+
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
     rows = load_reports(results)
@@ -798,7 +818,12 @@ def build(root, results, output):
         store_assessments(output / "results", data)
     for data in measurements.values():
         store_telemetry(output / "results", data)
-    return reindex(root, output / "results")
+    index = reindex(root, output / "results")
+    for entry in index["projects"]:
+        if entry["id"] in dashboard_samples.PROJECTS and entry["detected_skills"] and not entry["skill_discovery_error"]:
+            atomic_json(output / f"sample-{entry['id']}.json",
+                        dashboard_samples.project_sample(entry["id"], entry["detected_skills"]))
+    return index
 
 
 def main():
