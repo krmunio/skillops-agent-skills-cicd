@@ -1,8 +1,57 @@
-# skillops-agent-skills-cicd
+# Self-Evolving Agent SkillOps
 
 [English](README.md) | [Korean](README.ko.md)
 
-Agent-skill CI/CD, starting with a reproducible coding-task baseline.
+**CI/CD for agent behavior: discover Skill bundles, generate improvement candidates, and verify their effects before adoption.**
+
+Code has CI/CD. Agent instructions should have a controlled change process too.
+Self-Evolving Agent SkillOps connects observed problems, proposed instruction changes,
+versioned evaluations and project regression evidence. "Self-evolving" means generating and
+evaluating candidates, not silently rewriting or deploying the original Skill.
+
+## Improvement loop
+
+```text
+Project snapshot
+  -> Discover Skill bundles
+  -> Assess instructions and collect improvement evidence
+  -> Generate one candidate per eligible Skill
+  -> Reevaluate the candidate against the original
+  -> Check supported project behavior for regressions
+  -> Preserve versions, results and decisions
+```
+
+A Skill is not necessarily one file or one workflow. Discovery looks for `SKILL.md` under
+`.github/skills`, `.claude/skills` and `skills`, including nested directories. Its containing
+bundle can include reference documents, scripts and assets. Same-name Skills at different
+paths remain distinct; versions capture bundle contents, not only the entrypoint.
+Candidate generation currently changes the entrypoint body while preserving its frontmatter
+and supporting files.
+
+## Evaluation model
+
+| Area | Question | Evidence |
+| --- | --- | --- |
+| Skill baseline assessment | Are the instructions clear, and is the proposed improvement grounded? | Anthropic-guide-inspired instruction quality and APO-inspired links between findings, hypotheses, changes and reevaluation. |
+| Project evaluation | Does the changed Skill perform useful work without introducing regressions? | Common-task comparisons and actual project checks, with quality, failures, cost and time kept in their recorded scopes. |
+| Adoption | Was the candidate actually accepted or applied? | Explicit adoption records; a better score or passing checks alone do not establish adoption. |
+
+The legacy common-task benchmark and discovery-based project checks are separate execution
+paths today. The CLI command named `baseline` still runs the legacy original-Skill benchmark;
+it does not mean the instruction-quality section in the dashboard design.
+Missing checks, unsupported execution, failed stages and unavailable measurements remain explicit.
+No suitable verifiable work means execution effect is `unverified`, not an invented success.
+
+### In design, not yet implemented
+
+The dashboard redesign will separate project, Skill-bundle and version/candidate selection,
+show adoption and a short summary first, stack Skill baseline assessment above project
+evaluation, and keep hashes and detailed evidence behind expandable controls.
+
+Evaluation sets are being designed as selectable add-ons, with Anthropic-guided quality and
+APO-based improvement evidence selected by default. Multiple sets can be compared and selected.
+This catalog/configuration capability is not implemented yet. Historical results must retain
+their original evaluation-set versions; incompatible scores must not be silently combined.
 
 ## Collaboration
 
@@ -68,7 +117,8 @@ not deploy, promote or roll back skills.
 
 ## Current implementation
 
-The baseline evaluator now supports three independent Python issue-management
+The discovery-based project path is described above. The legacy benchmark evaluator supports
+three independent Python issue-management
 families, an unchanged development skill v1, five coding tasks, protected
 checks, a calibrated independent judge, and JSON/Markdown reports.
 
@@ -77,7 +127,7 @@ development feedback, and the runner can compare it with the unchanged base
 on fresh paired tasks. Generated instructions and their rationale are hypotheses,
 not proven improvements. Canary deployment, promotion and rollback are not implemented.
 
-Local project registration now binds a project, the `develop` skill and the
+Legacy local project registration binds a project, the `develop` skill and the
 `issue-management-v2` evaluation set. Bound evaluation uses the registered source
 files and an immutable initial skill pin. A read-only eligibility command verifies
 recorded evidence; it does not install or deploy a skill.
