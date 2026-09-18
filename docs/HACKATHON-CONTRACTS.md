@@ -29,7 +29,62 @@ Keep instruction quality, project execution, candidate qualification, operator
 approval, and observed use as separate facts. A score improvement is not approval;
 approval is not proof that an execution loaded the approved Skill.
 
-The inspected implementation already provides:
+### Post-presentation implementation audit: September 18, 2026
+
+Audit baseline: main `fcf2cad6e61908be7461526365cf2a608220dbdf`, the merge
+of PR #35. This is a code audit, not a new schema revision or authorization to
+execute models. Earlier implementation handoffs below describe their named
+commits, not completion of every target API in this contract.
+
+| Contract / acceptance target | State at this baseline | Code evidence and remaining work |
+| --- | --- | --- |
+| Sections 1-2: legacy behavior, identities, strict encoding | Implemented for legacy/replay/cycle | Existing assessment path is separate; `project_results`, `evolution_records`, and `skill_assessments` validate exact fields, complete captures and canonical immutable sidecars. Adoption still needs the same treatment. |
+| Section 3: recorded development input and real request replay | Partially implemented | `validate_work_item`, `prepare_replay` and `_replay_application` bind source/check/input identities and use the request in the developer prompt. The adapter does not yet persist WorkItems at the canonical private `work-items/<task>/<hash>.json` path required by approval. |
+| Section 4: fixed-reference one-candidate evaluation | Implemented for development | `evaluate_candidate` reuses the original Capture and quality baseline, runs fresh paired applications and returns actual retained rows/captures. Confirmation is explicitly rejected by the provider. |
+| Section 5: N=2 feedback lineage and bounded termination | Implemented for development | `run_iterations` delegates to the real `run_cycle`; preparation and rounds share one budget. Nullable admitted attempts and persistence-callback failures have different behavior. No duplicate loop is needed. |
+| Section 5: precommitment and confirmation isolation | Partially implemented; enabling blocked | `_replay_session` freezes distinct WorkItems before model invocation; `run_cycle` selects once and has a lazy confirmation callback. Both `prepare_replay` and `_check_replay` reject confirmation. No provider-owned registration/one-use selection binding or enforced model-filesystem boundary exists. |
+| Sections 3-5: protected evaluation | Implemented boundaries; confirmation claim incomplete | Source replacement allowlists, fixed plans, protected file hashes, Skill companion preservation, tool manifests and provider-issued feedback are checked. These do not establish filesystem isolation of the host model process. |
+| Section 6: explicit approval separation | Not integrated | `skillops.main` has no `approve` command. PR #29's module is not on main; reuse its exact owner commits, not replacement state logic. Add CI/noninteractive rejection and separate human confirmation at the CLI. |
+| Section 6: exact next use | Not integrated | No `run-approved` command or execution adapter exists. Fresh work/run/budget, staging/activation/post-invocation inventory and host-derived receipts must be connected to the session 4 API. |
+| Section 6: durable local state / ABA protection | Owner module only, not on main | PR #29 `00babd180f5bd8b03373d5f16dfd8f0eda2a328a` contains locked version/receipt-pair comparison, durable receipt-before-pointer ordering and private environment binding. Integration and real adapter tests remain required. |
+| Section 7: immutable replay/cycle publication | Implemented | `store_replay`, `store_cycle`, loaders, `merge_results`, `reindex` and `build` retain the validated transitive graph and optional history links. Non-live traces are excluded from `current_run`; this index is not Active. |
+| Section 7: adoption validation/projection/publication | Not implemented in Python | `store_adoption` and `load_adoptions` are declarations only. `_require_supported_publication` rejects adoption with `adoption_publication_pending`; `validate` does not yet validate it. Implement validation and safe projection before removing this guard. |
+| Section 8: CLI confirmation eligibility | Partially implemented | `iterate` accepts a confirmation path, but the real provider blocks it and `run_iterations` always returns `approval_eligible: false`. An improved development result alone must never change this. |
+| Section 8: Actions work/Skill/N selection | Not implemented | The workflow exposes legacy project/live/budget selection, not recorded work, exact Skill or N. Add a private input channel and bounded dispatch adapter; no `approve` invocation or local approval credential in Actions. |
+| Sections 7-9: public trace | Replay/cycle integrated; adoption consumer only | `dashboard/trace.js` has read-only approval/use validation and labels, but no official Python-produced adoption graph is published. PR #31 follow-up `1433c554a5ca7aabeda29200ed8be528a9e0d47f` adds browser tests only and is not in this main. |
+| Section 9: no fake production path / integrated acceptance | Development acceptance only | Common integration tests call actual provider/loop/validators/storage with external boundaries simulated. Synthetic confirmation fixtures and owner module tests are not a real provider confirmation or operational approval. The complete CLI chain is not integrated. |
+
+Scoped baseline command:
+`PYTHONPATH=tests:. python3 -m unittest test_hackathon_contracts test_hackathon_integration -q`
+ran 57 tests successfully with no skips. This is not a new full-suite, container,
+live-model, approval, deployment or exact-final-HEAD CI result.
+
+Implementation order is reviewed confirmation admission/isolation contract;
+owner provider and loop changes; approval/next-use CLI and private WorkItem
+storage; adoption public graph; private bounded Actions input; then one exact
+integrated codebase and official build. Independent approval-store, public
+consumer and fail-closed loop work may proceed against unchanged accepted APIs.
+Do not block all sessions on the model-runtime implementation.
+
+Session 2's issue #36 identifies an ownership decision needed before the
+confirmation guard can be lifted: `copilot_runtime.py` launches a host process
+with tool/profile restrictions, not enforced filesystem confinement. It is not
+in sessions 1-5's assigned modification lists. Select and authorize its owner
+and a verifiable process boundary separately; a new `isolated=True` flag, empty
+test-context array, role cwd, mode-0700 directory or passing prompt-sentinel test
+does not resolve this gap. The proposed registration/disclosure/selection APIs
+in that issue are not accepted interfaces yet. Existing provider and loop
+signatures remain authoritative until the reviewed follow-up is committed.
+
+No old stacked PR is implicitly reimported. PR #29's owned-file changes may be
+reused after exact-delta inspection. PR #31's test-only follow-up is a separate
+input; PR #32 design and moving source files into a `skillops/` package are
+excluded. Paid evaluation, real `approve`/`run-approved`, main merge, public
+deployment and protection-rule changes require separate authorization.
+
+### Historical initial baseline
+
+The initially inspected implementation provided:
 
 | Surface | Existing behavior to preserve |
 | --- | --- |
@@ -41,7 +96,7 @@ The inspected implementation already provides:
 | `project_results` | Validated, immutable reports and optional attachments; allowlisted static publication |
 | `repositories` | Initial legacy entrypoint pins and read-only comparison eligibility, not full-bundle adoption |
 
-The current `work` object has only `sha256`, `provenance: generated`, and
+The legacy assessment `work` object has only `sha256`, `provenance: generated`, and
 `check_id`. It is not a recorded user development task. The existing assessment
 decision specifically requires repairing an originally failing check. Neither
 that provenance nor historical decisions may be relabeled for the new replay path.
