@@ -1,6 +1,76 @@
 {
   "files": [
     {
+      "path": "results/project-a/35203851697-1/report.json",
+      "sha256": "dfb0ef764ef07fbaf7c2be3d4a3c3a512f205476328a5d2eefc6751eb0b29556",
+      "size": 845
+    },
+    {
+      "path": "results/project-a/35203851697-1/skill-assessments.json",
+      "sha256": "ad3ce6a0a6be73ec230e5a8bc6bd600a17ffda481bdce80ea94231078d983beb",
+      "size": 3922
+    },
+    {
+      "path": "results/project-a/35203851697-1/skill-evolution.json",
+      "sha256": "3df0bdee168818e11b39a402647370b15541f139d08e240de84320d96b707d33",
+      "size": 7487
+    },
+    {
+      "path": "results/sample_repo/35184191312-1/report.json",
+      "sha256": "21032fb99891c3c41462932e55049ec33004e982b4c579cb5018bc568b8f9a34",
+      "size": 848
+    },
+    {
+      "path": "results/sample_repo/35184191312-1/skill-assessments.json",
+      "sha256": "4ecc44e5a002e2863c056af41b4843f25e9beeda6232ec3f697c5861668a0519",
+      "size": 9509
+    },
+    {
+      "path": "results/sample_repo/35184191312-1/skill-evolution.json",
+      "sha256": "f0c9b15ff5e6b4902db47cb6de9b70a207acbc97c96ad6e6f0ade5b07dab11f4",
+      "size": 7613
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-1f55e25f8cf6/cycle.json",
+      "sha256": "d1985e76bc69928552e20ee6505b8a762903bdeaf825431aa2a1432cbebe50ea",
+      "size": 3423
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-1f55e25f8cf6/report.json",
+      "sha256": "b0899bb8f5a6f2468efa6fe60c3ebdf153700850951b3488e3b404a03762ede3",
+      "size": 789
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-399bf04adcc9/replay-evaluation.json",
+      "sha256": "cdfa25410cc338f0499d080cbbaea8dbd461b2359f5923cc74c0c85825faae67",
+      "size": 9964
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-399bf04adcc9/report.json",
+      "sha256": "6d847eb29bfeaebd79e71bb40984d8afacb60e3d3e54967fbf3c011c392e9834",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-399bf04adcc9/skill-evolution.json",
+      "sha256": "63138e458adc101b0a04844823bc4bc22537e6aab7d43b8435efce74991cc933",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-5a17f0210563/replay-evaluation.json",
+      "sha256": "101acbbbf22494eb09702e129279c324bb532ca7ce4eaabdfe33a6e97564c5f2",
+      "size": 9968
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-5a17f0210563/report.json",
+      "sha256": "c672eaac33f390d6b42bb78dfd32b51a37ffcbe7b4b27ba63d9c6b518f8554e2",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-5a17f0210563/skill-evolution.json",
+      "sha256": "8c179aa9c1689934b7275eb2d24bf68593632c8e9037c0a4f02106a596b2af25",
+      "size": 3989
+    },
+    {
       "path": "results/sample_repo/local-20260918T094533Z-f6297a587afc/cycle.json",
       "sha256": "9972df4574c795a87dafb179ae2677a8d1e3ce05f72771b6a75e2c0f66ee8360",
       "size": 3625
