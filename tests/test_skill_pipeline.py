@@ -774,6 +774,14 @@ class ConfirmationTests(unittest.TestCase):
         self.assert_code("confirmation_candidate_mismatch", lambda: self.evaluate(final, wrong, "wrong-selection"))
         self.assertIsNone(final["feedback"])
 
+    def test_registered_generation_cannot_replace_the_shared_deadline(self):
+        self.register()
+        context = self.prepare()
+        self.assert_code("confirmation_inputs_changed", lambda: skill_pipeline.generate_candidate(
+            self.runtime, "offline-model", context["original"], context["feedback"],
+            self.runtime.private / "extended-deadline", deadline=self.deadline + 10))
+        self.assertEqual(self.prompts, [])
+
     def test_unretained_and_mutated_selections_never_consume_exposure(self):
         self.api("register_confirmation")
         registration = self.register()

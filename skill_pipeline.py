@@ -485,6 +485,8 @@ def generate_candidate(runtime, model, parent, feedback, artifact, *, deadline):
     require(binding["packet"] == feedback, "feedback_binding_mismatch")
     context = state["contexts"][str(issued["context"]["project"])]["context"]
     _check_replay(runtime, context, model)
+    if state.get("registration") is not None:
+        _check_registration(runtime, state["registration"], model, deadline=deadline)
     entry = issued["entry"]
     if entry is not None:
         require(project_results.encoded(entry["row"]) == entry["bytes"]
