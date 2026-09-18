@@ -48,15 +48,15 @@ do not treat that directory as a successful output or retry over it.
 
 Run from a clean checkout containing the publisher, using an existing data SHA.
 The bundled candidate data commit is
-`9020969a5c52d08ba7fa598376c792fd3de2b889`.
+`0712005982eeeb4f3837c526831222d65b564c62`.
 
 ```bash
 CODE_SHA="$(git rev-parse HEAD)"
 python3 reviewed_publication.py \
   --code-sha "$CODE_SHA" \
-  --data-sha 9020969a5c52d08ba7fa598376c792fd3de2b889 \
+  --data-sha 0712005982eeeb4f3837c526831222d65b564c62 \
   --bundle publication-candidates/hackathon-offline-v1 \
-  --manifest-sha f6f8eb0d95a17eb3eac060308ccb971fbd1fe17c48bc82ce1eaf29143b9cb680 \
+  --manifest-sha 5438e9eb7258feeadc651f1481b5adef0b4d1c8213a15467e17de2ee64a637ec \
   --existing results
 ```
 
@@ -116,27 +116,32 @@ measurements; passed confirmation is still ineligible for operating approval.
 | N=2; confirmation passed | `local-20260918T094533Z-f6297a587afc` |
 | N=2; confirmation failed | `local-20260918T094534Z-bcba9c0a589e` |
 
-The three cycles, nine replay/evolution pairs and twelve reports total **33
-payloads / 142,758 bytes**, copied unchanged from producer
+The packet contains **47 payloads / 206,684 bytes**: the 33 files for the three
+primary examples plus all fourteen historical files retained in the original b8
+public packet. Its seventeen reports include two prior measured assessments and
+an earlier offline cycle; their original provenance and decisions are unchanged.
+All files are copied byte-for-byte from the public packet assembled at
 `b8dade4c832d1353d67f2a49de7b9202e2bd9e4b`. No approval/use record is included.
-All scalar content and the four unique decoded Skill capture contents were
-inspected before the candidate commit; they contain only the synthetic public
-fixture and relative Skill paths. This inspection is not operational approval.
+All scalar content and all eight unique decoded Skill captures were inspected
+before inclusion; no private requests, source context, operator information,
+absolute paths, logs or credentials are included. This inspection is not
+operational approval.
 
 **Do not confuse the two manifests.** The original
 `completion-offline-b8dade4/manifest.json` hash is
 `78040e9e5f48d69c9f2026f533724e62c0be47cd7a7f7d9904f35ab93db0ea2f`.
 It describes the producer's eleven scenarios and is the session 5 browser-test
 provenance input. The publication manifest hash
-`f6f8eb0d95a17eb3eac060308ccb971fbd1fe17c48bc82ce1eaf29143b9cb680`
-binds the 33 selected public payload files only. Neither manifest is modified
+`5438e9eb7258feeadc651f1481b5adef0b4d1c8213a15467e17de2ee64a637ec`
+binds the 47 public payload files only. Neither manifest is modified
 to mimic the other. The older efdd68a demo packet is not an input.
 
 Session 5 UI HEAD is `9dd81096a11912c1ff466375179a5ddf02390531` (PR #41).
-Its `tests/dashboard-workflow-production.spec.js` also checks fourteen already
-published historical payloads, for 47 bytes-preserved files in total. These
-historical files come from the existing results branch, not newly generated
-evidence. Validate that full union when testing the official UI build.
+Its `tests/dashboard-workflow-production.spec.js` also checks fourteen retained
+historical payloads, for 47 bytes-preserved files in total. Six were already in
+results commit `5d812c69d5cb4300e9ee2576add629c98a0e2e5d`; eight historical
+offline files were absent there and are explicitly included, not regenerated.
+Validate the full packet plus the existing data branch when testing deployment.
 
 Use local stage mode above, then
 `python3 project_results.py validate --results /tmp/reviewed-publication/results`.
