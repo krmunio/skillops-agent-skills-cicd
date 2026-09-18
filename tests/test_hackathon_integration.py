@@ -261,6 +261,31 @@ class ReplayIntegrationTests(unittest.TestCase):
         secret.assert_not_called()
         self.assertEqual(self.raw.calls, [])
 
+    def test_actions_fresh_checkout_initializes_the_real_private_owner_before_retention(self):
+        import copilot_runtime
+        self.raw.private.rmdir()
+        created = []
+
+        def factory(root):
+            with patch.object(copilot_runtime.shutil, "which", return_value="/test-only/copilot"):
+                runtime = copilot_runtime.CopilotRuntime(root, inherited={"PATH": runner.os.environ["PATH"]})
+            created.append(runtime)
+            return runtime
+
+        with patch.dict(runner.os.environ, {
+                "SKILLOPS_RECORDED_WORK_ITEMS": json.dumps({self.work["task_id"]: {"work_item": self.work}})}), \
+                patch.object(runner, "resolve_images", side_effect=RuntimeFailure(
+                    "offline_probe_stop", "Stop at the external image boundary; no model call.")), \
+                self.assertRaises(RuntimeFailure) as raised:
+            runner.run_recorded_iterations(
+                self.root, project_id="sample_repo", skill_key=self.key, work_id=self.work["task_id"],
+                max_rounds=2, output=self.output, source_commit=self.commit, cycle_id="202-1", live=True,
+                policy={"enabled": True, "authenticated": True, "budget": self.budget}, runtime_factory=factory)
+        self.assertEqual(raised.exception.code, "offline_probe_stop")
+        self.assertEqual(len(created), 1)
+        self.assertTrue((created[0].private / ".owner").is_file())
+        self.assertEqual(self.budget["calls"], 0)
+
     def test_exhausted_shared_budget_never_fabricates_completed_evaluation(self):
         self.budget["max_calls"] = 2
         output = self.run_one()

@@ -510,11 +510,13 @@ def run_recorded_iterations(root, *, project_id, skill_key, work_id, max_rounds,
         work, project=results.safe_path(root) / "projects" / project_id, source_commit=source_commit)
     results.require(work["task_id"] == work_id and work["project_id"] == project_id
                     and work["split"] == "development", "work_selection_mismatch")
-    path = retain_work_item(root, work)
+    raw_runtime = (runtime_factory or CopilotRuntime)(root)
+    with raw_runtime.locked():
+        path = retain_work_item(root, work)
     return run_iterations(
         root, project_id=project_id, skill_key=skill_key, work_item=path, output=output,
         model="gpt-6-astra", execution_mode="live", policy=policy, max_rounds=max_rounds,
-        cycle_id=cycle_id, runtime_factory=runtime_factory)
+        cycle_id=cycle_id, runtime_factory=lambda root: raw_runtime)
 
 
 def changed_projects(root, projects, before, source_commit):
