@@ -18,6 +18,7 @@ from unittest.mock import Mock, patch
 from copilot_runtime import RuntimeFailure
 import evolution_records as evolution
 import project_checks
+import project_evaluation
 import project_results as results
 import repositories
 import skill_assessments
@@ -371,6 +372,65 @@ class ApprovalTests(unittest.TestCase):
         self.assertEqual(self.a.record_execution(self.root, approval=approved, receipt=receipt), receipt)
         self.assertIsNone(self.active())
 
+    def test_failed_receipt_retry_cannot_claim_a_recorded_active_selection(self):
+        approved = self.approve()
+        receipt = self.receipt(approved, status="failed", skill_version_verified=False,
+                               loaded_version_id=None, reason_code="activation_missing")
+        self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        self.assertEqual(caught.exception.code, "active_conflict")
+        self.assertIsNone(self.active())
+
+    def test_changed_cycle_report_bytes_block_approval(self):
+        path = self.cycle_path.parent / "report.json"
+        path.write_bytes(path.read_bytes() + b"\n")
+        with self.assertRaises(RuntimeFailure):
+            self.approve()
+
+    def test_previously_checked_evidence_drift_during_final_work_validation_blocks(self):
+        first = next(iter(self.replays.values()))
+        path = self.output / "sample_repo" / first["run_id"] / "replay-evaluation.json"
+        def drift(data, **kwargs):
+            if data["split"] == "confirmation":
+                path.write_bytes(path.read_bytes() + b"\n")
+            return data
+        with patch.object(skill_assessments, "validate_work_item", side_effect=drift):
+            with self.assertRaises(RuntimeFailure):
+                self.approve()
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+
+    def test_new_private_directory_parent_is_retried_after_failed_durability(self):
+        approved = self.approve()
+        sync = self.a._fsync_directory
+        failed = False
+        def fail_after_directory_creation(path):
+            nonlocal failed
+            if Path(path) == self.root / ".skillops" and (Path(path) / "executions").is_dir() and not failed:
+                failed = True
+                raise OSError("Synthetic parent-directory durability failure")
+            sync(path)
+        with patch.object(self.a, "_fsync_directory", side_effect=fail_after_directory_creation):
+            with self.assertRaises(RuntimeFailure):
+                self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+        self.assertIsNone(self.active())
+        self.assertFalse((self.root / ".skillops/executions/execution-fixture.json").exists())
+        self.assertEqual(self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))["status"],
+                         "verified")
+
+    def test_corrupt_previous_execution_is_an_explicit_error_not_an_unchecked_lookup(self):
+        approved = self.approve()
+        folder = self.root / ".skillops/executions"
+        folder.mkdir(mode=0o700)
+        path = folder / "unknown-record.json"
+        results.atomic_json(path, {})
+        before = path.read_bytes()
+        with self.assertRaises(RuntimeFailure):
+            self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+        self.assertEqual(path.read_bytes(), before)
+        self.assertFalse((folder / "execution-fixture.json").exists())
+        self.assertIsNone(self.active())
+
     def test_receipt_and_pointer_write_failures_do_not_claim_success(self):
         approved = self.approve()
         receipt = self.receipt(approved)
@@ -623,6 +683,7 @@ class ApprovalIntegrationTests(unittest.TestCase):
         (self.root / "projects").mkdir()
         self.data = replay_fixture(self.root / "projects")
         self.project = self.data["project"]
+        self.key = "skillops:develop"
         self.output = self.root / "results"
         self.enterContext(patch.dict(os.environ, {"CI": "", "GITHUB_ACTIONS": ""}))
 
@@ -640,6 +701,140 @@ class ApprovalIntegrationTests(unittest.TestCase):
         self.data["cycle"].update(confirmation_ref=None, confirmation_status="unverified")
         write_results(self.output, self.data)
         return self.data["cycle"]
+
+    def synthetic_live_contract(self):
+        """Construct NEW synthetic live-shaped inputs for validator branch coverage.
+
+        No provider output is relabeled, no live execution occurs, and nothing
+        leaves this temporary test repository. Confirmation is fabricated test
+        input, not proof that the actual provider supports confirmation.
+        """
+        (self.root / "eval").mkdir()
+        results.atomic_json(self.root / "eval/skill-guide-rubric.json", self.data["rubric"])
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "add", "projects", "eval"], check=True)
+        subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Synthetic contract test",
+                        "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false",
+                        "commit", "-qm", "Synthetic authorization-contract fixture"], check=True)
+        commit = subprocess.check_output(["git", "-C", str(self.root), "rev-parse", "HEAD"], text=True).strip()
+        works = {}
+        self.private_paths = []
+        for original in (self.data["work_item"], self.data["confirmation_work_item"]):
+            work = {**deepcopy(original), "source_commit": commit}
+            work["input_sha256"] = digest({k: v for k, v in work.items() if k != "input_sha256"})
+            skill_assessments.validate_work_item(work, project=self.project, source_commit=commit)
+            path = self.root / ".skillops-private/work-items" / work["task_id"] / (work["input_sha256"] + ".json")
+            results.atomic_json(path, work, immutable=True)
+            self.private_paths.append(path)
+            works[work["split"]] = work
+        refs, replays, previous = {}, {}, None
+        captures = {version["version_id"]: (version, files) for version, files in self.data["captures"]}
+        for key, original in self.data["evaluations"].items():
+            replay = deepcopy(original["replay"])
+            row, reference = replay["evaluation"], replay["reference"]
+            work = works[row["work"]["split"]]
+            reference.update(source_commit=commit, input_sha256=work["input_sha256"],
+                             evaluator_sha256=results.evaluator_hash(self.root))
+            reference["reference_sha256"] = digest({k: v for k, v in reference.items() if k != "reference_sha256"})
+            row["reference_sha256"] = reference["reference_sha256"]
+            row["work"].update({k: work[k] for k in ("task_id", "input_sha256", "split", "checks")})
+            for application in row["applications"].values():
+                application["work_sha256"] = work["input_sha256"]
+            generation = replay["generation"]
+            if generation is not None:
+                source = previous["evaluation"] if previous else row
+                arm = "candidate" if previous else "base"
+                checks = source["checks"]["candidate" if previous else "original"]
+                packet = {
+                    "schema_version": 1, "input_sha256": work["input_sha256"],
+                    "source_round_id": "100-1-r1" if previous else None,
+                    "quality": source["quality"][arm],
+                    "checks": {"cases": [case for case in checks["cases"]
+                                        if case["id"] in work["checks"]["required_case_ids"]],
+                               "gates": checks["gates"]},
+                    "application": source["applications"]["candidate"] if previous else None,
+                    "decision": source["decision"] if previous else None,
+                }
+                generation["feedback_sha256"] = digest(packet)
+                generation["hypothesis"] = "Synthetic contract input only, not a model observation."
+            selected = [captures[row[f"{arm}_version_id"]] for arm in ("base", "candidate")]
+            refs[key[1]] = project_evaluation.persist_replay(
+                self.output, row, selected, generation, reference, execution_mode="live", run_id=key[1])
+            replays[key[1]] = replay
+            previous = replay
+        cycle = deepcopy(self.data["cycle"])
+        cycle.pop("report_sha256")
+        cycle.update(execution_mode="live", input_sha256=works["development"]["input_sha256"],
+                     reference_sha256=replays["101-1"]["reference"]["reference_sha256"],
+                     confirmation_ref=refs["103-1"])
+        for row in cycle["rounds"]:
+            replay = replays[row["run_id"]]
+            row.update(input_sha256=cycle["input_sha256"], reference_sha256=cycle["reference_sha256"],
+                       feedback_sha256=replay["generation"]["feedback_sha256"],
+                       evaluation_ref=refs[row["run_id"]])
+        project_evaluation.persist_cycle(self.output, cycle, replays["101-1"]["reference"])
+        return results.load_cycles(self.output)[("sample_repo", cycle["cycle_id"])]
+
+    def resolve_cycle(self, approved):
+        return self.a.resolve_approved(self.root, results=self.output, **{
+            key: approved[key] for key in ("project_id", "skill_key", "approval_id",
+                                           "candidate_version_id", "evidence_sha256")})
+
+    def test_synthetic_positive_approval_through_actual_common_storage_and_validation(self):
+        cycle = self.synthetic_live_contract()
+        original = results.tree_hash(self.project)
+        evidence = {p: p.read_bytes() for p in self.output.rglob("*.json")}
+        approval = self.approve_cycle(cycle)
+        self.assertEqual(self.approve_cycle(cycle), approval)
+        loaded, candidate = self.resolve_cycle(approval)
+        self.assertEqual(loaded, approval)
+        self.assertEqual(candidate, self.data["captures"][2])
+        self.assertEqual(candidate[0]["capture_scope"], "complete_bundle")
+        self.assertIsNone(repositories.active_version(self.root, project_id="sample_repo", skill_key="skillops:develop"))
+        receipt = ApprovalTests.receipt(self, approval)
+        self.assertEqual(self.a.record_execution(self.root, approval=approval, receipt=receipt), receipt)
+        self.assertEqual(repositories.active_snapshot(self.root, project_id="sample_repo", skill_key="skillops:develop"),
+                         {"version_id": candidate[0]["version_id"], "execution_sha256": digest(receipt)})
+        self.assertEqual(results.tree_hash(self.project), original)
+        self.assertEqual(evidence, {p: p.read_bytes() for p in evidence})
+        self.assertFalse((self.root / ".skillops/registry.json").exists())
+        self.assertFalse(list(self.output.rglob("adoption.json")))
+
+    def test_real_validators_reject_malformed_or_missing_private_work(self):
+        cycle = self.synthetic_live_contract()
+        for path in self.private_paths:
+            original = path.read_bytes()
+            for invalid in ({}, {"input_sha256": "0" * 64}, None):
+                with self.subTest(split=path.parent.name, invalid=invalid):
+                    if invalid is None:
+                        path.unlink()
+                    else:
+                        path.write_bytes(results.encoded(invalid))
+                    with self.assertRaises(RuntimeFailure):
+                        self.approve_cycle(cycle)
+                    path.write_bytes(original)
+        self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
+
+    def test_full_graph_and_private_work_mutations_reject_resolved_synthetic_approval(self):
+        cycle = self.synthetic_live_contract()
+        approval = self.approve_cycle(cycle)
+        candidates = [
+            *(self.output / "sample_repo" / run / filename
+              for run in ("101-1", "102-1", "103-1")
+              for filename in ("report.json", "skill-evolution.json", "replay-evaluation.json")),
+            self.output / "sample_repo" / cycle["cycle_id"] / "report.json",
+            self.output / "sample_repo" / cycle["cycle_id"] / "cycle.json",
+            *self.private_paths, self.project / "skills/develop/notes.txt", self.project / "app.py",
+            self.root / "eval/skill-guide-rubric.json",
+        ]
+        for path in candidates:
+            original = path.read_bytes()
+            with self.subTest(path=path.relative_to(self.root)):
+                path.write_bytes(original + b"\n")
+                with self.assertRaises(RuntimeFailure):
+                    self.resolve_cycle(approval)
+                path.write_bytes(original)
+        self.assertIsNone(repositories.active_version(self.root, project_id="sample_repo", skill_key="skillops:develop"))
 
     def test_real_common_loaders_keep_development_evidence_unapprovable(self):
         cycle = self.development_results()
@@ -750,32 +945,12 @@ class ApprovalIntegrationTests(unittest.TestCase):
         self.assertEqual(row["decision"]["status"], "improved")
         self.assertEqual(context["execution_mode"], "offline_test")
         self.assertEqual(results.tree_hash(self.project), before)
-        report = deepcopy(self.data["cycle_report"])
-        report.update(run_id=run_id, **{key: context["reference"][key] for key in
-                                       ("source_commit", "project_tree_sha256", "evaluator_sha256")})
-        lifecycle = deepcopy(self.data["evaluations"][("sample_repo", "102-1")]["lifecycle"])
-        lifecycle.update(run_id=run_id, report_sha256=digest(report))
-        lifecycle["records"]["versions"] = [capture[0] for capture in captures]
-        lifecycle["records"]["skill_versions"] = [
-            {"skill_key": row["skill_key"], "version_id": capture[0]["version_id"]} for capture in captures]
-        lifecycle["bindings"][0].update(base_version_id=row["base_version_id"],
-                                         candidate_version_id=row["candidate_version_id"])
-        lifecycle["file_contents"] = [
-            {"version_id": version["version_id"], "path": path, "encoding": "base64",
-             "data": base64.b64encode(raw).decode()}
-            for version, files in captures for path, raw in files.items()]
-        replay = {"schema_version": 1, "project_id": "sample_repo", "run_id": run_id,
-                  "report_sha256": digest(report), "execution_mode": "offline_test",
-                  "reference": context["reference"], "generation": generation, "evaluation": row}
-        skill_assessments.validate_replay(replay, report=report, lifecycle=lifecycle)
-        results.store(self.output, report)
-        results.store_evolution(self.output, lifecycle)
-        results.atomic_json(self.output / "sample_repo" / run_id / "replay-evaluation.json", replay, immutable=True)
-        cycle_report = {**report, "run_id": cycle_id}
-        results.store(self.output, cycle_report)
+        evaluation_ref = project_evaluation.persist_replay(
+            self.output, row, captures, generation, context["reference"], execution_mode="offline_test", run_id=run_id)
+        self.assertEqual(results.encoded(row), row_bytes)
         cycle = {
             **deepcopy(self.data["cycle"]), "run_id": cycle_id, "cycle_id": cycle_id,
-            "report_sha256": digest(cycle_report), "input_sha256": work["input_sha256"],
+            "input_sha256": work["input_sha256"],
             "reference_sha256": context["reference"]["reference_sha256"],
             "original_version_id": row["base_version_id"], "max_rounds": 1,
             "selected_candidate_version_id": row["candidate_version_id"],
@@ -785,21 +960,52 @@ class ApprovalIntegrationTests(unittest.TestCase):
                 "parent_version_id": generation["parent_version_id"], "candidate_version_id": row["candidate_version_id"],
                 "input_sha256": work["input_sha256"], "reference_sha256": row["reference_sha256"],
                 "feedback_source_round_id": None, "feedback_sha256": generation["feedback_sha256"],
-                "evaluation_ref": {"project_id": "sample_repo", "run_id": run_id,
-                                   "path": "replay-evaluation.json", "sha256": digest(replay)},
+                "evaluation_ref": evaluation_ref,
                 "decision": row["decision"], "stop_reason": "improved",
             }],
         }
-        results.validate_cycle(cycle, report=cycle_report, evaluations={
-            ("sample_repo", run_id): {"report": report, "lifecycle": lifecycle, "replay": replay}})
-        results.atomic_json(self.output / "sample_repo" / cycle_id / "cycle.json", cycle, immutable=True)
-        self.assertEqual(results.load_replays(self.output)[("sample_repo", run_id)], replay)
+        cycle.pop("report_sha256")
+        project_evaluation.persist_cycle(self.output, cycle, context["reference"])
+        self.assertEqual(results.load_replays(self.output)[("sample_repo", run_id)]["evaluation"], row)
         self.assertEqual(results.load_cycles(self.output)[("sample_repo", cycle_id)]["confirmation_status"], "unverified")
         with self.assertRaises(RuntimeFailure) as caught:
             self.approve_cycle(cycle)
         self.assertEqual(caught.exception.code, "cycle_not_approvable")
         self.assertFalse(list((self.root / ".skillops/approvals").glob("*.json")))
         self.assertIsNone(repositories.active_version(self.root, project_id="sample_repo", skill_key="skillops:develop"))
+
+
+class ProducedCycleApprovalTests(unittest.TestCase):
+    def test_actual_iteration_adapter_n2_storage_and_approval_rejection(self):
+        import skill_approvals
+        import test_hackathon_integration as integration
+
+        # Reuse the integration owner's temporary source and external transport
+        # fixture, not a second implementation of the loop or runtime adapter.
+        producer = integration.ReplayIntegrationTests()
+        self.addCleanup(producer.doCleanups)
+        producer.setUp()
+        original = results.tree_hash(producer.project)
+        cycle = producer.run_iterations()
+        self.assertEqual(cycle["execution_mode"], "offline_test")
+        self.assertEqual([row["decision"]["status"] for row in cycle["rounds"]], ["not_improved", "improved"])
+        self.assertEqual(cycle["confirmation_status"], "unverified")
+        self.assertIsNone(cycle["confirmation_ref"])
+        self.assertEqual(producer.budget["calls"], 9)
+        path = producer.output / "sample_repo" / cycle["cycle_id"] / "cycle.json"
+        artifacts = {path: path.read_bytes() for path in producer.output.rglob("*.json")}
+        with patch.dict(os.environ, {"CI": "", "GITHUB_ACTIONS": ""}), self.assertRaises(RuntimeFailure) as caught:
+            skill_approvals.approve(
+                producer.root, project_id="sample_repo", skill_key=producer.key,
+                candidate_version_id=cycle["selected_candidate_version_id"], cycle_id=cycle["cycle_id"],
+                evidence_sha256=sha256(path.read_bytes()).hexdigest(), expected_active_version_id=None,
+                expected_active_execution_sha256=None, results=producer.output)
+        self.assertEqual(caught.exception.code, "cycle_not_approvable")
+        self.assertFalse(list((producer.root / ".skillops/approvals").glob("*.json")))
+        self.assertEqual(repositories.active_snapshot(producer.root, project_id="sample_repo", skill_key=producer.key),
+                         {"version_id": None, "execution_sha256": None})
+        self.assertEqual(results.tree_hash(producer.project), original)
+        self.assertEqual({path: path.read_bytes() for path in artifacts}, artifacts)
 
 
 if __name__ == "__main__":
