@@ -93,6 +93,28 @@ class ApprovalCLITests(unittest.TestCase):
         self.assertEqual(data[0]["executions"], [])
         self.assertEqual(data[0]["approvals"][0]["approved_by"], "local_operator")
 
+    def test_run_approved_requires_a_separate_live_opt_in_and_blocks_ci(self):
+        import project_evaluation
+        approved = self.fixture.approve_cycle(self.cycle)
+        self.argv = [
+            "skillops", "run-approved", "--project", "sample_repo", "--skill-key", self.cycle["skill_key"],
+            "--candidate-version", self.candidate, "--approval", approved["approval_id"],
+            "--evidence-sha256", self.evidence, "--work-item", "not-read-before-authorization.json",
+            "--results", str(self.fixture.output),
+        ]
+        with patch.object(project_evaluation, "policy_from_environment", return_value={
+                "enabled": True, "authenticated": True, "budget": {}}):
+            status, _, errors, prompt = self.run_cli()
+        self.assertEqual(status, 2)
+        self.assertIn("live_disabled", errors)
+        prompt.assert_not_called()
+        self.argv.append("--live")
+        with patch.dict(os.environ, {"CI": "true"}):
+            status, _, errors, _ = self.run_cli()
+        self.assertEqual(status, 2)
+        self.assertIn("local_approval_only", errors)
+        self.assertFalse((self.root / ".skillops/active.json").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

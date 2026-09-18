@@ -566,6 +566,12 @@ def main():
         approval_parser.add_argument("--" + option, required=True)
     approval_parser.add_argument("--publish-reviewed", action="store_true",
                                  help="Store an explicitly reviewed public-safe projection locally; never deploy.")
+    use_parser = commands.add_parser("run-approved", help="Use one exact local approval with a new separately authorized task.")
+    for option in ("project", "skill-key", "approval", "candidate-version", "evidence-sha256", "work-item", "results"):
+        use_parser.add_argument("--" + option, required=True)
+    use_parser.add_argument("--model", default="gpt-6-astra")
+    use_parser.add_argument("--live", action="store_true")
+    use_parser.add_argument("--publish-reviewed", action="store_true")
     for name in ("replay", "iterate"):
         replay_parser = commands.add_parser(name, help="Run explicitly authorized recorded development work; never approve.")
         replay_parser.add_argument("--project", required=True)
@@ -578,12 +584,24 @@ def main():
         if name == "iterate":
             replay_parser.add_argument("--max-rounds", type=int, choices=range(1, 11), default=1)
             replay_parser.add_argument("--confirmation-work-item", help="Private precommitted confirmation WorkItem JSON.")
+            replay_parser.add_argument("--confirmation-disclosure", help="Operator-reviewed private disclosure JSON; requires confirmation WorkItem.")
     args = parser.parse_args()
     try:
         root = Path(__file__).resolve().parent
         if args.command == "approve":
             print(json.dumps(approve_local(root, args), indent=2))
             return 0
+        if args.command == "run-approved":
+            from project_evaluation import policy_from_environment, run_approved
+            policy = policy_from_environment()
+            policy["enabled"] = policy["enabled"] and args.live
+            report = run_approved(
+                root, project_id=args.project, skill_key=args.skill_key, approval_id=args.approval,
+                candidate_version_id=args.candidate_version, evidence_sha256=args.evidence_sha256,
+                work_item=args.work_item, output=args.results, model=args.model, policy=policy,
+                publish_reviewed=args.publish_reviewed)
+            print(json.dumps(report, indent=2))
+            return 0 if report["task_outcome"] == "satisfied" else 2
         if args.command in ("replay", "iterate"):
             from project_evaluation import policy_from_environment, run_iterations, run_replay
             policy = policy_from_environment()
@@ -592,7 +610,8 @@ def main():
                            output=args.results, model=args.model, execution_mode="live", policy=policy)
             if args.command == "iterate":
                 report = run_iterations(root, **options, max_rounds=args.max_rounds,
-                                        confirmation_work_item=args.confirmation_work_item)
+                                        confirmation_work_item=args.confirmation_work_item,
+                                        confirmation_disclosure=args.confirmation_disclosure)
                 exit_code = 0 if report["status"] in ("improved", "max_rounds", "no_change") else 2
             else:
                 report = run_replay(root, **options)
