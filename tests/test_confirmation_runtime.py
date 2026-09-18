@@ -197,6 +197,7 @@ class ActualConfirmationIsolationTests(unittest.TestCase):
             self.assertEqual(result["staged_version_id"], version["version_id"])
             self.assertTrue(result["skill_version_verified"])
             self.assertTrue(result["skill_activated"])
+            self.assertEqual(result.get("post_inventory"), result["inventory"])
             self.assertEqual(result["usage"]["nano_aiu"]["value"], 10)
             self.assertEqual(staged.read_bytes(), raw)
 

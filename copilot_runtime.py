@@ -693,6 +693,10 @@ class CopilotRuntime:
             if result.returncode:
                 raise RuntimeFailure("cli_error", f"CLI failed: {stderr[:1024]}")
             record.update(parse_events(stdout, model, role, skill_name=skill_name))
+            if self in _BOUNDARIES:
+                record["post_inventory"] = self.configure(workdir, expected_skill, skill_name=skill_name)
+                if record["post_inventory"] != record["inventory"]:
+                    raise RuntimeFailure("inventory_changed", "The isolated runtime inventory changed during invocation.")
             if expected_version is not None:
                 verify_staged_version(expected_skill, expected_version)
                 record["skill_version_verified"] = True
