@@ -3,6 +3,19 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_recorded_dispatch_selects_only_ids_and_explicit_limits_with_no_approval_command(self):
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/project-evaluation.yml").read_text()
+        evaluate = text.split("\n  evaluate:\n", 1)[1].split("\n  persist:\n", 1)[0]
+        for name in ("work_id", "skill_key", "max_rounds"):
+            self.assertIn(f"      {name}:", text)
+        self.assertIn("secrets.SKILLOPS_RECORDED_WORK_ITEMS", evaluate)
+        self.assertIn('args+=(--work-id "$WORK_ID" --skill-key "$SKILL_KEY" --max-rounds "$MAX_ROUNDS")', evaluate)
+        self.assertIn('if [ "$DISPATCH_LIVE" = "true" ]', evaluate)
+        self.assertNotIn("skillops.py approve", text)
+        self.assertNotIn("run-approved", text)
+        script = evaluate.split("        run: |\n", 2)[-1]
+        self.assertNotIn('"$SKILLOPS_RECORDED_WORK_ITEMS"', script)
+
     def test_public_result_artifact_uses_explicit_filenames_not_private_trees(self):
         text = (Path(__file__).resolve().parents[1] / ".github/workflows/project-evaluation.yml").read_text()
         artifact = text.split("name: public-project-results", 1)[1].split("\n  persist:", 1)[0]
@@ -33,7 +46,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('args+=(--changed-since "$BEFORE_SHA")', evaluate)
         self.assertIn('args+=(--project "$PROJECT_ID")', evaluate)
         self.assertIn("SELECTED_PROJECTS: ${{ steps.assess.outputs.selected_projects }}", evaluate)
-        self.assertIn('if [ "$SELECTED_PROJECTS" = "0" ]', evaluate)
+        self.assertIn('[ "$SELECTED_PROJECTS" = "0" ]', evaluate)
         self.assertIn("No changed projects", evaluate)
         self.assertIn("      - 'package-lock.json'", text)
 

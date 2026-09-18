@@ -1095,6 +1095,27 @@ The local command and read-only replay/cycle publication are implemented.
 Live iteration Actions and operational approval remain separate. Shared CLI
 changes require synchronized English/Korean README updates.
 
+**Recorded-development Actions checkpoint:** workflow dispatch now takes optional
+`work_id`, `skill_key`, `max_rounds` (1-10). If any is supplied, all three and one
+project are required. This path calls `project_evaluation.run_recorded_iterations`
+and the existing `run_iterations`/provider/store, not a second loop. It also
+requires dispatch `live=true` plus the existing authentication and approved
+call/time/Credit policy; an enabled repository variable alone is insufficient.
+No `approve` or `run-approved` command is invoked by Actions.
+
+The separately provisioned `SKILLOPS_RECORDED_WORK_ITEMS` secret is a UTF-8 JSON
+object mapping a task ID to exactly `{"work_item": <development-WorkItem>}`.
+Only the identifier is a public dispatch input. The adapter consumes/removes the
+private environment value, validates the selected project/task/source commit and
+input hash, and retains it under the canonical owner-only path. It never logs the
+secret, passes request text as process arguments or uploads private inputs.
+Each selected cycle uses the Actions run/attempt ID; live reports identify their
+Actions origin. The default legacy catalog path remains unchanged. This narrow
+dispatch channel runs development only; local confirmation requires its separate
+reviewed private registration. A dispatch does not authorize local approval or
+Active use. Secret provisioning, live dispatch and publication/deployment are
+operator actions requiring separate authorization, not performed by this PR.
+
 ### Final demo publication boundary
 
 The official builder registers modules in dependency order:

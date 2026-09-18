@@ -173,6 +173,15 @@ Projection 실패 시 private 승인은 남아 있으나 명시적인 게시 오
 
 ### 오프라인 발표 백업
 
+별도로 승인된 개발 작업 Actions dispatch에서는 **project·work_id·skill_key·max_rounds(1~10)**를
+명시합니다. `live=true`·인증·승인된 호출/시간/Credit 한도가 모두 필요하며 기본은 비활성입니다.
+별도 설정하는 `SKILLOPS_RECORDED_WORK_ITEMS` secret은 작업 ID를
+`{"work_item": <private development WorkItem>}`에 매핑합니다. 요청 본문은 공개 dispatch 입력,
+명령행 인자·로그·공개 아티팩트로 전달하지 않으며 정확한 dispatch 소스 커밋과 일치해야 합니다.
+기존 반복·provider·저장을 재사용하고 workflow run/attempt를 cycle ID로 씁니다.
+이 개발 전용 dispatch는 후보를 승인하거나 로컬 승인을 Actions 실행 권한으로 사용하지 않습니다.
+이번 구현 작업에서 secret 설정이나 live dispatch를 실행하지 않습니다.
+
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.
 
 ```bash
