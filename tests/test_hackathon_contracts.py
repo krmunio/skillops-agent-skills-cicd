@@ -1,5 +1,6 @@
 from copy import deepcopy
 import base64
+from hashlib import sha256
 from pathlib import Path
 import subprocess
 import sys
@@ -92,6 +93,67 @@ class CommonContractsTests(unittest.TestCase):
                 mutate(replay)
                 with self.assertRaises(RuntimeFailure):
                     validate(replay, report=item["report"], lifecycle=item["lifecycle"])
+
+    def test_confirmation_disclosure_binds_complete_inventory_without_certifying_isolation(self):
+        validate = self.api(assessments, "validate_confirmation_disclosure")
+        data = self.data
+        project = data["project"]
+        development = data["work_item"]
+        confirmation = deepcopy(development)
+        confirmation.update(task_id="final-task", split="confirmation",
+                            request="A distinct final request without development exposure.")
+        confirmation["checks"]["required_case_ids"] = ["confirmation"]
+        confirmation["input_sha256"] = digest({k: v for k, v in confirmation.items() if k != "input_sha256"})
+        files = {p.relative_to(project).as_posix(): sha256(p.read_bytes()).hexdigest()
+                 for p in project.rglob("*") if p.is_file()}
+        visible = set(development["sources"]) | set(confirmation["sources"]) | {
+            "skills/develop/SKILL.md", "skills/develop/notes.txt"}
+        disclosure = {
+            "schema_version": 1, "development_input_sha256": development["input_sha256"],
+            "confirmation_input_sha256": confirmation["input_sha256"],
+            "model_visible_files": {k: v for k, v in files.items() if k in visible},
+            "checker_only_files": {k: v for k, v in files.items() if k not in visible},
+        }
+        disclosure["disclosure_sha256"] = digest(disclosure)
+        original = evolution.capture_version(
+            {p.name: p.read_bytes() for p in (project / "skills/develop").iterdir()},
+            capture_scope="complete_bundle", complete_inventory=["SKILL.md", "notes.txt"])
+        options = dict(project=project, development_work_item=development,
+                       confirmation_work_item=confirmation, original=original, source_path="skills/develop")
+        self.assertEqual(validate(disclosure, **options), disclosure)
+        for change in (
+            lambda d: d.update(schema_version=True),
+            lambda d: d.update(confirmation_input_sha256=development["input_sha256"]),
+            lambda d: d["model_visible_files"].update(d["checker_only_files"]),
+            lambda d: d["checker_only_files"].clear(),
+            lambda d: d["model_visible_files"].update({"app.py": "0" * 64}),
+            lambda d: d["model_visible_files"].pop("skills/develop/notes.txt"),
+            lambda d: d["model_visible_files"].update({"../outside": "0" * 64}),
+            lambda d: d.update(isolated=True),
+        ):
+            value = deepcopy(disclosure)
+            change(value)
+            value["disclosure_sha256"] = digest({k: v for k, v in value.items() if k != "disclosure_sha256"})
+            with self.subTest(change=change), self.assertRaises(RuntimeFailure):
+                validate(value, **options)
+        wrong = deepcopy(confirmation)
+        wrong["checks"]["required_case_ids"] = development["checks"]["required_case_ids"]
+        wrong["input_sha256"] = digest({k: v for k, v in wrong.items() if k != "input_sha256"})
+        with self.assertRaises(RuntimeFailure):
+            validate(disclosure, **{**options, "confirmation_work_item": wrong})
+
+        for request in ("Keep companion files.", development["request"]):
+            wrong = deepcopy(confirmation)
+            wrong["request"] = request
+            wrong["input_sha256"] = digest({k: v for k, v in wrong.items() if k != "input_sha256"})
+            value = deepcopy(disclosure)
+            value["confirmation_input_sha256"] = wrong["input_sha256"]
+            value["disclosure_sha256"] = digest({k: v for k, v in value.items() if k != "disclosure_sha256"})
+            with self.subTest(exposed_request=request), self.assertRaises(RuntimeFailure):
+                validate(value, **{**options, "confirmation_work_item": wrong})
+        (project / "unexpected.txt").write_text("Changed after disclosure review.")
+        with self.assertRaises(RuntimeFailure):
+            validate(disclosure, **options)
 
     def test_replay_decision_accepts_recorded_task_without_original_failure(self):
         decide = self.api(assessments, "decide_replay")
