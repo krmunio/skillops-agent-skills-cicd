@@ -117,8 +117,8 @@ Credit은 세션별 soft cap이며 전체 금액의 보장된 상한이 아닙�
 Confirmation은 `not_run` 및 `confirmation_isolation_unverified`로 남고 승인 가능 여부는 항상 false입니다.
 개발 평가의 개선은 최종 확인·승인·다음 실행의 검증된 사용을 뜻하지 않으며 Active는 변경하지 않습니다.
 개발 반복은 아래 `iterate` 명령으로 연결했습니다.
-승인/다음 실행 CLI와 실제 반복 평가 Actions는 별도 연결 범위입니다.
-공식 게시 경로는 이제 검증된 replay/cycle 근거를 보존하지만 adoption 게시는 계속 차단합니다.
+승인·다음 실행은 replay의 부수 효과가 아니라 별도로 명시하는 명령입니다.
+공식 게시 경로는 검증된 replay/cycle/adoption 참조 전체를 보존합니다.
 오프라인 통합 테스트는 모델·컨테이너 경계만 대체하고
 결과를 `offline_test`로 표시하며 실측 모델 개선으로 표시하지 않습니다.
 
@@ -127,6 +127,7 @@ Confirmation은 `not_run` 및 `confirmation_isolation_unverified`로 남고 승�
 ```bash
 python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
   --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
+  --confirmation-disclosure <private-reviewed-disclosure-json> \
   --max-rounds 2 --results <iteration-results-directory>
 ```
 
@@ -134,7 +135,12 @@ python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill
 부모 후보와 development 피드백만 다음 라운드로 연결합니다.
 준비·모든 라운드·선택적 최종 확인은 같은 runtime과 승인된 예산을 공유합니다.
 단일 replay와 같은 `--live`·인증·한도 조건이 필요하므로 위 예제만으로 모델을 호출하지 않습니다.
-Confirmation 입력은 선택 사항이며 생성 전에 고정하지만 격리 검증 차단은 유지합니다.
+개발 전용 실행에서는 confirmation 옵션 두 개를 모두 생략합니다.
+최종 확인을 요청하면 검토된 WorkItem·disclosure를 실제 격리 경계 안에서 개발 전에 사전 등록하고,
+선택된 전체 Capture만 해당 등록으로 한 번 확인합니다. 지원되지 않는 격리는 계속 차단합니다.
+운영자가 의미적 독립성을 검토해야 하며 파일 해시 일치만으로 이를 증명하지 않습니다.
+`approval_eligible`은 live·최종 확인 통과·재로딩한 유효 근거를 모두 요구합니다.
+개발 개선이나 오프라인 confirmation 통과만으로 승인 가능 처리하지 않습니다.
 후보를 승인하거나 Active로 바꾸지 않습니다.
 
 저장된 평가마다 별도 run을 만들고 종료 `cycle.json`과 집계 `report.json`으로 연결합니다.
@@ -144,6 +150,64 @@ Confirmation 입력은 선택 사항이며 생성 전에 고정하지만 격리 
 이미 저장된 라운드는 보존하며 자동 재시도·복구는 하지 않습니다.
 종료 코드 0은 정상적인 개발 반복 종료일 뿐 최종 확인·승인이 아닙니다.
 예산·runtime·미검증 종료는 코드 2를 반환합니다.
+
+### 별도의 로컬 승인
+
+구현된 `approve` 명령은 사람이 별도로 조작하는 대화형 터미널과 최종 확인을 통과한 live cycle,
+정확한 전체 번들·평가 근거 해시를 요구합니다. CI/Actions·파이프 입력·이전 Active 필드 누락은
+거부합니다. 두 `none`은 이전 Active가 없다는 명시적 null이며 wildcard가 아닙니다.
+
+```bash
+python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+  --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
+  --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
+  --expected-active-execution-sha256 none --results <results-directory>
+```
+
+표시된 전체 바인딩을 확인하고 `approve <전체 후보 버전>`을 별도로 입력합니다.
+승인은 모델을 호출하거나 Active를 바꾸지 않습니다. 원본 Skill·기존 평가 근거는 유지하며,
+replay 실행 전에 정규 private WorkItem을 보존합니다. 비공개 요청·운영자 식별자는 공개하지 않습니다.
+Development-only·offline 결과는 최종 확인을 통과해도 **승인할 수 없습니다**.
+런타임 격리·사전 등록 confirmation·다음 실행·검토된 adoption 게시 경로를 연결했습니다.
+합성 승인 계약 테스트는 연결 검증이며 유료 모델 개선이나 실제 운영 승인을 뜻하지 않습니다.
+
+공개 projection과 참조된 Skill 캡처를 검토한 경우에만 `--publish-reviewed`를 추가합니다.
+새 로컬 `adoption.json` 관측을 저장할 뿐 배포하지 않습니다. 공식 `validate`·`merge`·`index`·`build`가
+최종 확인 cycle·승인·실제 작업 보고서의 참조 전체를 검증하고 private/추가 필드·상충 관측은 거부합니다.
+기존 근거는 수정하지 않고 승인만 기록한 보고서에는 작업 수치를 만들지 않습니다.
+Projection 실패 시 private 승인은 남아 있으나 명시적인 게시 오류를 반환하며 Active는 바꾸지 않습니다.
+
+### 별도로 실행 승인한 다음 작업
+
+```bash
+python3 skillops.py run-approved --project <project-id> --skill-key <skill-key> \
+  --approval <approval-id> --candidate-version sha256:<full-bundle-hash> \
+  --evidence-sha256 <cycle-file-sha256> --work-item <new-private-work-json> \
+  --results <results-directory>
+```
+
+명시적 `--live`·인증·별도로 승인한 호출/시간/Credit 한도가 필요하며 CI/Actions는 거부합니다.
+로컬 후보 승인만으로 실행 예산을 허용하지 않습니다. 새 runtime·run·예산으로 정확한 전체
+Capture만 적용합니다. 작업 ID는 실패한 시도를 포함해 이전에 보존된 적이 없어야 합니다.
+자동 재시도 대신 실제로 새로운 작업을 사용합니다.
+호스트가 staging·activation·실행 후 inventory를 검증하고 승인 모듈만 영수증과
+Active 버전/영수증 해시 쌍을 저장합니다. 검증된 사용과 작업 성공은 별개이므로,
+정확한 Skill 사용이 확인돼도 작업이 실패하면 종료 코드 2입니다.
+`--publish-reviewed`는 공개 관측을 로컬에 저장할 뿐 배포하지 않습니다.
+게시 오류는 명시적으로 반환하며 이미 보존된 private 사용/Active를 되돌리지 않습니다.
+
+### 명시적 개발 작업 Actions
+
+별도로 승인된 개발 작업 Actions dispatch에서는 **project·work_id·skill_key·max_rounds(1~10)**를
+명시합니다. `live=true`·인증·승인된 호출/시간/Credit 한도가 모두 필요하며 기본은 비활성입니다.
+별도 설정하는 `SKILLOPS_RECORDED_WORK_ITEMS` secret은 작업 ID를
+`{"work_item": <private development WorkItem>}`에 매핑합니다. 요청 본문은 공개 dispatch 입력,
+명령행 인자·로그·공개 아티팩트로 전달하지 않으며 정확한 dispatch 소스 커밋과 일치해야 합니다.
+기존 반복·provider·저장을 재사용하고 workflow run/attempt를 cycle ID로 씁니다.
+이 개발 전용 dispatch는 후보를 승인하거나 로컬 승인을 Actions 실행 권한으로 사용하지 않습니다.
+이번 구현 작업에서 secret 설정이나 live dispatch를 실행하지 않습니다.
+
+### 오프라인 발표 백업
 
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.
 
@@ -158,7 +222,8 @@ python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feed
 미리 작성한 결과 fixture를 복사하지 않습니다. Manifest에는 통합 SHA, 시나리오 경로,
 cycle/run ID와 해시가 남습니다. N=2 피드백, 조기 종료, 최대 라운드, 예산 소진,
 미저장 시도와 저장 실패를 확인할 수 있습니다.
-모든 결과는 `offline_test`이며 confirmation은 미검증·미실행 상태입니다.
+모든 결과는 `offline_test`입니다. 별도 confirmation 통과·실패 시나리오도 합성 연결 검증이며
+통과했더라도 승인할 수 없습니다.
 기존 경로는 덮어쓰지 않습니다. 공식 빌드에는 `trace.js`와 해시로 검증한 replay/cycle 연결이 포함됩니다.
 공개 배포는 여전히 별도 승인이 필요하며 디자인 PR #32는 이번 데모에 포함하지 않습니다.
 

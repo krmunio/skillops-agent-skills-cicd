@@ -128,9 +128,8 @@ Confirmation remains `not_run` with `confirmation_isolation_unverified` and
 approval eligibility is always false. Development improvement is not final
 confirmation, approval or verified next use. The command never updates Active.
 Development iteration is connected by the `iterate` command below.
-Approval/next-use CLI and live iteration Actions remain separate.
-The official publisher now preserves validated replay/cycle graphs; unsupported
-adoption publication remains blocked.
+Approval/next-use are separate explicit commands, not replay side effects.
+The official publisher preserves validated replay/cycle/adoption graphs.
 Offline integration tests simulate only model/container boundaries and label
 their results `offline_test`, never measured model improvement.
 
@@ -139,6 +138,7 @@ their results `offline_test`, never measured model improvement.
 ```bash
 python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
   --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
+  --confirmation-disclosure <private-reviewed-disclosure-json> \
   --max-rounds 2 --results <iteration-results-directory>
 ```
 
@@ -147,7 +147,13 @@ The original remains the comparison baseline; only the parent candidate and
 development feedback change. Preparation, every round and optional confirmation
 share one runtime and authorized budget. The same `--live`, authentication and
 limit gates apply; the example alone makes no model calls. Confirmation is
-optional, frozen before generation and still blocked by the isolation guard.
+optional: omit both confirmation options for development-only execution.
+When requested, the reviewed WorkItem/disclosure pair is registered inside the
+verified runtime boundary before development. The selected complete Capture is
+confirmed once with that registration; unsupported isolation remains blocked.
+The operator must review semantic independence; matching file hashes alone do
+not prove it. `approval_eligible` requires live, passed, reloaded final evidence,
+never development improvement or an offline confirmation result.
 No candidate is approved or made Active.
 
 Each saved evaluation has its own run. A terminal `cycle.json` and aggregate
@@ -158,6 +164,73 @@ A persistence callback failure propagates without a terminal cycle or success
 receipt, while earlier stored rounds remain unchanged. There is no automatic
 retry or recovery. Exit 0 denotes normal development termination, not final
 confirmation or adoption; budget/runtime/unverified outcomes return 2.
+
+### Separate local approval
+
+The implemented `approve` command requires a separately operated interactive
+terminal, a live cycle with passed confirmation, and the exact complete bundle
+and evidence hashes. CI/Actions, piped input and missing predecessor fields are
+rejected. Both `none` values mean explicitly no prior Active, never a wildcard.
+
+```bash
+python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+  --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
+  --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
+  --expected-active-execution-sha256 none --results <results-directory>
+```
+
+Review the displayed binding and type `approve <full-candidate-version>` separately.
+Approval calls no model and does not change Active. The original Skill and evidence
+stay immutable. Canonical private WorkItems are retained before replay execution;
+no private requests/operator identities are copied to public results.
+Development-only/offline outputs are **not approvable**, including offline passed
+confirmation. Runtime isolation, registered confirmation, next-use and reviewed
+adoption publication are connected. Synthetic authorization-contract tests prove
+wiring, not paid model improvement or operational authorization.
+
+Add `--publish-reviewed` only after reviewing the public projection and referenced
+Skill captures. It stores a new local `adoption.json` observation; no deployment
+occurs. Official `validate`, `merge`, `index` and `build` resolve all confirmed
+cycle, approval and task-report references, reject private/extra fields and
+conflicting observations, and preserve immutable evidence. Approval-only reports
+have no task metrics. Projection failure leaves the private approval recorded but
+returns an explicit publication error; it never changes Active.
+
+### Separately authorized next execution
+
+```bash
+python3 skillops.py run-approved --project <project-id> --skill-key <skill-key> \
+  --approval <approval-id> --candidate-version sha256:<full-bundle-hash> \
+  --evidence-sha256 <cycle-file-sha256> --work-item <new-private-work-json> \
+  --results <results-directory>
+```
+
+This also requires explicit `--live`, authentication and separately authorized
+call/time/Credit limits; local approval alone grants no execution budget.
+CI/Actions is refused. A fresh runtime/run/budget applies only the exact resolved
+complete Capture. The new task ID must not have been retained before, including
+failed attempts; choose a genuinely new task instead of automatic retry.
+Staging, activation and post-invocation inventory are observed by the host.
+Only the approval module stores verified receipts and updates the Active
+version/receipt-hash pair. Verified use is distinct from task success: a failed
+task exits 2 even if the exact approved Skill was verifiably used.
+`--publish-reviewed` stores the public observation locally; publication failure
+is explicit and does not undo already durable private use/Active.
+
+### Explicit recorded-development Actions
+
+For an authorized recorded-development Actions dispatch, select **project,
+work_id, skill_key and max_rounds (1-10)**. `live=true`, authentication and the
+approved invocation/time/Credit limits are all required; defaults remain disabled.
+The separately provisioned `SKILLOPS_RECORDED_WORK_ITEMS` secret maps each task ID
+to `{"work_item": <private development WorkItem>}`. Requests are never dispatch
+inputs, command arguments, logs or public artifacts. Inputs must match the exact
+dispatched source commit. The existing iteration/provider/storage path is reused,
+and the cycle ID is the workflow run/attempt. This development-only dispatch
+neither approves a candidate nor imports local approvals as Actions authority.
+No secret configuration or live dispatch is performed by the implementation.
+
+### Offline presentation backup
 
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration
 checkout and a new output directory:
@@ -174,7 +247,8 @@ and simulated model/container transport. It does not copy prebuilt result
 fixtures. The manifest contains the integration SHA, scenario directories,
 cycle/run IDs and hashes for N=2 feedback, early stop, maximum rounds, budget
 exhaustion, unsaved attempts and persistence failure. All results are explicitly
-`offline_test`; confirmation stays unverified/not run. Existing outputs are never
+`offline_test`; separate passed/failed confirmation scenarios are synthetic
+wiring evidence and remain ineligible for approval. Existing outputs are never
 overwritten. The official builder includes `trace.js` and hash-verified replay/cycle
 links. Public deployment still requires separate authorization; design PR #32 is
 not part of this demo.
