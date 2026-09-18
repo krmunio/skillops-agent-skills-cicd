@@ -42,6 +42,45 @@ class ConfirmationRuntimeTests(unittest.TestCase):
             self.assertEqual(error.exception.code, "confirmation_isolation_unverified")
             transport.assert_not_called()
 
+    def test_missing_locked_native_package_is_an_unverified_boundary_not_a_generic_file_error(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            runtime = self.runtime(root)
+            (root / "package-lock.json").write_text(json.dumps({
+                "packages": {"": {"devDependencies": {"@github/copilot": "1.0.85"}},
+                             "node_modules/@github/copilot-linux-arm64": {"version": "1.0.85"}}
+            }))
+            with patch.object(runtime_module, "__file__", str(root / "copilot_runtime.py")), \
+                    patch.object(runtime_module.platform, "machine", return_value="aarch64"), \
+                    patch.object(runtime_module.platform, "system", return_value="Linux"), \
+                    patch.object(runtime_module.os, "getuid", return_value=1000), \
+                    patch.object(runtime_module.shutil, "which", return_value="/test-only/docker"), \
+                    patch.object(runtime_module, "capture") as process:
+                with self.assertRaises(runtime_module.RuntimeFailure) as raised:
+                    runtime._isolation_material(time.monotonic() + 30)
+            self.assertEqual(raised.exception.code, "confirmation_isolation_unverified")
+            process.assert_not_called()
+
+    def test_malformed_native_manifest_cannot_escape_the_fail_closed_boundary(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            runtime = self.runtime(root)
+            package = root / "node_modules/@github/copilot-linux-arm64"
+            package.mkdir(parents=True)
+            (package / "package.json").write_text("[]")
+            (root / "package-lock.json").write_text(json.dumps({
+                "packages": {"": {"devDependencies": {"@github/copilot": "1.0.85"}},
+                             "node_modules/@github/copilot-linux-arm64": {"version": "1.0.85"}}
+            }))
+            with patch.object(runtime_module, "__file__", str(root / "copilot_runtime.py")), \
+                    patch.object(runtime_module.platform, "machine", return_value="aarch64"), \
+                    patch.object(runtime_module.platform, "system", return_value="Linux"), \
+                    patch.object(runtime_module.os, "getuid", return_value=1000), \
+                    patch.object(runtime_module.shutil, "which", return_value="/test-only/docker"):
+                with self.assertRaises(runtime_module.RuntimeFailure) as raised:
+                    runtime._isolation_material(time.monotonic() + 30)
+            self.assertEqual(raised.exception.code, "confirmation_isolation_unverified")
+
     def test_container_command_has_only_explicit_mounts_and_no_secret_arguments(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
