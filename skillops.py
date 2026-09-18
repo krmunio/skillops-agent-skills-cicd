@@ -571,7 +571,8 @@ def main():
         use_parser.add_argument("--" + option, required=True)
     use_parser.add_argument("--model", default="gpt-6-astra")
     use_parser.add_argument("--live", action="store_true")
-    use_parser.add_argument("--publish-reviewed", action="store_true")
+    use_parser.add_argument("--publish-reviewed", action="store_true",
+                            help="Store an explicitly reviewed public-safe projection locally; never deploy.")
     for name in ("replay", "iterate"):
         replay_parser = commands.add_parser(name, help="Run explicitly authorized recorded development work; never approve.")
         replay_parser.add_argument("--project", required=True)

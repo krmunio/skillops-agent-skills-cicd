@@ -1,0 +1,195 @@
+name: Publish reviewed results without evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      data_sha:
+        description: 'Exact same-repository data commit SHA (40 lowercase hex)'
+        type: string
+        required: true
+      bundle:
+        description: 'Reviewed public-only directory under publication-candidates/'
+        type: string
+        required: true
+      manifest_sha:
+        description: 'Exact manifest.json SHA-256; binds bytes, does not prove public review'
+        type: string
+        required: true
+      operation:
+        description: 'validate is read-only; store/deploy each require separate operator authorization'
+        type: choice
+        options: [validate, store, deploy]
+        default: validate
+      public_content_reviewed:
+        description: 'I reviewed these exact public bytes; required for store/deploy, not Skill approval'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CODE_SHA: ${{ github.sha }}
+  DATA_SHA: ${{ inputs.data_sha }}
+  BUNDLE: ${{ inputs.bundle }}
+  MANIFEST_SHA: ${{ inputs.manifest_sha }}
+  SKILLOPS_LIVE_EVALUATION_ENABLED: 'false'
+
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.CODE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Validate explicit review gate and fixed repository revisions
+        env:
+          OPERATION: ${{ inputs.operation }}
+          CONTENT_REVIEWED: ${{ inputs.public_content_reviewed }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CODE_SHA"
+          [[ "$DATA_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$MANIFEST_SHA" =~ ^[0-9a-f]{64}$ ]]
+          case "$OPERATION" in validate|store|deploy) ;; *) echo "::error::Invalid publication operation."; exit 2 ;; esac
+          if [ "$OPERATION" != validate ] && [ "$CONTENT_REVIEWED" != true ]; then
+            echo "::error::Exact public content review is required; a manifest hash is not approval."
+            exit 2
+          fi
+          git fetch --no-tags origin "$DATA_SHA" refs/heads/evaluation-results:refs/remotes/origin/evaluation-results
+      - name: Validate bounded public input and immutable merge without durable writes
+        id: check
+        env:
+          OPERATION: ${{ inputs.operation }}
+          PUBLIC_URL: ${{ vars.SKILLOPS_PUBLIC_URL }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$OPERATION" = deploy ]; then
+            args+=(--public-url "$PUBLIC_URL")
+          fi
+          python3 reviewed_publication.py --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" \
+            --bundle "$BUNDLE" --manifest-sha "$MANIFEST_SHA" \
+            --existing-sha "$(git rev-parse refs/remotes/origin/evaluation-results)" "${args[@]}"
+      - name: Report validation-only boundary
+        if: always()
+        env:
+          VALIDATION: ${{ steps.check.outcome }}
+        run: |
+          {
+            printf 'Code commit: `%s`\n\nData commit: `%s`\n\nManifest: `%s`\n\n' "$CODE_SHA" "$DATA_SHA" "$MANIFEST_SHA"
+            printf 'Local storage: not requested. Input validation: **%s**.\n\n' "$VALIDATION"
+            printf 'This job has no result-branch write or deployment authority. No model execution.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  persist:
+    needs: validate
+    if: github.ref == 'refs/heads/main' && inputs.operation != 'validate' && inputs.public_content_reviewed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      stored_sha: ${{ steps.store.outputs.stored_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.CODE_SHA }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Revalidate against current data branch and prepare a local data commit
+        id: prepare
+        run: |
+          set -euo pipefail
+          [[ "$DATA_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "$DATA_SHA" refs/heads/evaluation-results:refs/remotes/origin/evaluation-results
+          python3 reviewed_publication.py --mode commit \
+            --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" --bundle "$BUNDLE" --manifest-sha "$MANIFEST_SHA" \
+            --existing-sha "$(git rev-parse refs/remotes/origin/evaluation-results)" \
+            --output "$RUNNER_TEMP/reviewed-stage" > "$RUNNER_TEMP/reviewed-commit.json"
+          cat "$RUNNER_TEMP/reviewed-commit.json"
+      - name: Append only after validation; concurrent branch changes fail without force
+        id: store
+        run: |
+          set -euo pipefail
+          prepared="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/reviewed-commit.json"))["prepared_commit"])')"
+          [[ "$prepared" =~ ^[0-9a-f]{40}$ ]]
+          git -c core.hooksPath=/dev/null push origin "$prepared:refs/heads/evaluation-results"
+          printf 'stored_sha=%s\n' "$prepared" >> "$GITHUB_OUTPUT"
+      - name: Report local storage separately from durable branch storage
+        if: always()
+        env:
+          LOCAL: ${{ steps.prepare.outcome }}
+          STORED: ${{ steps.store.outcome }}
+          STORED_SHA: ${{ steps.store.outputs.stored_sha }}
+        run: |
+          {
+            printf 'Local validated staging: **%s**.\n\nResult branch storage: **%s**.\n\n' "$LOCAL" "$STORED"
+            printf 'Stored commit: `%s`. Deployment and public URL verification are not performed by this job.\n' "$STORED_SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: persist
+    if: github.ref == 'refs/heads/main' && inputs.operation == 'deploy' && inputs.public_content_reviewed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    concurrency:
+      group: skillops-dashboard-production
+      cancel-in-progress: false
+    env:
+      STORED_SHA: ${{ needs.persist.outputs.stored_sha }}
+      PUBLIC_URL: ${{ vars.SKILLOPS_PUBLIC_URL }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.CODE_SHA }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Build only durable reviewed data using the pinned trusted publisher
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_URL" || { echo "::error::SKILLOPS_PUBLIC_URL is required for observed deployment verification."; exit 2; }
+          [[ "$DATA_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags origin "$DATA_SHA" refs/heads/evaluation-results:refs/remotes/origin/evaluation-results
+          current="$(git rev-parse refs/remotes/origin/evaluation-results)"
+          git merge-base --is-ancestor "$STORED_SHA" "$current"
+          python3 reviewed_publication.py --mode stage --require-stored \
+            --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" --bundle "$BUNDLE" --manifest-sha "$MANIFEST_SHA" \
+            --existing-sha "$current" --output "$RUNNER_TEMP/reviewed-deployment" --public-url "$PUBLIC_URL"
+      - run: npm ci --no-audit --no-fund
+      - name: Deploy only the official static build
+        id: deploy
+        env:
+          SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.SKILLOPS_SWA_DEPLOYMENT_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$SWA_CLI_DEPLOYMENT_TOKEN" || { echo "::error::SWA deployment secret is missing."; exit 2; }
+          npx swa deploy "$RUNNER_TEMP/reviewed-deployment/site" --env production
+      - name: Verify public content bytes; HTTP success alone is insufficient
+        id: verify
+        run: |
+          python3 reviewed_publication.py --mode verify-url \
+            --site "$RUNNER_TEMP/reviewed-deployment/site" --public-url "$PUBLIC_URL"
+      - name: Distinguish deployment completion from public URL verification
+        if: always()
+        env:
+          DEPLOYED: ${{ steps.deploy.outcome }}
+          VERIFIED: ${{ steps.verify.outcome }}
+        run: |
+          {
+            printf 'Result branch storage completed: `%s`.\n\n' "$STORED_SHA"
+            printf 'Deployment: **%s**.\n\nPublic URL verification: **%s**.\n\n' "$DEPLOYED" "$VERIFIED"
+            printf 'Deployment success does not imply observed public content success. No model calls or Skill activation.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
