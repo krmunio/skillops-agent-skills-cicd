@@ -38,6 +38,29 @@ async function capture(page, name, section) {
   await page.locator(section).screenshot({ path: path.join(backup, `${name}.png`) });
 }
 
+test('official entrypoint resolves five content-hashed modules without unbundled fallbacks', async ({ request }) => {
+  const entry = await request.get(new URL('/', origin).href);
+  expect(entry.ok()).toBe(true);
+  const match = (await entry.text()).match(/src="\/(app\.[a-f0-9]{12}\.js)"/);
+  expect(match).not.toBeNull();
+  const pending = [match[1]], seen = new Set();
+  while (pending.length) {
+    const name = pending.pop();
+    if (seen.has(name)) continue;
+    expect(seen.size).toBeLessThan(5);
+    seen.add(name);
+    const response = await request.get(new URL(`/${name}`, origin).href);
+    expect(response.ok()).toBe(true);
+    const body = await response.body();
+    expect(name.split('.')[1]).toBe(digest(body).slice(0, 12));
+    for (const imported of body.toString('utf8').matchAll(/^import\b[^;]*?\bfrom\s*['"]\.\/([^'"]+)['"]/gm)) {
+      expect(imported[1]).toMatch(/^(views|evolution|assessments|trace)\.[a-f0-9]{12}\.js$/);
+      pending.push(imported[1]);
+    }
+  }
+  expect([...seen].map(name => name.split('.')[0]).sort()).toEqual(['app', 'assessments', 'evolution', 'trace', 'views']);
+});
+
 test('PR34 N=2 serves the exact producer bytes and complete transitive references', async ({ request }) => {
   const cycle = JSON.parse(source(cycleId, 'cycle.json'));
   expect(cycle.execution_mode).toBe('offline_test');
@@ -140,6 +163,19 @@ test('PR34 round links retain the original comparison and then open the fixed re
     await expect(page.locator('#trace-error')).toHaveCount(0);
     if (project === 'sample_repo') await expect(page.locator('#task-results')).toContainText('코드 출력 해시 동일');
     else await expect(page.locator('#decision-reasons')).toContainText('unsupported_dependencies');
+  }
+});
+
+test('official build rejects unknown exact links without replacing them with a successful run', async ({ page }) => {
+  for (const query of [
+    'project=sample_repo&run=99999999999-1',
+    `project=sample_repo&run=${cycleId}&skill=path%3Aunknown`,
+    `project=unknown-project&run=${cycleId}`,
+  ]) {
+    await page.goto(new URL(`/?${query}`, origin).href);
+    await expect(page.locator('#error')).toBeVisible();
+    await expect(page.locator('#detail')).toBeHidden();
+    expect(new URL(page.url()).search).toBe(`?${query}`);
   }
 });
 
