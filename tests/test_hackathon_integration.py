@@ -280,6 +280,136 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertNotIn(b"HIDDEN_CONFIRMATION_SENTINEL", public)
         self.assertFalse((self.root / ".skillops/active.json").exists())
 
+    def recorded_cli(self, *, history=None, skill_key=None):
+        """Actual dispatch entrypoint with only model/container boundaries simulated."""
+        self.raw = OfflineTransport(self.root)
+        args = ["project_evaluation.py", "--root", str(self.root), "--project", "sample_repo",
+                "--work-id", self.work["task_id"], "--skill-key", skill_key or self.key,
+                "--max-rounds", "2", "--output", str(self.output), "--run-id", "202-1",
+                "--source-commit", self.commit, "--live"]
+        if history is not None:
+            args.extend(["--history", str(history)])
+        env = {
+            "GITHUB_ACTIONS": "true", "SKILLOPS_LIVE_EVALUATION_ENABLED": "true",
+            "COPILOT_GITHUB_TOKEN": "offline-test-only", "SKILLOPS_MAX_INVOCATIONS": "30",
+            "SKILLOPS_MAX_SECONDS": "120", "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "30",
+            "SKILLOPS_RECORDED_WORK_ITEMS": json.dumps({self.work["task_id"]: {"work_item": self.work}}),
+        }
+        @contextmanager
+        def prepared(project, images, **kwargs):
+            yield images
+        with patch.object(runner.sys, "argv", args), patch.dict(runner.os.environ, env, clear=True), \
+                patch.object(runner, "CopilotRuntime", return_value=self.raw), \
+                patch.object(runner, "resolve_images", return_value=self.images), \
+                patch.object(project_checks, "prepared_images", side_effect=prepared), \
+                redirect_stdout(io.StringIO()) as stdout, redirect_stderr(io.StringIO()) as stderr:
+            code = runner.main()
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def prior_auto_identity(self, *, assessment=False):
+        history = self.root / "prior-results"
+        key = "auto:" + "a" * 32
+        if assessment:
+            from test_skill_assessments import fixture as assessment_fixture
+            report, lifecycle, data = assessment_fixture()
+            for row in lifecycle["records"]["identities"] + lifecycle["records"]["skill_versions"] + lifecycle["bindings"]:
+                row["skill_key"] = key
+            data["skills"][0].update(skill_key=key, source_path="skills/develop")
+            results.store(history, report)
+            results.store_evolution(history, lifecycle)
+            results.store_assessments(history, data)
+            self.assertEqual(len(results.load_assessments(history)), 1)
+        else:
+            original_key, self.key = self.key, key
+            try:
+                context = self.prepare()
+            finally:
+                self.key = original_key
+            generation, candidate = skill_pipeline.generate_candidate(
+                self.runtime, "offline-model", context["original"], context["feedback"],
+                self.runtime.private / "prior-generation", deadline=self.budget["deadline"])
+            row, captures = skill_pipeline.evaluate_candidate(
+                self.runtime, "offline-model", context, candidate,
+                self.runtime.private / "prior-evaluation", deadline=self.budget["deadline"])
+            runner.persist_replay(history, row, captures, generation, context["reference"],
+                                  execution_mode="offline_test")
+            self.assertEqual(len(results.load_replays(history)), 1)
+        return history, key
+
+    def assert_recorded_identity(self, key):
+        cycles = results.load_cycles(self.output)
+        self.assertEqual(list(cycles), [("sample_repo", "202-1")])
+        self.assertEqual(cycles[("sample_repo", "202-1")]["skill_key"], key)
+        self.assertEqual(len(cycles[("sample_repo", "202-1")]["rounds"]), 2)
+        replays = results.load_replays(self.output)
+        self.assertEqual(len(replays), 2)
+        for row in replays.values():
+            self.assertEqual(row["reference"]["skill_key"], key)
+            self.assertEqual(row["evaluation"]["skill_key"], key)
+            self.assertEqual(row["reference"]["source_path"], "skills/develop")
+        lifecycles = results.load_evolution(self.output)
+        self.assertEqual(len(lifecycles), 2)
+        for value in lifecycles.values():
+            self.assertEqual([row["skill_key"] for row in value["bindings"]], [key])
+
+    def test_recorded_cli_preserves_auto_identity_from_separate_replay_history(self):
+        history, key = self.prior_auto_identity()
+        before = {p: p.read_bytes() for p in history.rglob("*.json")}
+        old_runs = {row["run_id"] for row in results.load_reports(history)}
+        self.output.mkdir()
+        self.assertEqual(list(self.output.iterdir()), [])
+        code, stdout, stderr = self.recorded_cli(history=history, skill_key=key)
+        self.assertEqual((code, stderr), (0, ""))
+        self.assertEqual(json.loads(stdout)["cycle_id"], "202-1")
+        self.assert_recorded_identity(key)
+        self.assertEqual(before, {p: p.read_bytes() for p in history.rglob("*.json")})
+        self.assertTrue(old_runs.isdisjoint({row["run_id"] for row in results.load_reports(self.output)}))
+
+    def test_recorded_cli_preserves_auto_identity_from_separate_assessment_history(self):
+        history, key = self.prior_auto_identity(assessment=True)
+        before = {p: p.read_bytes() for p in history.rglob("*.json")}
+        code, _, stderr = self.recorded_cli(history=history, skill_key=key)
+        self.assertEqual((code, stderr), (0, ""))
+        self.assert_recorded_identity(key)
+        self.assertEqual(before, {p: p.read_bytes() for p in history.rglob("*.json")})
+        self.assertFalse((self.output / "sample_repo/123-1").exists())
+
+    def test_recorded_cli_without_history_keeps_path_identity(self):
+        code, _, stderr = self.recorded_cli()
+        self.assertEqual((code, stderr), (0, ""))
+        self.assert_recorded_identity(self.key)
+
+    def test_recorded_cli_unknown_skill_does_not_fall_back_to_history_identity(self):
+        history, _ = self.prior_auto_identity()
+        code, stdout, stderr = self.recorded_cli(history=history, skill_key="auto:" + "b" * 32)
+        self.assertEqual((code, stdout), (2, ""))
+        self.assertEqual(json.loads(stderr)["code"], "unknown_skill")
+        self.assertEqual(self.raw.calls, [])
+        self.assertFalse(self.output.exists())
+
+    def test_recorded_cli_rejects_corrupt_history_even_when_path_identity_matches(self):
+        history, _ = self.prior_auto_identity()
+        sidecar = next(history.glob("*/*/replay-evaluation.json"))
+        data = results.read_json(sidecar)
+        data["report_sha256"] = "0" * 64
+        sidecar.write_bytes(results.encoded(data))
+        before = sidecar.read_bytes()
+        code, stdout, stderr = self.recorded_cli(history=history)
+        self.assertEqual((code, stdout), (2, ""))
+        self.assertEqual(json.loads(stderr)["code"], "replay_report_mismatch")
+        self.assertEqual(self.raw.calls, [])
+        self.assertFalse(self.output.exists())
+        self.assertEqual(sidecar.read_bytes(), before)
+
+    def test_recorded_cli_rejects_missing_or_non_directory_history(self):
+        for history in (self.root / "missing-history", self.work_path):
+            with self.subTest(history=history):
+                code, stdout, stderr = self.recorded_cli(history=history)
+                self.assertEqual((code, stdout), (2, ""))
+                self.assertEqual(json.loads(stderr)["code"], "invalid_history")
+                self.assertEqual(self.raw.calls, [])
+                self.assertFalse(self.output.exists())
+
     def test_actions_selection_without_dispatch_live_is_blocked_before_private_reads(self):
         action = self.api(runner, "run_recorded_iterations")
         with patch.object(runner.os.environ, "pop") as secret, self.assertRaises(RuntimeFailure) as raised:

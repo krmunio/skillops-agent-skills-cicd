@@ -402,7 +402,7 @@ def _authorized_budget(policy, *, fresh=False):
 
 @contextmanager
 def _replay_session(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
-                    runtime_factory=None, confirmation_work_item=None, confirmation_disclosure=None):
+                    runtime_factory=None, confirmation_work_item=None, confirmation_disclosure=None, history=None):
     """Keep preparation, image lifetime, lock and budget shared across either execution path."""
     budget = _authorized_budget(policy)
     results.require(execution_mode in ("live", "offline_test"), "invalid_execution_mode")
@@ -425,11 +425,19 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
                         and final["input_sha256"] != work["input_sha256"]
                         and not set(final["checks"]["required_case_ids"]) & set(work["checks"]["required_case_ids"]),
                         "confirmation_isolation_unverified")
-    history = list(results.load_assessments(output).values())
-    history.extend({"project_id": row["project_id"], "skills": [row["evaluation"]]}
-                   for row in results.load_replays(output).values())
+    directories = [output]
+    if history is not None:
+        history = results.safe_path(history)
+        results.require(history.is_dir(), "invalid_history")
+        if history != output:
+            directories.append(history)
+    identity_history = []
+    for directory in directories:
+        identity_history.extend(results.load_assessments(directory).values())
+        identity_history.extend({"project_id": row["project_id"], "skills": [row["evaluation"]]}
+                                for row in results.load_replays(directory).values())
     selected = [bundle for bundle in skill_guide.discover(project)
-                if skill_pipeline.skill_key(project_id, bundle["path"], history) == skill_key]
+                if skill_pipeline.skill_key(project_id, bundle["path"], identity_history) == skill_key]
     results.require(len(selected) == 1, "unknown_skill")
     disclosure = None
     if final is not None:
@@ -493,7 +501,7 @@ def run_replay(root, *, project_id, skill_key, work_item, output, model, executi
 
 def run_iterations(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
                    max_rounds=1, confirmation_work_item=None, confirmation_disclosure=None,
-                   runtime_factory=None, cycle_id=None):
+                   runtime_factory=None, cycle_id=None, history=None):
     """Connect the delivered loop; do not duplicate its attempt or failure semantics."""
     import skill_iterations
     results.require(type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_round_limit")
@@ -502,7 +510,8 @@ def run_iterations(root, *, project_id, skill_key, work_item, output, model, exe
     with _replay_session(
             root, project_id=project_id, skill_key=skill_key, work_item=work_item, output=output,
             model=model, execution_mode=execution_mode, policy=policy, runtime_factory=runtime_factory,
-            confirmation_work_item=confirmation_work_item, confirmation_disclosure=confirmation_disclosure
+            confirmation_work_item=confirmation_work_item, confirmation_disclosure=confirmation_disclosure,
+            history=history
     ) as (runtime, context, artifact, confirmation):
         cycle = skill_iterations.run_cycle(
             runtime, model, context, artifact / "cycle", cycle_id=cycle_id, max_rounds=max_rounds,
@@ -519,7 +528,7 @@ def run_iterations(root, *, project_id, skill_key, work_item, output, model, exe
 
 
 def run_recorded_iterations(root, *, project_id, skill_key, work_id, max_rounds, output,
-                            source_commit, cycle_id, live, policy, runtime_factory=None):
+                            source_commit, cycle_id, live, policy, runtime_factory=None, history=None):
     """Select private recorded work by public ID; never put requests in dispatch arguments."""
     results.require(live is True and policy.get("enabled") is True, "live_disabled")
     results.require(policy.get("authenticated") is True, "missing_auth")
@@ -545,7 +554,7 @@ def run_recorded_iterations(root, *, project_id, skill_key, work_id, max_rounds,
     return run_iterations(
         root, project_id=project_id, skill_key=skill_key, work_item=path, output=output,
         model="gpt-6-astra", execution_mode="live", policy=policy, max_rounds=max_rounds,
-        cycle_id=cycle_id, runtime_factory=lambda root: raw_runtime)
+        cycle_id=cycle_id, runtime_factory=lambda root: raw_runtime, history=history)
 
 
 def run_approved(root, *, project_id, skill_key, approval_id, candidate_version_id,
@@ -702,7 +711,7 @@ def main():
             report = run_recorded_iterations(
                 args.root, project_id=args.project, skill_key=args.skill_key, work_id=args.work_id,
                 max_rounds=args.max_rounds, output=args.output, source_commit=args.source_commit,
-                cycle_id=args.run_id, live=args.live, policy=policy)
+                cycle_id=args.run_id, live=args.live, policy=policy, history=args.history)
             results.reindex(args.root, args.output)
             print(json.dumps(report))
             return 0 if report["status"] in ("improved", "max_rounds", "no_change") else 2

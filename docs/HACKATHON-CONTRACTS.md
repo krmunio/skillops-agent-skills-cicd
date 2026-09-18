@@ -805,7 +805,7 @@ no replacement loop or evaluation/persistence callback.
 project_evaluation.run_iterations(
     root, *, project_id, skill_key, work_item, output, model, execution_mode,
     policy, max_rounds=1, confirmation_work_item=None, confirmation_disclosure=None, runtime_factory=None,
-    cycle_id=None,
+    cycle_id=None, history=None,
 )
 project_evaluation.persist_cycle(output, cycle, reference)  # -> cycle artifact reference
 ```
@@ -817,6 +817,15 @@ delivered `run_cycle` with `partial(persist_replay, output,
 execution_mode=execution_mode)`; the latter retains its single replay behavior.
 The iteration module is included in the evaluator fingerprint for new evidence;
 stored historical hashes and decisions are not rewritten.
+Optional `history` is a separate existing results directory, forwarded by
+`run_recorded_iterations` from the project CLI's `--history`. The shared replay
+session validates assessment/replay history through the existing loaders and
+passes it to the existing project/source-path Skill identity resolver alongside
+current output evidence. This preserves an established `auto:` key when the new
+output is empty. Missing/non-directory or malformed supplied history is rejected;
+an unknown Skill remains an error, never a fallback to a different ID. History
+is read-only and is not copied into new output. Omitting it preserves the
+existing output-history behavior; the legacy evaluation path is unchanged.
 
 Optional confirmation input is read and validated before any model invocation:
 same project/source commitment, a distinct task/input, disjoint required cases

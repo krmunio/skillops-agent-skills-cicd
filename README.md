@@ -228,6 +228,10 @@ inputs, command arguments, logs or public artifacts. Inputs must match the exact
 dispatched source commit. The existing iteration/provider/storage path is reused,
 and the cycle ID is the workflow run/attempt. This development-only dispatch
 neither approves a candidate nor imports local approvals as Actions authority.
+Its separate `--history` directory is validated and used to preserve the exact
+existing Skill ID, including `auto:` identities, with a fresh output directory.
+History is neither rewritten nor copied as new results; invalid history or an
+unknown Skill is rejected rather than replaced with another ID.
 No secret configuration or live dispatch is performed by the implementation.
 
 ### Offline presentation backup
