@@ -39,6 +39,7 @@ function rememberSelection() {
   window.history.replaceState(null, '', url);
 }
 function fail(error) {
+  clearTrace('근거 확인 실패 · 미검증');
   $('error').hidden = false;
   $('error').textContent = '이력을 불러오지 못했습니다. 저장된 결과와 배포 상태를 확인한 뒤 새로고침해 주세요.';
   console.error('Dashboard data unavailable:', error.message);
@@ -78,12 +79,20 @@ function loadHistory(project, store) {
       validateEvolutionSummary(run);
       validateAssessmentSummary(run);
       validateTraceSummary(run);
-      if (run.cycle || run.adoption) {
-        try {
-          run.trace_skills = await loadTraceSkills(project, run, await loadReport(project, run, store), load);
-        } catch {
-          run.trace_discovery_error = true;
-        }
+      // Selection mode comes from report-bound sidecars, not index claims.
+      run.trace_mode = null;
+      run.trace_ready = null;
+      run.trace_discovery_error = false;
+      run.trace_skills = undefined;
+      if (run.replay_evaluation || run.cycle || run.adoption) {
+        run.trace_ready = (async () => {
+          try {
+            run.trace_skills = await loadTraceSkills(project, run, await loadReport(project, run, store), load);
+          } catch {
+            run.trace_discovery_error = true;
+          }
+        })();
+        if (!run.skill_evolution) await run.trace_ready;
       }
     }
     return [...data.history].sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at));
@@ -141,7 +150,7 @@ function resetSelection(isSample) {
   activeRun = null; history = [];
   selectedSkill = null;
   clearEvolution();
-  clearTrace();
+  clearTrace('근거 불러오는 중 · 미검증');
   $('project-summary').hidden = true;
   $('project-summary').replaceChildren();
   $('detail').hidden = true;
@@ -274,23 +283,30 @@ function renderSkillHistory() {
     `${current.id}의 기록 · 선택하면 위의 As-Is / To-Be와 평가 결과가 바뀝니다.` :
     `${current.name} · 탐지된 Skill이며 아직 연결된 평가 기록이 없습니다.`));
 }
-function chooseSkill(id) {
+const automaticRun = run => !['offline_test', 'sample'].includes(run.trace_mode);
+async function chooseSkill(id) {
   if (sampleMode) { selectSampleSkill(id); return; }
   const group = skillGroups().find(group => group.id === id);
   if (!group) throw new Error('Skill history unavailable');
   selectedSkill = id;
   $('skill-select').value = id;
-  const run = group.runs[0];
+  const token = selection, request = ++reportSelection;
+  $('detail').hidden = true;
+  clearTrace('근거 불러오는 중 · 미검증');
+  await Promise.all(group.runs.map(run => run.trace_ready));
+  if (token !== selection || request !== reportSelection) return;
+  const run = group.runs.find(automaticRun);
   if (run) selectRun(run, selection);
   else {
-    ++reportSelection;
     activeRun = null;
     $('detail').hidden = true;
     $('error').hidden = true;
     clearEvolution();
-    $('origin').textContent = '미평가';
-    $('freshness').textContent = `${group.source_path} · 탐지 정보이며 품질 평가 결과가 아닙니다.`;
-    $('selection-summary').textContent = `${group.name} · 아직 평가 기록이 없습니다.`;
+    clearTrace(group.runs.length ? '실행 선택 필요 · 오프라인 예제 근거 있음' : undefined);
+    $('origin').textContent = group.runs.length ? '오프라인 예제 · 별도 선택' : '미평가';
+    $('freshness').textContent = `${group.source_path || group.id} · 현재 품질이나 승인 자격을 추정하지 않습니다.`;
+    $('selection-summary').textContent = group.runs.length ?
+      `${group.name} · 오프라인 예제는 이력에서 명시적으로 선택하세요.` : `${group.name} · 아직 평가 기록이 없습니다.`;
     renderHistory();
     rememberSelection();
   }
@@ -307,7 +323,7 @@ async function selectRun(run, token, requiredSkill = null) {
   const request = ++reportSelection;
   $('detail').hidden = true;
   $('report-link').removeAttribute('href');
-  clearTrace();
+  clearTrace('근거 불러오는 중 · 미검증');
   $('error').hidden = true;
   try {
     let report, detail = null, snapshots = null, lifecycle = null, assessments = null;
@@ -354,6 +370,7 @@ async function selectRun(run, token, requiredSkill = null) {
         traceError();
       }
     } else {
+      clearTrace('sample · 합성 화면 · 공개 단계 근거 미기록');
       $('evidence-trace').append(node('p', '합성 샘플 · 실제 replay·승인·사용 근거가 아닙니다.', 'reason'));
     }
     activeRun = run.run_id;
@@ -390,19 +407,25 @@ async function selectProject(project, linked = {}) {
     if (!groups.length) $('skill-select').append(node('option', '탐지·연결된 Skill 없음'));
     renderHistory();
     if (linked.skill && !groups.some(group => group.id === linked.skill)) throw new Error('Linked Skill unavailable');
-    const candidates = linked.skill ? history.filter(row => runSkills(row).some(skill => skill.id === linked.skill)) : history;
+    const request = reportSelection;
+    const summary = showProjectSummary(project, runs, token, store);
+    await Promise.all(runs.map(run => run.trace_ready));
+    if (token !== selection || request !== reportSelection) { await summary; return; }
+    const candidates = (linked.skill ? history.filter(row => runSkills(row).some(skill => skill.id === linked.skill)) : history)
+      .filter(automaticRun);
     const run = linked.run ? history.find(row => row.run_id === linked.run) :
       candidates.find(row => row.guide_status === 'completed' && row.execution_status === 'completed') ||
       candidates.find(row => row.purpose === 'comparison') || candidates[0];
     if (linked.run && !run) throw new Error('Linked run unavailable');
     if (!run) {
-      if (groups.length) chooseSkill(linked.skill || groups[0].id);
+      if (groups.length) await chooseSkill(linked.skill || groups[0].id);
       else {
+        clearTrace();
         $('origin').textContent = '미평가';
         $('selection-summary').textContent = '평가 기록이 없습니다.';
       }
     }
-    await Promise.all([showProjectSummary(project, runs, token, store), run ? selectRun(run, token, linked.skill) : null]);
+    await Promise.all([summary, run ? selectRun(run, token, linked.skill) : null]);
     if (token === selection && project.skill_discovery_error) fail(new Error(`Skill discovery blocked: ${project.skill_discovery_error}`));
   } catch (error) {
     if (token === selection) {
@@ -506,6 +529,7 @@ async function refresh() {
     if (linked.project && !linkedProject) throw new Error('Linked project unavailable');
     if (projects.length) await selectProject(linkedProject || projects[0], linked);
     else {
+      clearTrace();
       $('projects').append(node('p', '등록된 프로젝트가 없습니다.', 'muted'));
       $('origin').textContent = '프로젝트 없음';
       $('selection-summary').textContent = '프로젝트를 등록하거나 샘플 화면을 확인하세요.';
@@ -517,10 +541,10 @@ $('refresh').addEventListener('click', refresh);
 $('demo-open').addEventListener('click', openSample);
 $('exit-sample').addEventListener('click', refresh);
 $('history-filter').addEventListener('change', renderHistory);
-$('skill-select').addEventListener('change', () => {
+$('skill-select').addEventListener('change', async () => {
   try {
     const id = $('skill-select').value;
-    if (id) chooseSkill(id);
+    if (id) await chooseSkill(id);
     else {
       const run = history.find(item => !runSkills(item).length);
       if (run) selectRun(run, selection);

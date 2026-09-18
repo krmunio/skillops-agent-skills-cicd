@@ -115,6 +115,21 @@ test('detected Skills are selectable before any evaluation and do not invent his
   await expect(page.locator('#project-summary')).toBeVisible();
   await expect(page.locator('#summary-history')).toContainText('평가 기록 0건');
   await expect(page.locator('#error')).toBeHidden();
+  await expect(page.locator('#evidence-trace')).toBeVisible();
+  await expect(page.locator('#skill-progress li strong')).toHaveText([
+    '개발 평가', '최대 N회 개선', '별도 최종 확인', '사람 승인', '다음 작업 사용',
+  ]);
+  await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+  await expect(page.locator('#skill-progress li .stage-next')).toHaveCount(5);
+  await expect(page.locator('#approval-guidance')).toContainText('승인은 로컬 CLI에서 수행합니다');
+  await expect(page.locator('#approval-guidance')).toContainText('공개 기록만으로 실제 승인 여부를 단정하지 않습니다');
+  await expect(page.getByRole('link', { name: '로컬 CLI 사용 안내' })).toHaveAttribute('href',
+    'https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.ko.md#별도의-로컬-승인');
+  await page.reload();
+  await expect(page.locator('#skill-select')).toHaveValue(skills[1].skill_key);
+  await expect(page.locator('#skill-progress li')).toHaveCount(5);
+  await page.setViewportSize({ width: 320, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
 test('choosing an unevaluated detected Skill clears a previously visible run', async ({ page }) => {
@@ -136,6 +151,8 @@ test('choosing an unevaluated detected Skill clears a previously visible run', a
   await expect(page.locator('#selection-summary')).toContainText('unassessed');
   await expect(page.locator('#origin')).toHaveText('미평가');
   await expect(page.locator('#error')).toBeHidden();
+  await expect(page.locator('#evidence-trace')).toBeVisible();
+  await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
 });
 
 test('project selection opens the newest fully completed run before historical comparisons or partial runs', async ({ page }) => {
@@ -906,8 +923,52 @@ async function tracePage(page, fixture, run = '104-1') {
   }
   await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
     history_count: fixture.items.length, current_run: null }] }, 200, origin,
-  `/?project=sample_repo&run=${run}&skill=${encodeURIComponent(fixture.key)}`);
+  `/?project=sample_repo${run ? `&run=${run}` : ''}&skill=${encodeURIComponent(fixture.key)}`);
 }
+
+test('offline examples have explicit confirmed links and are never the automatic Skill selection', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture, null);
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  expect(new URL(page.url()).searchParams.has('run')).toBe(false);
+  await expect(page.locator('#skill-progress')).toBeVisible();
+  await expect(page.locator('#skill-progress')).not.toContainText('승인 관측');
+  await page.locator('#offline-examples summary').click();
+  await expect(page.locator('#offline-examples')).toContainText('실측 결과·승인 가능한 후보가 아닙니다');
+  const links = page.locator('#offline-examples a');
+  await expect(links).toHaveCount(3);
+  for (const [i, run] of [
+    'local-20260918T094535Z-b9a681f6cfb2',
+    'local-20260918T094533Z-f6297a587afc',
+    'local-20260918T094534Z-bcba9c0a589e',
+  ].entries()) {
+    await expect(links.nth(i)).toHaveAttribute('href',
+      `/?project=sample_repo&run=${run}&skill=path%3A90ae807bd3d394fc140a6df8`);
+  }
+  await links.first().click();
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#skill-progress')).toContainText('미검증');
+  expect(new URL(page.url()).searchParams.get('run')).toBe('local-20260918T094535Z-b9a681f6cfb2');
+});
+
+test('switching from observed use to an unevaluated Skill clears all progression claims', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture);
+  await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('사용 관측');
+  const key = 'path:111111111111111111111111';
+  await page.route('https://dashboard.test/results/index.json', route => route.fulfill({
+    json: { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active', history_count: fixture.items.length,
+      current_run: null, detected_skills: [{ skill_key: key, display_name: 'unassessed', source_path: 'skills/unassessed' }] }] },
+  }));
+  await page.reload();
+  await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('사용 관측');
+  await page.locator('#skill-select').selectOption(key);
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+  await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+});
 
 test('trace links original, two parents, feedback, confirmation and verified use without claiming task success or Active', async ({ page }) => {
   const fixture = traceFixture();
@@ -940,6 +1001,8 @@ for (const mode of ['offline_test', 'sample']) {
       await expect(page.locator('#evidence-trace')).toContainText(label);
       await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
       await expect(page.locator('#trace-mode')).toContainText(mode);
+      await expect(page.locator('#skill-progress [data-stage="approval"]')).toContainText('승인 관측');
+      await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText(use === 'none' ? '공개 기록 없음' : '실패');
     });
   }
 }
@@ -1034,6 +1097,7 @@ for (const bad of ['missing', 'oversize', 'duplicate']) {
     await expect(page.locator('#trace-error')).toBeVisible();
     await expect(page).toHaveURL(/run=104-1/);
     await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+    await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('근거 확인 실패 · 미검증'));
   });
 }
 
@@ -1051,6 +1115,11 @@ for (const mode of ['offline_test', 'sample', 'live']) {
       if (mode !== 'live') await expect(panel).not.toContainText('승인 대기');
       await expect(panel).toContainText('승인·사용: 미기록');
       await expect(panel).not.toContainText('승인 없음');
+      await expect(page.locator('#approval-guidance')).toContainText('공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다');
+      await expect(page.locator('#skill-progress [data-stage="confirmation"]')).toContainText(
+        mode === 'live' ? '공개 live 근거' : mode);
+      await expect(page.locator('#skill-progress [data-stage="approval"]')).toContainText(
+        mode === 'live' ? '로컬 승인 자격 재검증 필요' : '승인 불가');
       await expect(page.locator('#trace-error')).toHaveCount(0);
       await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
       await expect(page).toHaveURL(/run=104-1/);
@@ -1112,22 +1181,27 @@ for (const [decision, confirmation] of [['not_improved', 'passed'], ['rejected',
   });
 }
 
-test('offline verified use remains distinct from a blocked task report and unknown Active', async ({ page }) => {
-  const fixture = traceFixture();
-  fixture.adopted.report.execution = { status: 'blocked', reason_code: 'assessment_unverified', metrics: null, decision: null };
-  fixture.adopted.summary.execution_status = 'blocked';
-  rebindTraceFixture(fixture);
-  await tracePage(page, fixture, '105-1');
-  const panel = page.locator('#evidence-trace');
-  await expect(panel).toContainText('테스트/샘플의 검증된 사용');
-  await expect(page.locator('#execution')).toContainText('차단');
-  await expect(panel).toContainText('작업 성공을 의미하지 않습니다');
-  await expect(panel).toContainText('현재 로컬 Active: 공개 근거로 확인 불가');
-  await panel.getByRole('link', { name: '다음 실행의 작업 결과 확인' }).click();
-  await page.reload();
-  await expect(panel).toContainText('테스트/샘플의 검증된 사용');
-  await expect(page.locator('#execution')).toContainText('차단');
-});
+for (const [status, label] of [['blocked', '차단'], ['failed', '실패']]) {
+  test(`offline verified use remains distinct from a ${status} task report and unknown Active`, async ({ page }) => {
+    const fixture = traceFixture();
+    fixture.adopted.report.execution = { status,
+      reason_code: status === 'failed' ? 'runtime_error' : 'assessment_unverified', metrics: null, decision: null };
+    fixture.adopted.summary.execution_status = status;
+    rebindTraceFixture(fixture);
+    await tracePage(page, fixture, '105-1');
+    const panel = page.locator('#evidence-trace');
+    await expect(panel).toContainText('테스트/샘플의 검증된 사용');
+    await expect(page.locator('#execution')).toContainText(label);
+    await expect(panel).toContainText('작업 성공을 의미하지 않습니다');
+    await expect(panel).toContainText('현재 로컬 Active: 공개 근거로 확인 불가');
+    await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('사용 관측');
+    await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('작업 성공과 별개');
+    await panel.getByRole('link', { name: '다음 실행의 작업 결과 확인' }).click();
+    await page.reload();
+    await expect(panel).toContainText('테스트/샘플의 검증된 사용');
+    await expect(page.locator('#execution')).toContainText(label);
+  });
+}
 
 test('offline blocked use keeps loaded version unrecorded without becoming verified', async ({ page }) => {
   const fixture = traceFixture();
