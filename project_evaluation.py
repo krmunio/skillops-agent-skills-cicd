@@ -10,6 +10,7 @@ import json
 import math
 import os
 from pathlib import Path
+import stat
 import sys
 import time
 from uuid import uuid4
@@ -303,6 +304,39 @@ def persist_cycle(output, cycle, reference):
             "sha256": sha256(results.encoded(stored)).hexdigest()}
 
 
+def retain_work_item(root, work):
+    """Retain a validated private input immutably, before any model exposure."""
+    root = results.safe_path(root)
+    results.require(isinstance(work, dict), "invalid_work_item")
+    results.require(results.matches(results.ID, work.get("project_id")), "invalid_project_id")
+    skill_assessments.validate_work_item(
+        work, project=root / "projects" / work["project_id"], source_commit=work.get("source_commit"))
+    folder = root / ".skillops-private"
+    for directory in (folder, folder / "work-items", folder / "work-items" / work["task_id"]):
+        results.safe_path(directory)
+        directory.mkdir(mode=0o700, exist_ok=True)
+        info = directory.stat()
+        results.require(directory.is_dir() and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                        "unsafe_work_store")
+        descriptor = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    path = directory / (work["input_sha256"] + ".json")
+    results.atomic_json(path, work, immutable=True)
+    info = path.stat()
+    results.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                    and info.st_mode & 0o077 == 0 and info.st_nlink == 1, "unsafe_work_store")
+    descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    results.require(results.read_bytes(path) == results.encoded(work), "work_input_changed")
+    return path
+
+
 @contextmanager
 def _replay_session(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
                     runtime_factory=None, confirmation_work_item=None):
@@ -349,6 +383,9 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
     runtime.execution_mode = execution_mode
     artifact = runtime.private / "replays" / uuid4().hex
     with raw_runtime.locked():
+        retain_work_item(root, work)
+        if final is not None:
+            retain_work_item(root, final)
         images = resolve_images(project)
         remaining = min(180, budget["deadline"] - time.monotonic())
         results.require(remaining > 0, "time_limit")

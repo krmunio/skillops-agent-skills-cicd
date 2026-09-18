@@ -400,7 +400,10 @@ evaluation agents and automatic pipelines must never execute it. An agent may
 display the exact command for review, but user authorization to implement this
 feature is not authorization to approve a candidate.
 
-The proposed command surface below is not implemented by this document:
+The following local approval command is implemented by `skillops.py`; its
+interactive boundary delegates all evidence/state validation to session 4's
+`skill_approvals.approve`. Approval alone does not complete the still-separate
+next-use and public publication integration.
 
 ```text
 python3 skillops.py approve --project <project> --skill-key <key> \
@@ -410,6 +413,14 @@ python3 skillops.py approve --project <project> --skill-key <key> \
   --expected-active-execution-sha256 <receipt-hash-or-none> \
   --results <results-directory>
 ```
+
+Both stdin and the confirmation display must be interactive. The operator types
+`approve <full-candidate-version>` after reviewing the full binding; cancellation
+or EOF records no approval. Neither CI nor a missing predecessor argument can
+bypass this boundary. `project_evaluation.retain_work_item(root, work)` validates
+and retains the canonical owner-only immutable WorkItem before generation; later
+approval uses those exact inputs. New evaluator fingerprints include
+`skill_approvals.py`; historical fingerprints and report bytes are not rewritten.
 
 No `--latest`, auto-approve flag, approval based only on a score, or browser write
 endpoint. Reject CI/Actions invocation and require an interactive confirmation

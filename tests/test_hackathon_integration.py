@@ -210,6 +210,23 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(output["execution_mode"], "offline_test")
         self.assertEqual(output["budget"]["max_seconds"], 120)
 
+    def test_canonical_private_work_is_retained_before_any_model_call(self):
+        path = self.raw.private / "work-items" / self.work["task_id"] / (self.work["input_sha256"] + ".json")
+        invoke = self.raw.invoke
+
+        def require_work(*args, **kwargs):
+            self.assertEqual(results.read_json(path), self.work)
+            self.assertEqual(path.stat().st_mode & 0o077, 0)
+            self.assertEqual(path.parent.stat().st_mode & 0o077, 0)
+            return invoke(*args, **kwargs)
+
+        with patch.object(self.raw, "invoke", side_effect=require_work):
+            self.run_one()
+        before = path.read_bytes()
+        self.run_one()
+        self.assertEqual(path.read_bytes(), before)
+        self.assertFalse(list(self.output.rglob("*work-item*")))
+
     def test_exhausted_shared_budget_never_fabricates_completed_evaluation(self):
         self.budget["max_calls"] = 2
         output = self.run_one()
