@@ -276,7 +276,10 @@ class IterationTests(unittest.TestCase):
 
     def test_confirmation_once_uses_frozen_selected_bytes_and_never_becomes_feedback(self):
         result = self.run_cycle()
-        self.confirmation_factory.assert_called_once_with()
+        self.confirmation_factory.assert_called_once_with(self.candidates[1])
+        supplied = self.confirmation_factory.call_args.args[0]
+        self.assertIsNot(supplied[0], self.candidates[1][0])
+        self.assertIsNot(supplied[1], self.candidates[1][1])
         self.assertEqual(len(self.generated), 2)
         self.assertEqual(len(self.evaluated), 3)
         self.assertEqual(self.evaluated[-1], (self.confirmation, self.candidates[1]))
@@ -345,7 +348,8 @@ class IterationTests(unittest.TestCase):
         self.raw.invoke("offline-preparation-marker")
         self.runtime.invoke("test-only-initial-preparation")
         self.assertEqual(self.budget["calls"], 1)
-        def prepare_confirmation():
+        def prepare_confirmation(selected):
+            self.assertEqual(selected, self.candidates[1])
             self.assertIs(self.runtime.budget, self.budget)
             self.runtime.invoke("test-only-confirmation-preparation")
             return self.confirmation
@@ -409,7 +413,7 @@ class IterationTests(unittest.TestCase):
         self.assertEqual(result["selected_candidate_version_id"], self.candidates[1][0]["version_id"])
         self.assertEqual(len(self.generated), 2)
         self.assertEqual(len(self.saved), 2)
-        self.confirmation_factory.assert_called_once_with()
+        self.confirmation_factory.assert_called_once_with(self.candidates[1])
 
     def test_changed_budget_during_confirmation_preparation_is_rejected(self):
         self.statuses = ["improved"]
@@ -418,7 +422,8 @@ class IterationTests(unittest.TestCase):
             with self.subTest(field=field):
                 self.artifact = self.root / f"changed-{field}"
                 before = dict(self.budget)
-                def changed():
+                def changed(selected):
+                    self.assertEqual(selected, self.candidates[0])
                     self.budget[field] = value
                     return self.confirmation
                 self.confirmation_factory.side_effect = changed
@@ -439,7 +444,10 @@ class IterationTests(unittest.TestCase):
     def test_confirmation_uses_bytes_frozen_before_preparation(self):
         self.statuses = ["improved"]
         expected = deepcopy(self.candidates[0])
-        def mutate_source_candidate():
+        def mutate_source_candidate(selected):
+            self.assertEqual(selected, expected)
+            selected[0]["version_id"] = "sha256:" + "0" * 64
+            selected[1]["SKILL.md"] = b"Changed callback argument."
             self.candidates[0][1]["SKILL.md"] = b"Changed after selection."
             return self.confirmation
         self.confirmation_factory.side_effect = mutate_source_candidate
@@ -467,6 +475,29 @@ class IterationTests(unittest.TestCase):
                 self.assertIsNone(result["confirmation_ref"])
                 self.assertEqual(len(self.generated), 1)
                 self.assertEqual(len(self.saved), 1)
+                self.generated.clear()
+                self.evaluated.clear()
+                self.saved.clear()
+
+    def test_revision_14_admission_errors_never_start_another_round(self):
+        self.statuses = ["improved"]
+        for code in ("confirmation_not_registered", "confirmation_inputs_changed",
+                     "confirmation_candidate_mismatch", "confirmation_already_used",
+                     "development_closed", "confirmation_isolation_unverified"):
+            with self.subTest(code=code):
+                self.artifact = self.root / code
+                self.confirmation_factory.reset_mock()
+                self.confirmation_factory.side_effect = RuntimeFailure(code, "Offline negative admission.")
+                result = self.run_cycle()
+                self.assertEqual(result["stop_reason"], "improved")
+                self.assertEqual(result["confirmation_status"], "unverified")
+                self.assertIsNone(result["confirmation_ref"])
+                self.assertEqual(len(self.generated), 1)
+                self.assertEqual(len(self.evaluated), 1)
+                self.assertEqual(len(self.saved), 1)
+                self.confirmation_factory.assert_called_once_with(self.candidates[0])
+                self.assertEqual(project_results.read_json(
+                    self.artifact / "confirmation/failure.json")["code"], code)
                 self.generated.clear()
                 self.evaluated.clear()
                 self.saved.clear()
@@ -928,9 +959,10 @@ class RealProviderIntegrationTests(unittest.TestCase):
         final_work.update(task_id="distinct-confirmation", split="confirmation", request="A distinct held-out task.")
         final_work["checks"]["required_case_ids"] = ["hidden-case"]
         final_work["input_sha256"] = digest({key: value for key, value in final_work.items() if key != "input_sha256"})
-        confirmation = Mock(side_effect=lambda: self.prepare(work=final_work, name="confirmation-prepare"))
+        confirmation = Mock(side_effect=lambda selected: self.prepare(work=final_work, name="confirmation-prepare"))
         cycle = self.run_cycle(context, confirmation=confirmation)
-        confirmation.assert_called_once_with()
+        confirmation.assert_called_once()
+        self.assertEqual(confirmation.call_args.args[0][0]["version_id"], cycle["selected_candidate_version_id"])
         self.assertEqual(cycle["stop_reason"], "improved")
         self.assertEqual(cycle["confirmation_status"], "unverified")
         self.assertIsNone(cycle["confirmation_ref"])

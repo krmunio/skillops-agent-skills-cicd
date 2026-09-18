@@ -1,9 +1,9 @@
 """Bounded development-feedback search; never approval, activation or public storage.
 
-Contract revision 1.3, as integrated in fcf2cad6e61908be7461526365cf2a608220dbdf.
+Contract revision 1.4: 9b0756f0656ee6e6e5b6a0602d6abe96a7f395d0.
 Uses the real replay provider and shared budget/decision validators. Retained
 evaluation objects stay unchanged for private feedback issuance. Confirmation
-is still blocked by the provider with confirmation_isolation_unverified.
+requires the caller's registered provider and verified runtime isolation.
 """
 
 from copy import deepcopy
@@ -185,6 +185,7 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
     """Return an unbound terminal payload, with durable round references only.
 
     The caller owns preparation, the live budget and final report binding.
+    Its confirmation_context(selected) receives a copy of the frozen Capture.
     Provider/persistence failures must never be replaced by successful test data.
     """
     require(type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_round_limit")
@@ -326,7 +327,7 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
             admit_stage()
             cycle["confirmation_status"] = "unverified"
             final_context = _measured(runtime, folder / "preparation-metrics.json",
-                                      lambda progress: confirmation_context(), "work")
+                                      lambda progress: confirmation_context(deepcopy(selected)), "work")
             check_inputs()
             final_reference, final_original, final_work, final_mode = _context_inputs(final_context)
             final_reference, final_work = deepcopy(final_reference), deepcopy(final_work)
