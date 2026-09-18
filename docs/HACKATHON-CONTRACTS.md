@@ -1,9 +1,10 @@
 # Hackathon contracts: replay, bounded improvement, explicit adoption
 
-Contract revision: **1.2** (session 2 issue #25 accepted handoff).
+Contract revision: **1.3** (nullable unsaved attempts; fail-closed persistence).
 Original code baseline: `3a6a2a3`.
 The operator confirmed **explicit local CLI approval** on September 17, 2026.
-This PR specifies interfaces; it does not implement them or authorize model calls.
+Interface declarations do not authorize model calls; delivered APIs are identified
+in the implementation handoffs below.
 Revision 1 was accepted in PR #24. This follow-up fixes the provider boundaries
 requested by sessions 3 and 4; API declarations below are not implementation evidence.
 Revision 1.2 supersedes revision 1.1's `development_scope` and context-only
@@ -13,6 +14,10 @@ it is not completion of `prepare_replay`, `generate_candidate` or `evaluate_cand
 It also accepts session 4's ABA/concurrent-Active correction: private approval
 and execution records bind both the previous version and previous execution
 receipt hash. Public adoption projections remain unchanged.
+Revision 1.3 retains those interfaces and distinguishes an admitted attempt
+ending before durable evaluation storage from a persistence callback failure.
+Only the former can become a terminal round with a null `run_id`. This is a
+validation clarification within schema version 1, not a rewrite of prior evidence.
 Dependent PRs must name the accepted contract commit; changes go through the
 integration owner, not independent reinterpretations by each session.
 No presentation file was available in this checkout or conversation attachments;
@@ -243,8 +248,17 @@ input_sha256 reference_sha256 feedback_source_round_id feedback_sha256
 evaluation_ref decision stop_reason
 ```
 
-The nullable candidate/evaluation/decision fields remain null if their stage never
-completed. `decision`, when present, is the validated evaluation decision.
+An attempt is added only when candidate generation is actually admitted. Do not
+invent a placeholder round for a budget/input/feedback failure before admission.
+If an admitted attempt terminates before evaluation persistence, its `run_id`,
+`evaluation_ref` and `decision` are all null. Its `candidate_version_id` may be
+present only if candidate generation completed. Preserve the actual stop reason;
+an unsaved attempt is necessarily the last round and cannot mean `improved` or
+`max_rounds`. A saved round has a valid run ID equal to its evaluation reference
+and a validated evaluation decision; a null run ID cannot reference stored evidence.
+`round_id` remains `<cycle_id>-r<number>` even when `run_id` is null.
+The public validator checks this shape, not private proof of attempt admission;
+the loop must retain the actual attempt and must not synthesize missing rounds.
 `stop_reason` is null while continuing, otherwise one of:
 `improved`, `max_rounds`, `no_change`, `call_limit`, `time_limit`,
 `credit_limit`, `input_changed`, `evaluation_unverified`, `runtime_error`,
@@ -306,6 +320,13 @@ Persist each completed round under its own ordinary run ID. A cycle report is
 written once after its terminal state and references those runs. Do not rewrite
 completed rounds to append feedback. Interrupted processes may leave valid round
 records without a completed cycle; they are visibly incomplete and not approvable.
+If `persist_round` itself fails (including IO, validation, immutable conflict or
+an invalid returned reference), propagate the exception to fail the CLI. Do not
+convert that failure into a null-run terminal round, return a terminal cycle, or
+write a success receipt. Preserve already stored rounds. Individual writes may
+leave partial artifacts, but there is no fabricated completed cycle or retry,
+automatic repair, overwrite or rollback of earlier evidence. The same fail-closed
+rule applies if binding, writing or reloading the final cycle fails.
 Automatic resume is out of scope.
 
 ## 6. Human approval and proof of next use
@@ -539,6 +560,7 @@ project_results.store_replay(results, data)                          # -> Path
 project_results.load_replays(results, rows=None)                     # -> {(project, run): wrapper}
 project_results.store_cycle(results, data)                           # -> Path
 project_results.load_cycles(results, rows=None)                      # -> {(project, cycle): cycle}
+project_results.load_replay_evidence(results, rows=None)             # -> {(project, run): {report, lifecycle, replay}}
 project_results.store_adoption(results, data)                        # -> Path
 project_results.load_adoptions(results, rows=None)                    # -> {(project, run): wrapper}
 ```
@@ -563,9 +585,10 @@ The foundation implements `validate_work_item`, `validate_replay`,
 `validate_cycle` and `budget_limits`. These are validators/readers/cap snapshots,
 not the replay provider, local approval implementation or operational adapters.
 `project_results.py validate` also checks replay/cycle sidecars.
-Until lossless publishing is connected, `merge` and `build` explicitly fail with
-`replay_publication_pending` on replay/cycle/adoption attachments rather than
-silently dropping their evidence. Legacy publication remains unchanged.
+At the foundation stage, publishers rejected new sidecars until lossless
+publication was connected. The final demo integration supports validated replay
+and cycle graphs; unsupported adoption evidence still fails closed with
+`adoption_publication_pending`. Legacy report bytes remain unchanged.
 
 The reusable fixture is `tests/hackathon_fixtures.py`; invariant tests are
 `tests/test_hackathon_contracts.py`. Every generated fixture is `offline_test`,
@@ -596,6 +619,141 @@ with TemporaryDirectory() as folder:
     assert len(results.load_replays(directory)) == 3
     assert len(results.load_cycles(directory)) == 1
 ```
+
+#### Single-replay adapter implementation handoff
+
+The opt-in `skillops.py replay` adapter uses the actual session 2 provider, not
+the legacy generated-work assessment path. Its entry point is:
+
+```python
+project_evaluation.run_replay(
+    root, *, project_id, skill_key, work_item, output, model, execution_mode,
+    policy, runtime_factory=None,
+)
+project_evaluation.persist_replay(
+    output, evaluation, captures, generation, reference,
+    *, execution_mode, run_id=None,
+)
+```
+
+`work_item` is a private WorkItem JSON path; the project is
+`root/projects/<project_id>`. Select the exact discovered Skill key, reusing
+validated identity history from the output directory. The command requires
+both `--live` and `SKILLOPS_LIVE_EVALUATION_ENABLED=true`, authentication and
+explicit invocation/time/per-session Credit limits. Gates run before runtime
+construction or model/image preparation. The CLI always sets `execution_mode`
+to `live`; there is no production mock/offline CLI option. Offline tests inject
+only the transport and container boundaries and explicitly set `offline_test`.
+The supplied budget object is reused without resetting calls, deadline or the
+original authorized `max_seconds`.
+
+The reusable session 3 callback is exactly:
+
+```python
+from functools import partial
+from project_evaluation import persist_replay
+
+persist_round = partial(persist_replay, output, execution_mode=runtime.execution_mode)
+ref = persist_round(evaluation, captures, generation, reference)
+# ref: {project_id, run_id, path: "replay-evaluation.json", sha256}
+```
+
+Every callback creates a fresh run unless an explicit valid `run_id` is supplied.
+It validates the complete report/capture/replay package before writing, uses
+the existing immutable writers, and returns only after the sidecar is written.
+`project_results.store_replay(results, data)` is implemented and validates its
+stored report and complete lifecycle before append-only sidecar storage.
+IO/validation/conflict errors propagate, never a success-shaped reference.
+Writes are individually atomic, not a multi-file transaction: an IO interruption
+may leave report/capture files without a replay sidecar. The aggregate report
+remains `execution: blocked / assessment_unverified`; do not treat partial
+storage as a completed replay or publish it as one.
+
+The callback does not mutate or replace `evaluation`. Pass the provider's
+original row object to `development_feedback` after persistence; neither a
+deserialized row nor a deep copy is valid private feedback evidence.
+No legacy `skill-assessments.json`, cycle, approval, Active or next-use state
+is fabricated. The CLI reports `confirmation_status: not_run`,
+`confirmation_reason: confirmation_isolation_unverified` and
+`approval_eligible: false`, even when the development decision is `improved`.
+At the PR #33 stage, iteration and cycle storage were separate unfinished
+integrations. The following handoff adds those two pieces only; adoption writers,
+human-approval/next-use CLI and live iteration Actions remain unfinished.
+The final demo publisher connects replay/cycle evidence, not adoption.
+
+`tests/test_hackathon_integration.py` exercises real provider/guide evaluator,
+common validation, staged-bundle verification and storage with explicitly
+simulated model/container boundaries. Its two development evaluations prove
+feedback lineage and shared budget wiring, not completion of session 3's loop,
+semantic confirmation isolation, model improvement or actual Skill activation.
+
+#### Development iteration implementation handoff
+
+The integration branch retains session 3's `run_cycle` from `9f100bb` and the
+session 2 provider follow-up `4676c6c`, on PR #33's `b93249e` base. It introduces
+no replacement loop or evaluation/persistence callback.
+
+```python
+project_evaluation.run_iterations(
+    root, *, project_id, skill_key, work_item, output, model, execution_mode,
+    policy, max_rounds=1, confirmation_work_item=None, runtime_factory=None,
+    cycle_id=None,
+)
+project_evaluation.persist_cycle(output, cycle, reference)  # -> cycle artifact reference
+```
+
+`run_iterations` and `run_replay` share only the preparation context: target and
+WorkItem validation, live gates, one runtime/budget, private artifact allocation,
+the lock and prepared-image lifetime. The former delegates attempts to the
+delivered `run_cycle` with `partial(persist_replay, output,
+execution_mode=execution_mode)`; the latter retains its single replay behavior.
+The iteration module is included in the evaluator fingerprint for new evidence;
+stored historical hashes and decisions are not rewritten.
+
+Optional confirmation input is read and validated before any model invocation:
+same project/source commitment, a distinct task/input, disjoint required cases
+and `split: confirmation`. Its retained value is passed only to a lazy preparation
+callback after selection, with the exact same runtime/images/deadline. It never
+enters development context or prompts. This does not implement semantic isolation:
+the actual provider still raises `confirmation_isolation_unverified`.
+
+`persist_cycle` accepts only the terminal payload returned by the loop, binds an
+aggregate report, validates all stored report/capture/replay references, then
+uses `store_cycle`. It rereads the result through `load_cycles` and compares
+canonical bytes before returning `{project_id, run_id, path: "cycle.json", sha256}`.
+`load_replay_evidence` supplies the transitive mapping consumed by this same
+validator and writer. The aggregate report remains blocked/unverified, never
+an approval or a passed final confirmation. Storage errors are not caught as
+normal cycle termination. No resume, repair, overwrite or additional cycle is
+attempted on failure.
+
+The opt-in CLI is:
+
+```text
+python3 skillops.py iterate --project <project> --skill-key <key> \
+  --work-item <development-json> --confirmation-work-item <confirmation-json> \
+  --max-rounds 2 --results <results-directory>
+```
+
+Confirmation input is optional for a development-only run. `--max-rounds` is
+1-10, default 1. As with `replay`, execution requires both `--live` and explicit
+enabled/authenticated/bounded environment settings. There is no offline/mock
+production CLI flag. Exit 0 means a recorded normal development stop
+(`improved`, `max_rounds`, `no_change`), not improvement proof or approval.
+Budget/runtime/unverified termination returns 2 but may include a valid terminal
+cycle reference; callback/storage failure returns 2 without a success reference.
+The CLI always reports `approval_eligible: false`.
+
+`tests/test_hackathon_integration.py` exercises the actual loop, provider,
+validators, writer, loader and CLI dispatch. Only external transport/IO boundaries
+are simulated; the CLI test boundary explicitly labels simulated execution
+`offline_test`. Both pre-storage termination and callback failure are checked
+through the same implementation. `tests/export_iteration_evidence.py` generates
+fresh records directly into a new output directory through those production
+modules, not by copying a saved result fixture. Its manifest records the clean
+integration SHA, scenario paths, call counts, cycle/run IDs and canonical hashes.
+Input project and model/container observations are synthetic; these results are
+offline wiring evidence, never paid model-improvement or real activation evidence.
 
 ### Session 2: single-candidate primitives
 
@@ -813,7 +971,7 @@ session 1's existing explicit build list. No server/API dependency is introduced
 Browser tests must distinguish approval pending use, matching verified use,
 mismatch/failure, missing attachments, sample data and unchanged legacy records.
 
-The replay CLI integration target is opt-in:
+The development iteration CLI is opt-in (see the implemented handoff above):
 
 ```text
 python3 skillops.py iterate --project <project> --skill-key <key> \
@@ -825,8 +983,49 @@ Without the replay command/options, existing single-cycle CLI and project
 evaluation behavior stays unchanged. Actions integration adds only explicit
 work/Skill/round selection and append-only publication; default model access
 remains disabled, and local approval is never an Actions execution credential.
-Shared CLI changes also require synchronized English/Korean README updates in
-the implementation PR, not examples that pretend these commands exist now.
+The local command and read-only replay/cycle publication are implemented.
+Live iteration Actions and operational approval remain separate. Shared CLI
+changes require synchronized English/Korean README updates.
+
+### Final demo publication boundary
+
+The official builder registers modules in dependency order:
+`views.js`, `evolution.js`, `assessments.js`, `trace.js`, `app.js`. All five
+filenames hash their final rewritten bytes; importers point to those exact
+hashed modules. Sources are not rewritten and there is no alternate demo builder.
+
+`merge`, `index` and `build` validate complete replay/cycle graphs with the same
+loaders used by CLI storage. Incoming result packets must contain their own
+transitive reports, captures and replay references. Merge preflights immutable
+conflicts before writing; build validates before creating its output directory.
+Only allowlisted public files are copied. Optional history keys are precisely
+`replay_evaluation: <run>/replay-evaluation.json` and
+`cycle: <run>/cycle.json`; referenced report and capture files are retained.
+Non-live replay/cycle runs are never selected as `current_run`, even when their
+input/evaluator hashes happen to match. This pointer is not an Active claim.
+
+Adoption publication remains unsupported and explicitly blocked; no operational
+approval or next-use API is enabled by the UI integration. The browser can show
+historical absence and unverified state but cannot approve or deploy.
+
+For the presentation, combine the reviewed N=2 `offline_test` package produced
+by the integration exporter with unchanged pre-run public reports, using the
+official commands:
+
+```text
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming <offline-package>/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server <port> --bind 127.0.0.1 --directory <new-site>
+```
+
+Start links use `/?project=<project>&run=<exact-cycle-or-report-id>&skill=<key>`.
+Check the official HTTP-served build, refresh/deep links, round navigation,
+read-only requests, offline labels and unchanged historical outcomes. Retain
+screenshots plus a file-openable gallery as backup; none is evidence of new live
+evaluation. Opening a final integration PR targeting main registers the existing
+CI jobs; both validation workflows check the exact PR head. No CI bypass,
+main merge or public deployment is part of this preparation.
 
 ## 9. Delivery order and acceptance evidence
 

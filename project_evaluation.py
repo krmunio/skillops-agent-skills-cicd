@@ -1,7 +1,8 @@
 """Project orchestration with explicit live-evaluation gates and public-only output."""
 
 import argparse
-from contextlib import ExitStack
+import base64
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from functools import partial
 from hashlib import sha256
@@ -11,6 +12,7 @@ import os
 from pathlib import Path
 import sys
 import time
+from uuid import uuid4
 
 from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture
 import project_results as results
@@ -18,6 +20,8 @@ import repositories
 import project_checks
 import skill_guide
 import skill_pipeline
+import skill_assessments
+import evolution_records as evolution
 import evaluation_reporting
 import evaluation_telemetry
 
@@ -216,6 +220,190 @@ def budget_limits(budget):
                                       and credit >= MIN_AI_CREDITS), "missing_limits")
     return {"max_invocations": budget["max_calls"], "max_seconds": budget["max_seconds"],
             "max_ai_credits_per_session": credit}
+
+
+def _replay_run_id(execution_mode):
+    prefix = "sample-" if execution_mode == "sample" else "local-"
+    return prefix + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid4().hex[:12]
+
+
+def _replay_report(reference, run_id, execution_mode, *, complete_quality=False):
+    return {
+        "schema_version": 1, "project_id": reference["project_id"], "run_id": run_id,
+        "created_at": datetime.now(timezone.utc).isoformat(), "origin": "sample" if execution_mode == "sample" else "local",
+        "purpose": "project_assessment", "source_commit": reference["source_commit"],
+        "project_tree_sha256": reference["project_tree_sha256"], "evaluator_sha256": reference["evaluator_sha256"],
+        "source_report_sha256": None, "source_schema_version": None,
+        "guide": results.axis("completed" if complete_quality else "blocked",
+                              "evaluation_completed" if complete_quality else "assessment_unverified"),
+        "execution": results.axis("blocked", "assessment_unverified"),
+    }
+
+
+def persist_replay(output, evaluation, captures, generation, reference, *, execution_mode, run_id=None):
+    """Shared persist_round callback; never mutate the provider's retained evaluation."""
+    output = results.safe_path(output)
+    run_id = run_id or _replay_run_id(execution_mode)
+    complete_quality = all(evaluation["quality"][arm] is not None
+                           and evaluation["quality"][arm]["status"] == "completed" for arm in ("base", "candidate"))
+    report = _replay_report(reference, run_id, execution_mode, complete_quality=complete_quality)
+    common = {"schema_version": 1, "project_id": report["project_id"], "run_id": run_id,
+              "report_sha256": sha256(results.encoded(report)).hexdigest()}
+    key = evaluation["skill_key"]
+    records = evolution.empty_records()
+    records["identities"] = [{"skill_key": key, "display_name": Path(evaluation["source_path"]).name}]
+    records["sources"] = [{
+        "skill_key": key, "project_id": report["project_id"], "kind": "workspace", "scope": "project",
+        "path": evaluation["source_path"], "observed_at": report["created_at"], "evidence_ref": None,
+    }]
+    versions, contents = {}, {}
+    for version, files in captures:
+        identifier = version["version_id"]
+        results.require(identifier not in versions or versions[identifier] == version, "capture_mismatch")
+        versions[identifier] = version
+        for name, raw in files.items():
+            item = {"version_id": identifier, "path": name, "encoding": "base64",
+                    "data": base64.b64encode(raw).decode("ascii")}
+            results.require((identifier, name) not in contents or contents[(identifier, name)] == item,
+                            "capture_mismatch")
+            contents[(identifier, name)] = item
+    records["versions"] = list(versions.values())
+    records["skill_versions"] = [{"skill_key": key, "version_id": identifier} for identifier in versions]
+    lifecycle = {**common, "records": records, "bindings": [{
+        "skill_key": key, "base_version_id": evaluation["base_version_id"],
+        "candidate_version_id": evaluation["candidate_version_id"], "legacy_skill_id": None,
+    }], "file_contents": list(contents.values())}
+    replay = {**common, "execution_mode": execution_mode, "reference": reference,
+              "generation": generation, "evaluation": evaluation}
+    results.validate_evolution(lifecycle, report)
+    skill_assessments.validate_replay(replay, report=report, lifecycle=lifecycle)
+    results.require(len(results.encoded(replay)) <= results.LIMIT, "output_limit")
+    results.store(output, report)
+    results.store_evolution(output, lifecycle)
+    path = results.store_replay(output, replay)
+    return {"project_id": report["project_id"], "run_id": run_id,
+            "path": path.name,
+            "sha256": sha256(results.read_bytes(path)).hexdigest()}
+
+
+def persist_cycle(output, cycle, reference):
+    """Bind and store a terminal loop payload; propagate every storage/verification failure."""
+    output = results.safe_path(output)
+    results.require(all(cycle[key] == reference[key] for key in (
+        "project_id", "skill_key", "source_path", "input_sha256", "reference_sha256", "original_version_id")),
+        "cycle_reference_mismatch")
+    report = _replay_report(reference, cycle["run_id"], cycle["execution_mode"])
+    bound = {**cycle, "report_sha256": sha256(results.encoded(report)).hexdigest()}
+    results.validate_cycle(bound, report=report, evaluations=results.load_replay_evidence(output))
+    results.store(output, report)
+    path = results.store_cycle(output, bound)
+    stored = results.load_cycles(output)[(cycle["project_id"], cycle["cycle_id"])]
+    results.require(results.encoded(stored) == results.encoded(bound), "cycle_evidence_mismatch")
+    return {"project_id": cycle["project_id"], "run_id": cycle["run_id"], "path": path.name,
+            "sha256": sha256(results.encoded(stored)).hexdigest()}
+
+
+@contextmanager
+def _replay_session(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
+                    runtime_factory=None, confirmation_work_item=None):
+    """Keep preparation, image lifetime, lock and budget shared across either execution path."""
+    results.require(policy.get("enabled") is True, "live_disabled")
+    results.require(policy.get("authenticated") is True, "missing_auth")
+    budget = policy.get("budget")
+    limits = budget_limits(budget)
+    results.require(limits["max_ai_credits_per_session"] is not None, "missing_limits")
+    results.require(type(budget.get("calls")) is int and 0 <= budget["calls"] <= budget["max_calls"]
+                    and type(budget.get("deadline")) in (int, float) and math.isfinite(budget["deadline"]),
+                    "missing_limits")
+    remaining = budget["deadline"] - time.monotonic()
+    results.require(remaining > 0, "time_limit")
+    results.require(remaining <= limits["max_seconds"], "missing_limits")
+    results.require(budget["calls"] < budget["max_calls"], "call_limit")
+    results.require(execution_mode in ("live", "offline_test"), "invalid_execution_mode")
+    root, output = results.safe_path(root), results.safe_path(output)
+    results.require(results.matches(results.ID, project_id), "invalid_project_id")
+    project = root / "projects" / project_id
+    results.require(not output.is_relative_to(project), "unsafe_path")
+    work = results.read_json(work_item)
+    results.require(isinstance(work, dict), "invalid_work_item")
+    skill_assessments.validate_work_item(work, project=project, source_commit=work.get("source_commit"))
+    results.require(work["project_id"] == project_id, "work_project_mismatch")
+    results.require(work["split"] == "development", "confirmation_isolation_unverified")
+    final = None
+    if confirmation_work_item is not None:
+        final = results.read_json(confirmation_work_item)
+        skill_assessments.validate_work_item(final, project=project, source_commit=work["source_commit"])
+        results.require(final["split"] == "confirmation" and final["task_id"] != work["task_id"]
+                        and final["input_sha256"] != work["input_sha256"]
+                        and not set(final["checks"]["required_case_ids"]) & set(work["checks"]["required_case_ids"]),
+                        "confirmation_isolation_unverified")
+    history = list(results.load_assessments(output).values())
+    history.extend({"project_id": row["project_id"], "skills": [row["evaluation"]]}
+                   for row in results.load_replays(output).values())
+    selected = [bundle for bundle in skill_guide.discover(project)
+                if skill_pipeline.skill_key(project_id, bundle["path"], history) == skill_key]
+    results.require(len(selected) == 1, "unknown_skill")
+    rubric = results.read_json(root / "eval/skill-guide-rubric.json")
+    raw_runtime = (runtime_factory or CopilotRuntime)(root)
+    runtime = BudgetRuntime(raw_runtime, budget)
+    runtime.execution_mode = execution_mode
+    artifact = runtime.private / "replays" / uuid4().hex
+    with raw_runtime.locked():
+        images = resolve_images(project)
+        remaining = min(180, budget["deadline"] - time.monotonic())
+        results.require(remaining > 0, "time_limit")
+        with project_checks.prepared_images(project, images, timeout=remaining) as prepared:
+            context = skill_pipeline.prepare_replay(
+                runtime, model, project, selected[0], skill_key, rubric, prepared, artifact / "prepare",
+                work_item=work, deadline=budget["deadline"])
+            confirmation = None if final is None else partial(
+                skill_pipeline.prepare_replay, runtime, model, project, selected[0], skill_key, rubric, prepared,
+                artifact / "confirmation-prepare", work_item=final, deadline=budget["deadline"])
+            yield runtime, context, artifact, confirmation
+
+
+def run_replay(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
+               runtime_factory=None):
+    """One opt-in development replay, using the same providers and persistence as iteration."""
+    with _replay_session(
+            root, project_id=project_id, skill_key=skill_key, work_item=work_item, output=output,
+            model=model, execution_mode=execution_mode, policy=policy, runtime_factory=runtime_factory
+    ) as (runtime, context, artifact, _):
+        budget = runtime.budget
+        generation, candidate = skill_pipeline.generate_candidate(
+            runtime, model, context["original"], context["feedback"], artifact / "generation",
+            deadline=budget["deadline"])
+        row, captures = skill_pipeline.evaluate_candidate(
+            runtime, model, context, candidate, artifact / "evaluation", deadline=budget["deadline"])
+        evidence = persist_replay(output, row, captures, generation, context["reference"],
+                                  execution_mode=execution_mode)
+    return {"status": row["decision"]["status"], "execution_mode": execution_mode, "evaluation_ref": evidence,
+            "candidate_version_id": candidate[0]["version_id"], "budget": budget_limits(budget), "calls": budget["calls"],
+            "approval_eligible": False, "confirmation_status": "not_run",
+            "confirmation_reason": "confirmation_isolation_unverified"}
+
+
+def run_iterations(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
+                   max_rounds=1, confirmation_work_item=None, runtime_factory=None, cycle_id=None):
+    """Connect the delivered loop; do not duplicate its attempt or failure semantics."""
+    import skill_iterations
+    results.require(type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_round_limit")
+    cycle_id = _replay_run_id(execution_mode) if cycle_id is None else cycle_id
+    results.require(results.matches(results.RUN, cycle_id), "invalid_cycle_id")
+    with _replay_session(
+            root, project_id=project_id, skill_key=skill_key, work_item=work_item, output=output,
+            model=model, execution_mode=execution_mode, policy=policy, runtime_factory=runtime_factory,
+            confirmation_work_item=confirmation_work_item
+    ) as (runtime, context, artifact, confirmation):
+        cycle = skill_iterations.run_cycle(
+            runtime, model, context, artifact / "cycle", cycle_id=cycle_id, max_rounds=max_rounds,
+            budget=runtime.budget, confirmation_context=confirmation,
+            persist_round=partial(persist_replay, output, execution_mode=execution_mode))
+        evidence = persist_cycle(output, cycle, context["reference"])
+    return {"status": cycle["stop_reason"], "execution_mode": execution_mode, "cycle_id": cycle_id,
+            "cycle_ref": evidence, "rounds": len(cycle["rounds"]), "budget": cycle["budget"],
+            "calls": runtime.budget["calls"], "selected_candidate_version_id": cycle["selected_candidate_version_id"],
+            "approval_eligible": False, "confirmation_status": cycle["confirmation_status"]}
 
 
 def changed_projects(root, projects, before, source_commit):

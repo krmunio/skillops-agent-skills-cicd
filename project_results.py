@@ -51,7 +51,7 @@ DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_pa
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
-    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "evaluation_telemetry.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "evaluation_telemetry.py",
 )
 
 
@@ -309,36 +309,42 @@ def load_snapshots(results, rows=None):
     return snapshots
 
 
-def _require_legacy_publication(results):
-    # Replay publishers must preserve all linked evidence before this guard is removed.
-    for name in ("replay-evaluation.json", "cycle.json", "adoption.json"):
-        require(not any(safe_path(results).glob(f"*/*/{name}")), "replay_publication_pending")
+def _require_supported_publication(results):
+    require(not any(safe_path(results).glob("*/*/adoption.json")), "adoption_publication_pending")
 
 
 def merge_results(root, incoming, results):
-    _require_legacy_publication(incoming)
-    _require_legacy_publication(results)
+    _require_supported_publication(incoming)
+    _require_supported_publication(results)
     rows = load_reports(incoming)
     snapshots = load_snapshots(incoming, rows)
     lifecycles = load_evolution(incoming, rows, snapshots)
     skill_assessments = load_assessments(incoming, rows, lifecycles)
     measurements = load_telemetry(incoming, rows, skill_assessments)
+    replays = load_replays(incoming, rows)
+    cycles = load_cycles(incoming, rows)
     existing_rows = load_reports(results)
     existing_snapshots = load_snapshots(results, existing_rows)
     existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
     existing_assessments = load_assessments(results, existing_rows, existing_lifecycles)
     existing_measurements = load_telemetry(results, existing_rows, existing_assessments)
+    existing_replays = load_replays(results, existing_rows)
+    existing_cycles = load_cycles(results, existing_rows)
     merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
     merged_snapshots = dict(existing_snapshots)
     merged_lifecycles = dict(existing_lifecycles)
     merged_assessments = dict(existing_assessments)
     merged_measurements = dict(existing_measurements)
+    merged_replays = dict(existing_replays)
+    merged_cycles = dict(existing_cycles)
     for mapping, values, name in (
         (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
         (merged_snapshots, snapshots, "skill-snapshots.json"),
         (merged_lifecycles, lifecycles, "skill-evolution.json"),
         (merged_assessments, skill_assessments, "skill-assessments.json"),
         (merged_measurements, measurements, "stage-metrics.json"),
+        (merged_replays, replays, "replay-evaluation.json"),
+        (merged_cycles, cycles, "cycle.json"),
     ):
         for key, value in values.items():
             path = safe_path(Path(results) / key[0] / key[1] / name)
@@ -351,6 +357,12 @@ def merge_results(root, incoming, results):
         assessments.validate(value, merged_rows[key], merged_lifecycles.get(key))
     for key, value in merged_measurements.items():
         telemetry.validate(value, merged_rows[key], merged_assessments.get(key))
+    for key, value in merged_replays.items():
+        assessments.validate_replay(value, report=merged_rows[key], lifecycle=merged_lifecycles.get(key))
+    evidence = {key: {"report": merged_rows[key], "lifecycle": merged_lifecycles[key], "replay": value}
+                for key, value in merged_replays.items()}
+    for key, value in merged_cycles.items():
+        validate_cycle(value, report=merged_rows[key], evaluations=evidence)
     for row in rows:
         store(results, row)
     for data in snapshots.values():
@@ -361,6 +373,10 @@ def merge_results(root, incoming, results):
         store_assessments(results, data)
     for data in measurements.values():
         store_telemetry(results, data)
+    for data in replays.values():
+        store_replay(results, data)
+    for data in cycles.values():
+        store_cycle(results, data)
     return reindex(root, results)
 
 
@@ -430,6 +446,17 @@ def load_assessments(results, rows=None, lifecycles=None):
         require(key in reports, "orphan_skill_assessments")
         values[key] = assessments.validate(read_json(path), reports[key], lifecycles.get(key))
     return values
+
+
+def store_replay(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = safe_path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    lifecycle = validate_evolution(read_json(folder / "skill-evolution.json", EVOLUTION_LIMIT), report)
+    assessments.validate_replay(data, report=report, lifecycle=lifecycle)
+    path = folder / "replay-evaluation.json"
+    atomic_json(path, data, immutable=True)
+    return path
 
 
 def load_replays(results, rows=None):
@@ -507,8 +534,9 @@ def validate_cycle(data, *, report, evaluations):
         evolution.exact(row, "round_id round_number run_id parent_version_id candidate_version_id input_sha256 "
                              "reference_sha256 feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason")
         require(type(row["round_number"]) is int and row["round_number"] == number
-                and row["round_id"] == f"{data['cycle_id']}-r{number}"
-                and matches(RUN, row["run_id"]) and row["run_id"] not in used, "invalid_cycle_round")
+                and row["round_id"] == f"{data['cycle_id']}-r{number}", "invalid_cycle_round")
+        require(row["run_id"] is None if row["evaluation_ref"] is None else
+                matches(RUN, row["run_id"]) and row["run_id"] not in used, "invalid_cycle_round")
         require(row["parent_version_id"] == parent and row["feedback_source_round_id"] == previous_id,
                 "cycle_lineage_mismatch")
         require(row["input_sha256"] == data["input_sha256"] and row["reference_sha256"] == data["reference_sha256"]
@@ -587,14 +615,31 @@ def validate_cycle(data, *, report, evaluations):
     return data
 
 
-def load_cycles(results, rows=None):
-    results = safe_path(results)
+def load_replay_evidence(results, rows=None):
+    """Load the transitive report/capture/replay mapping required by cycle validation."""
     rows = load_reports(results) if rows is None else rows
     reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
     replays = load_replays(results, rows)
     lifecycles = load_evolution(results, rows)
-    evaluations = {key: {"report": reports[key], "lifecycle": lifecycles[key], "replay": replay}
-                   for key, replay in replays.items()}
+    return {key: {"report": reports[key], "lifecycle": lifecycles[key], "replay": replay}
+            for key, replay in replays.items()}
+
+
+def store_cycle(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")))
+    folder = safe_path(results) / data["project_id"] / data["run_id"]
+    report = validate(read_json(folder / "report.json"))
+    validate_cycle(data, report=report, evaluations=load_replay_evidence(results))
+    path = folder / "cycle.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
+def load_cycles(results, rows=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): validate(row) for row in rows}
+    evaluations = load_replay_evidence(results, rows)
     values = {}
     for path in sorted(results.glob("*/*/cycle.json")):
         key = (path.parent.parent.name, path.parent.name)
@@ -858,6 +903,7 @@ def reindex(root, results):
     import skill_guide
     from skill_pipeline import skill_key
 
+    _require_supported_publication(results)
     current = {row["id"]: row for row in catalog(root)}
     fingerprint = evaluator_hash(root)
     grouped = {}
@@ -866,6 +912,10 @@ def reindex(root, results):
     lifecycles = load_evolution(results, all_rows, snapshots)
     skill_assessments = load_assessments(results, all_rows, lifecycles)
     load_telemetry(results, all_rows, skill_assessments)
+    replays = load_replays(results, all_rows)
+    cycles = load_cycles(results, all_rows)
+    non_live = {key for group in (replays, cycles) for key, data in group.items()
+                if data["execution_mode"] != "live"}
     for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
@@ -874,6 +924,7 @@ def reindex(root, results):
         active = current.get(identifier)
         matching = [row for row in rows if active and not active["error"]
                     and row["origin"] in ("github_actions", "local")
+                    and (row["project_id"], row["run_id"]) not in non_live
                     and row["project_tree_sha256"] == active["tree_sha256"]
                     and row["evaluator_sha256"] == fingerprint]
         entry = {
@@ -914,6 +965,11 @@ def reindex(root, results):
                                evolution_skills=evolution_summary(lifecycle))
             if (identifier, summary["run_id"]) in skill_assessments:
                 summary["skill_assessments"] = f"{summary['run_id']}/skill-assessments.json"
+            for mapping, key, filename in (
+                (replays, "replay_evaluation", "replay-evaluation.json"), (cycles, "cycle", "cycle.json"),
+            ):
+                if (identifier, summary["run_id"]) in mapping:
+                    summary[key] = f"{summary['run_id']}/{filename}"
         atomic_json(Path(results) / identifier / "index.json", {"schema_version": 1, "project": entry, "history": summaries})
         entries.append(entry)
     index = {"schema_version": 1, "projects": entries}
@@ -981,12 +1037,14 @@ def import_history(source, target, project):
 def build(root, results, output):
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
-    _require_legacy_publication(results)
+    _require_supported_publication(results)
     rows = load_reports(results)
     snapshots = load_snapshots(results, rows)
     lifecycles = load_evolution(results, rows, snapshots)
     skill_assessments = load_assessments(results, rows, lifecycles)
     measurements = load_telemetry(results, rows, skill_assessments)
+    replays = load_replays(results, rows)
+    cycles = load_cycles(results, rows)
     output.mkdir(parents=True)
     modules = {}
 
@@ -994,7 +1052,7 @@ def build(root, results, output):
         require(match[2] in modules, "invalid_dashboard_import")
         return f"{match[1]}./{modules[match[2]]}{match[3]}"
 
-    for name in ("views.js", "evolution.js", "assessments.js", "app.js"):
+    for name in ("views.js", "evolution.js", "assessments.js", "trace.js", "app.js"):
         source = read_bytes(root / "dashboard" / name).decode("utf-8")
         raw = re.sub(r"(?m)^(\s*import\b[^;]*?\bfrom\s*['\"])\./([^'\"]+\.js)(['\"])",
                      rewrite_import, source).encode("utf-8")
@@ -1020,6 +1078,10 @@ def build(root, results, output):
         store_assessments(output / "results", data)
     for data in measurements.values():
         store_telemetry(output / "results", data)
+    for data in replays.values():
+        store_replay(output / "results", data)
+    for data in cycles.values():
+        store_cycle(output / "results", data)
     return reindex(root, output / "results")
 
 

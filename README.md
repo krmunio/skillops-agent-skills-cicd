@@ -100,6 +100,102 @@ evaluation history or current-version qualification. The publisher appends them
 with `merge-samples`; static builds only read stored results. No paid calls,
 source changes or candidate adoption are performed.
 
+### One recorded development replay
+
+The opt-in adapter evaluates one candidate against a recorded development
+WorkItem and fixed original Skill. It does not replace the existing automatic
+single-candidate path:
+
+```bash
+python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --results <replay-results-directory>
+```
+
+This command **blocks without model calls** unless `--live` is explicitly added
+and the environment provides `SKILLOPS_LIVE_EVALUATION_ENABLED=true`,
+authentication (`COPILOT_GITHUB_TOKEN` or `GITHUB_TOKEN`), approved
+`SKILLOPS_MAX_INVOCATIONS`, `SKILLOPS_MAX_SECONDS` and
+`SKILLOPS_MAX_AI_CREDITS_PER_SESSION`. Obtain separate authorization for the
+project, Skill and limits before enabling it. Credit is a per-session soft cap,
+not an aggregate monetary guarantee. All stages share one call/time budget.
+The project must be under `projects/`; the private WorkItem pins its actual Git
+commit, request, source hashes and protected checks. See the
+[replay contract](docs/HACKATHON-CONTRACTS.md) for its schema and callback API.
+
+Each run stores immutable `report.json`, complete `skill-evolution.json` and
+`replay-evaluation.json`; the CLI returns the exact evidence reference.
+Confirmation remains `not_run` with `confirmation_isolation_unverified` and
+approval eligibility is always false. Development improvement is not final
+confirmation, approval or verified next use. The command never updates Active.
+Development iteration is connected by the `iterate` command below.
+Approval/next-use CLI and live iteration Actions remain separate.
+The official publisher now preserves validated replay/cycle graphs; unsupported
+adoption publication remains blocked.
+Offline integration tests simulate only model/container boundaries and label
+their results `offline_test`, never measured model improvement.
+
+### Bounded development iteration and offline demo
+
+```bash
+python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
+  --max-rounds 2 --results <iteration-results-directory>
+```
+
+This uses the actual `run_cycle` module and the same replay persistence callback.
+The original remains the comparison baseline; only the parent candidate and
+development feedback change. Preparation, every round and optional confirmation
+share one runtime and authorized budget. The same `--live`, authentication and
+limit gates apply; the example alone makes no model calls. Confirmation is
+optional, frozen before generation and still blocked by the isolation guard.
+No candidate is approved or made Active.
+
+Each saved evaluation has its own run. A terminal `cycle.json` and aggregate
+`report.json` bind those runs; the actual loader revalidates their hashes and
+complete captures. An admitted attempt ending before persistence has null
+`run_id`, `evaluation_ref` and `decision`; unstarted rounds are not invented.
+A persistence callback failure propagates without a terminal cycle or success
+receipt, while earlier stored rounds remain unchanged. There is no automatic
+retry or recovery. Exit 0 denotes normal development termination, not final
+confirmation or adoption; budget/runtime/unverified outcomes return 2.
+
+For a **no-paid-calls terminal demo/backup**, use a clean committed integration
+checkout and a new output directory:
+
+```bash
+SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 tests/export_iteration_evidence.py \
+  --output /tmp/skillops-iterate-demo
+python3 -m json.tool /tmp/skillops-iterate-demo/manifest.json
+python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
+```
+
+The exporter runs production provider/loop/storage modules with synthetic inputs
+and simulated model/container transport. It does not copy prebuilt result
+fixtures. The manifest contains the integration SHA, scenario directories,
+cycle/run IDs and hashes for N=2 feedback, early stop, maximum rounds, budget
+exhaustion, unsaved attempts and persistence failure. All results are explicitly
+`offline_test`; confirmation stays unverified/not run. Existing outputs are never
+overwritten. The official builder includes `trace.js` and hash-verified replay/cycle
+links. Public deployment still requires separate authorization; design PR #32 is
+not part of this demo.
+
+To prepare the read-only local screen, merge reviewed historical reports and the
+generated `n2-feedback` directory into a new results directory, then use the
+official build (never copy private runtime directories):
+
+```bash
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
+```
+
+Use `/?project=<project>&run=<exact-cycle-id>&skill=<skill-key>` on the loopback
+server; cycle IDs and run references are in the exporter manifest. The screen
+labels `offline_test` as non-measured and keeps final confirmation/approval
+incomplete. Historical reports retain their original bytes and outcomes.
+Retain screenshots and a file-openable gallery as a no-server backup.
+
 ### Prepared project samples
 
 - `projects/sample_repo`: original issue-management seeds plus an explicitly added development skill.

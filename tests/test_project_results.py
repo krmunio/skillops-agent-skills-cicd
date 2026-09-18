@@ -222,7 +222,7 @@ class ProjectResultsTests(unittest.TestCase):
     def test_build_hashes_final_modules_and_resolves_entrypoint_and_imports(self):
         module = self.module()
         root = Path(__file__).resolve().parents[1]
-        names = ("app", "views", "evolution", "assessments")
+        names = ("app", "views", "evolution", "assessments", "trace")
         originals = {name: (root / "dashboard" / f"{name}.js").read_bytes() for name in names}
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "site"
@@ -230,7 +230,7 @@ class ProjectResultsTests(unittest.TestCase):
             scripts = list(output.glob("*.js"))
             self.assertEqual(len(scripts), len(names))
             for script in scripts:
-                self.assertRegex(script.name, r"^(app|views|evolution|assessments)\.[a-f0-9]{12}\.js$")
+                self.assertRegex(script.name, r"^(app|views|evolution|assessments|trace)\.[a-f0-9]{12}\.js$")
                 self.assertEqual(script.name.split(".")[1], sha256(script.read_bytes()).hexdigest()[:12])
                 source = script.read_text(encoding="utf-8")
                 for imported in re.findall(r"\bfrom\s+['\"]\./([^'\"]+)['\"]", source):
@@ -270,7 +270,7 @@ class ProjectResultsTests(unittest.TestCase):
                              sorted(path.name for path in repeated.glob("*.js")))
             with mock.patch.object(module, "read_bytes", side_effect=changed_dependency):
                 module.build(root, root / "results", changed)
-            for name in ("app", "views", "evolution", "assessments"):
+            for name in ("app", "views", "evolution", "assessments", "trace"):
                 self.assertNotEqual(next(original.glob(f"{name}.*.js")).name,
                                     next(changed.glob(f"{name}.*.js")).name)
 
