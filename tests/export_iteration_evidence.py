@@ -15,6 +15,8 @@ from test_hackathon_integration import ReplayIntegrationTests
 
 
 SCENARIOS = {
+    "confirmation-passed": "test_actual_registered_confirmation_callback_persists_selected_capture_once",
+    "confirmation-failed": "test_registered_confirmation_required_case_failure_is_not_passed",
     "n2-feedback": "test_iterations_n2_uses_real_feedback_and_persists_blocked_confirmation",
     "early-improvement": "test_iterations_stop_after_first_improvement",
     "max-rounds": "test_iterations_max_rounds_never_invokes_confirmation",
