@@ -357,6 +357,8 @@ class CopilotRuntime:
             locked = lock["packages"][package]
             version = lock["packages"][""]["devDependencies"]["@github/copilot"]
             binary = safe_path(root / package / "copilot")
+            if not isinstance(installed, dict) or not isinstance(locked, dict) or not isinstance(version, str) or not version:
+                raise RuntimeFailure("confirmation_isolation_unverified", "The native CLI manifests are invalid.")
             if installed.get("version") != version or locked.get("version") != version:
                 raise RuntimeFailure("confirmation_inputs_changed", "Installed native CLI differs from the lock.")
             if not binary.is_file() or not os.access(binary, os.X_OK) or binary.stat().st_size > 256 * 1024 * 1024:
@@ -375,6 +377,10 @@ class CopilotRuntime:
                 raise RuntimeFailure("confirmation_isolation_unverified", "The pinned model image is not available locally.")
             return {"docker": docker, "image": image, "binary": binary, "binary_sha256": digest.hexdigest(),
                     "lock_sha256": sha256(read_bytes(lock_path)).hexdigest(), "version": version}
+        except RuntimeFailure as error:
+            if error.code not in ("invalid_file", "input_limit", "invalid_json", "invalid_encoding", "unsafe_path"):
+                raise
+            raise RuntimeFailure("confirmation_isolation_unverified", "Isolation prerequisite files are unavailable or invalid.") from error
         except (OSError, KeyError, TypeError) as error:
             raise RuntimeFailure("confirmation_isolation_unverified", "Isolation prerequisites are unavailable.") from error
 
