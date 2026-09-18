@@ -316,6 +316,57 @@ def validate_work_item(data, *, project, source_commit):
     return data
 
 
+def validate_confirmation_disclosure(data, *, project, development_work_item,
+                                     confirmation_work_item, original, source_path):
+    """Validate reviewed disclosure bytes; this neither issues nor proves runtime isolation."""
+    import project_results as results
+    exact(data, "schema_version development_input_sha256 confirmation_input_sha256 "
+                "model_visible_files checker_only_files disclosure_sha256")
+    require(type(data["schema_version"]) is int and data["schema_version"] == 1,
+            "confirmation_isolation_unverified")
+    project = results.safe_path(project)
+    development, confirmation = development_work_item, confirmation_work_item
+    require(isinstance(development, dict) and isinstance(confirmation, dict), "invalid_work_item")
+    for work in (development, confirmation):
+        validate_work_item(work, project=project, source_commit=development.get("source_commit"))
+    require(development["split"] == "development" and confirmation["split"] == "confirmation"
+            and development["task_id"] != confirmation["task_id"]
+            and development["input_sha256"] != confirmation["input_sha256"]
+            and development["request"].strip() != confirmation["request"].strip()
+            and not set(development["checks"]["required_case_ids"]) & set(confirmation["checks"]["required_case_ids"]),
+            "confirmation_isolation_unverified")
+    require(data["development_input_sha256"] == development["input_sha256"]
+            and data["confirmation_input_sha256"] == confirmation["input_sha256"]
+            and data["disclosure_sha256"] == _hash({k: v for k, v in data.items() if k != "disclosure_sha256"}),
+            "confirmation_inputs_changed")
+    require(len(results.encoded(data)) <= results.LIMIT, "output_limit")
+    _capture(original)
+    evolution.relative_path(source_path)
+    bundle = project / source_path
+    require(bundle.is_dir(), "replay_capture_mismatch")
+    actual_bundle = {p.relative_to(bundle).as_posix(): results.read_bytes(p)
+                     for p in sorted(bundle.rglob("*")) if p.is_file()}
+    require(actual_bundle == original[1], "replay_capture_mismatch")
+    visible = set(development["sources"]) | set(confirmation["sources"]) | {
+        (Path(source_path) / name).as_posix() for name in original[1]}
+    maps = (data["model_visible_files"], data["checker_only_files"])
+    for mapping in maps:
+        require(isinstance(mapping, dict), "confirmation_isolation_unverified")
+        for name, digest in mapping.items():
+            evolution.relative_path(name)
+            require(matches(DIGEST, digest), "confirmation_isolation_unverified")
+    require(set(maps[0]) == visible and not set(maps[0]) & set(maps[1]),
+            "confirmation_isolation_unverified")
+    inventory = {p.relative_to(project).as_posix(): sha256(results.read_bytes(p)).hexdigest()
+                 for p in sorted(project.rglob("*")) if p.is_file()}
+    require({**maps[0], **maps[1]} == inventory, "confirmation_inputs_changed")
+    request = confirmation["request"].strip().encode("utf-8")
+    require(request not in development["request"].encode("utf-8")
+            and all(request not in results.read_bytes(project / name) for name in visible),
+            "confirmation_isolation_unverified")
+    return data
+
+
 def _replay_row(row):
     exact(row, "skill_key source_path base_version_id candidate_version_id work reference_sha256 "
                "quality applications checks errors" + (" decision" if "decision" in row else ""))
