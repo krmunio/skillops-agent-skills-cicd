@@ -379,23 +379,23 @@ class ReviewedPublicationTests(unittest.TestCase):
     def test_reviewed_candidates_preserve_modes_hashes_and_complete_reference_graph(self):
         bundle = ROOT / "publication-candidates/hackathon-offline-v1"
         raw = (bundle / "manifest.json").read_bytes()
-        self.assertEqual(sha256(raw).hexdigest(), "f6f8eb0d95a17eb3eac060308ccb971fbd1fe17c48bc82ce1eaf29143b9cb680")
+        self.assertEqual(sha256(raw).hexdigest(), "5438e9eb7258feeadc651f1481b5adef0b4d1c8213a15467e17de2ee64a637ec")
         manifest = results.read_json(bundle / "manifest.json")
-        self.assertEqual(len(manifest["files"]), 33)
-        self.assertEqual(sum(row["size"] for row in manifest["files"]), 142758)
+        self.assertEqual(len(manifest["files"]), 47)
+        self.assertEqual(sum(row["size"] for row in manifest["files"]), 206684)
         for row in manifest["files"]:
             payload = (bundle / row["path"]).read_bytes()
             self.assertEqual((len(payload), sha256(payload).hexdigest()), (row["size"], row["sha256"]))
         directory = bundle / "results"
         cycles = results.load_cycles(directory)
-        self.assertEqual(len(results.load_reports(directory)), 12)
+        self.assertEqual(len(results.load_reports(directory)), 17)
         self.assertEqual({row["confirmation_status"] for row in cycles.values()}, {"passed", "failed", "unverified"})
         for row in cycles.values():
             self.assertEqual(row["execution_mode"], "offline_test")
             self.assertEqual(row["skill_key"], "path:90ae807bd3d394fc140a6df8")
             self.assertEqual(len(row["rounds"]), 2)
         replays = results.load_replays(directory)
-        self.assertEqual(len(replays), 9)
+        self.assertEqual(len(replays), 11)
         self.assertTrue(all(row["execution_mode"] == "offline_test" for row in replays.values()))
         self.assertFalse(results.load_adoptions(directory))
 
