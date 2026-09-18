@@ -650,6 +650,10 @@ class CopilotRuntime:
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
                skill_name="develop", expected_version=None, max_ai_credits=None):
+        if len(prompt.encode("utf-8")) > PROMPT_LIMIT:
+            raise RuntimeFailure("prompt_limit", "Prompt exceeds the bounded CLI input size.")
+        if Path(artifact).exists() or Path(artifact).is_symlink():
+            raise RuntimeFailure("artifact_exists", "Refusing to overwrite a prior invocation artifact.")
         with self._invocation_isolation(role, workdir, expected_skill, expected_version):
             return self._invoke(prompt, model, role, workdir, artifact, expected_skill, timeout=timeout,
                                 skill_name=skill_name, expected_version=expected_version,
@@ -657,8 +661,6 @@ class CopilotRuntime:
 
     def _invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
                 skill_name="develop", expected_version=None, max_ai_credits=None):
-        if len(prompt.encode("utf-8")) > PROMPT_LIMIT:
-            raise RuntimeFailure("prompt_limit", "Prompt exceeds the bounded CLI input size.")
         artifact = Path(artifact)
         try:
             with artifact.open("x") as output:
