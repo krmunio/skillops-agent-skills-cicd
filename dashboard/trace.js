@@ -502,7 +502,9 @@ export function renderTrace(trace) {
     paragraph(section, '선택 후보', cycle.selected_candidate_version_id);
     if (!trace.approvals.some(item => item.row.cycle_id === cycle.cycle_id)) {
       paragraph(section, '채택 단계', cycle.confirmation_status === 'passed' ?
-        '승인 대기 · 이 공개 연결에 승인 기록 미기록' : '최종 확인 미완료 · 승인 가능으로 간주하지 않음');
+        (cycle.execution_mode === 'live' ? '승인 대기 · 이 공개 연결에 승인 기록 미기록' :
+          '테스트/샘플 · 승인 불가 · 실제 승인에는 live 최종 확인 근거 필요') :
+        '최종 확인 미완료 · 승인 가능으로 간주하지 않음');
     }
     panel.append(section);
   }
