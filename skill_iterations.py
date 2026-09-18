@@ -1,6 +1,6 @@
 """Bounded development-feedback search; never approval, activation or public storage.
 
-Contract revision 1.2: c194ea8f43f0a64b98d96e5adababbffccc6d49e.
+Contract revision 1.3, as integrated in fcf2cad6e61908be7461526365cf2a608220dbdf.
 Uses the real replay provider and shared budget/decision validators. Retained
 evaluation objects stay unchanged for private feedback issuance. Confirmation
 is still blocked by the provider with confirmation_isolation_unverified.
@@ -322,9 +322,9 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
         selected = _capture(candidate)
         folder = artifact / "confirmation"
         folder.mkdir()
-        cycle["confirmation_status"] = "unverified"
         try:
             admit_stage()
+            cycle["confirmation_status"] = "unverified"
             final_context = _measured(runtime, folder / "preparation-metrics.json",
                                       lambda progress: confirmation_context(), "work")
             check_inputs()
