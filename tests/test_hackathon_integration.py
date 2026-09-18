@@ -37,13 +37,29 @@ class OfflineTransport:
         self.scores = (2, 3)
         self.original_at = None
         self.fail_generation_at = None
+        self.isolated = False
+        self.reject_confirmation = True
 
     @contextmanager
     def locked(self):
         yield
 
+    @contextmanager
+    def confirmation_isolation(self, *, deadline):
+        self.isolated = True
+        try:
+            yield
+        finally:
+            self.isolated = False
+
+    def require_confirmation_isolation(self):
+        if not self.isolated:
+            raise RuntimeFailure("confirmation_isolation_unverified", "Offline simulated boundary is inactive.")
+
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, **kwargs):
         self.calls.append((role, prompt))
+        if role == "developer" and "FINAL_REQUEST_SENTINEL" in prompt and self.reject_confirmation:
+            raise RuntimeFailure("runtime_error", "Offline simulated final model transport failure.")
         if role == "judge":
             rubric_text, evidence_text = prompt.split("RUBRIC:\n", 1)[1].split("\nSKILL_EVIDENCE:\n", 1)
             rubric, evidence = json.loads(rubric_text), json.loads(evidence_text)
@@ -104,6 +120,19 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.final_work["input_sha256"] = digest({k: v for k, v in self.final_work.items() if k != "input_sha256"})
         self.final_path = self.root / "confirmation.json"
         self.final_path.write_bytes(results.encoded(self.final_work))
+        visible = set(self.work["sources"]) | set(self.final_work["sources"]) | {
+            "skills/develop/" + item["path"] for item in skill_guide.discover(self.project)[0]["files"]}
+        inventory = {p.relative_to(self.project).as_posix(): runner.sha256(p.read_bytes()).hexdigest()
+                     for p in self.project.rglob("*") if p.is_file()}
+        self.disclosure = {
+            "schema_version": 1, "development_input_sha256": self.work["input_sha256"],
+            "confirmation_input_sha256": self.final_work["input_sha256"],
+            "model_visible_files": {p: h for p, h in inventory.items() if p in visible},
+            "checker_only_files": {p: h for p, h in inventory.items() if p not in visible},
+        }
+        self.disclosure["disclosure_sha256"] = digest(self.disclosure)
+        self.disclosure_path = self.root / "disclosure.json"
+        self.disclosure_path.write_bytes(results.encoded(self.disclosure))
         self.key = skill_pipeline.skill_key("sample_repo", "skills/develop", [])
         self.output = self.root / "results"
         self.images = data["images"]
@@ -210,6 +239,212 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(output["execution_mode"], "offline_test")
         self.assertEqual(output["budget"]["max_seconds"], 120)
 
+    def test_canonical_private_work_is_retained_before_any_model_call(self):
+        path = self.raw.private / "work-items" / self.work["task_id"] / (self.work["input_sha256"] + ".json")
+        invoke = self.raw.invoke
+
+        def require_work(*args, **kwargs):
+            self.assertEqual(results.read_json(path), self.work)
+            self.assertEqual(path.stat().st_mode & 0o077, 0)
+            self.assertEqual(path.parent.stat().st_mode & 0o077, 0)
+            return invoke(*args, **kwargs)
+
+        with patch.object(self.raw, "invoke", side_effect=require_work):
+            self.run_one()
+        before = path.read_bytes()
+        self.run_one()
+        self.assertEqual(path.read_bytes(), before)
+        self.assertFalse(list(self.output.rglob("*work-item*")))
+
+    def test_actions_private_selection_uses_actual_iteration_without_exposing_request(self):
+        action = self.api(runner, "run_recorded_iterations")
+        @contextmanager
+        def prepared(project, images, **kwargs):
+            yield images
+        private = json.dumps({self.work["task_id"]: {"work_item": self.work}})
+        with patch.dict(runner.os.environ, {"SKILLOPS_RECORDED_WORK_ITEMS": private, "GITHUB_ACTIONS": "true"}), \
+                patch.object(runner, "resolve_images", return_value=self.images), \
+                patch.object(project_checks, "prepared_images", side_effect=prepared):
+            result = action(
+                self.root, project_id="sample_repo", skill_key=self.key, work_id=self.work["task_id"],
+                max_rounds=2, output=self.output, source_commit=self.commit, cycle_id="202-1", live=True,
+                policy={"enabled": True, "authenticated": True, "budget": self.budget},
+                runtime_factory=lambda root: self.raw)
+            self.assertNotIn("SKILLOPS_RECORDED_WORK_ITEMS", runner.os.environ)
+        self.assertEqual(result["rounds"], 2)
+        self.assertFalse(result["approval_eligible"])
+        self.assertEqual(len(results.load_cycles(self.output)), 1)
+        self.assertTrue(all(row["origin"] == "github_actions" for row in results.load_reports(self.output)))
+        public = b"".join(path.read_bytes() for path in self.output.glob("*/*/*.json"))
+        self.assertNotIn(self.work["request"].encode(), public)
+        self.assertNotIn(b"HIDDEN_CONFIRMATION_SENTINEL", public)
+        self.assertFalse((self.root / ".skillops/active.json").exists())
+
+    def recorded_cli(self, *, history=None, skill_key=None):
+        """Actual dispatch entrypoint with only model/container boundaries simulated."""
+        self.raw = OfflineTransport(self.root)
+        args = ["project_evaluation.py", "--root", str(self.root), "--project", "sample_repo",
+                "--work-id", self.work["task_id"], "--skill-key", skill_key or self.key,
+                "--max-rounds", "2", "--output", str(self.output), "--run-id", "202-1",
+                "--source-commit", self.commit, "--live"]
+        if history is not None:
+            args.extend(["--history", str(history)])
+        env = {
+            "GITHUB_ACTIONS": "true", "SKILLOPS_LIVE_EVALUATION_ENABLED": "true",
+            "COPILOT_GITHUB_TOKEN": "offline-test-only", "SKILLOPS_MAX_INVOCATIONS": "30",
+            "SKILLOPS_MAX_SECONDS": "120", "SKILLOPS_MAX_AI_CREDITS_PER_SESSION": "30",
+            "SKILLOPS_RECORDED_WORK_ITEMS": json.dumps({self.work["task_id"]: {"work_item": self.work}}),
+        }
+        @contextmanager
+        def prepared(project, images, **kwargs):
+            yield images
+        with patch.object(runner.sys, "argv", args), patch.dict(runner.os.environ, env, clear=True), \
+                patch.object(runner, "CopilotRuntime", return_value=self.raw), \
+                patch.object(runner, "resolve_images", return_value=self.images), \
+                patch.object(project_checks, "prepared_images", side_effect=prepared), \
+                redirect_stdout(io.StringIO()) as stdout, redirect_stderr(io.StringIO()) as stderr:
+            code = runner.main()
+        return code, stdout.getvalue(), stderr.getvalue()
+
+    def prior_auto_identity(self, *, assessment=False):
+        history = self.root / "prior-results"
+        key = "auto:" + "a" * 32
+        if assessment:
+            from test_skill_assessments import fixture as assessment_fixture
+            report, lifecycle, data = assessment_fixture()
+            for row in lifecycle["records"]["identities"] + lifecycle["records"]["skill_versions"] + lifecycle["bindings"]:
+                row["skill_key"] = key
+            data["skills"][0].update(skill_key=key, source_path="skills/develop")
+            results.store(history, report)
+            results.store_evolution(history, lifecycle)
+            results.store_assessments(history, data)
+            self.assertEqual(len(results.load_assessments(history)), 1)
+        else:
+            original_key, self.key = self.key, key
+            try:
+                context = self.prepare()
+            finally:
+                self.key = original_key
+            generation, candidate = skill_pipeline.generate_candidate(
+                self.runtime, "offline-model", context["original"], context["feedback"],
+                self.runtime.private / "prior-generation", deadline=self.budget["deadline"])
+            row, captures = skill_pipeline.evaluate_candidate(
+                self.runtime, "offline-model", context, candidate,
+                self.runtime.private / "prior-evaluation", deadline=self.budget["deadline"])
+            runner.persist_replay(history, row, captures, generation, context["reference"],
+                                  execution_mode="offline_test")
+            self.assertEqual(len(results.load_replays(history)), 1)
+        return history, key
+
+    def assert_recorded_identity(self, key):
+        cycles = results.load_cycles(self.output)
+        self.assertEqual(list(cycles), [("sample_repo", "202-1")])
+        self.assertEqual(cycles[("sample_repo", "202-1")]["skill_key"], key)
+        self.assertEqual(len(cycles[("sample_repo", "202-1")]["rounds"]), 2)
+        replays = results.load_replays(self.output)
+        self.assertEqual(len(replays), 2)
+        for row in replays.values():
+            self.assertEqual(row["reference"]["skill_key"], key)
+            self.assertEqual(row["evaluation"]["skill_key"], key)
+            self.assertEqual(row["reference"]["source_path"], "skills/develop")
+        lifecycles = results.load_evolution(self.output)
+        self.assertEqual(len(lifecycles), 2)
+        for value in lifecycles.values():
+            self.assertEqual([row["skill_key"] for row in value["bindings"]], [key])
+
+    def test_recorded_cli_preserves_auto_identity_from_separate_replay_history(self):
+        history, key = self.prior_auto_identity()
+        before = {p: p.read_bytes() for p in history.rglob("*.json")}
+        old_runs = {row["run_id"] for row in results.load_reports(history)}
+        self.output.mkdir()
+        self.assertEqual(list(self.output.iterdir()), [])
+        code, stdout, stderr = self.recorded_cli(history=history, skill_key=key)
+        self.assertEqual((code, stderr), (0, ""))
+        self.assertEqual(json.loads(stdout)["cycle_id"], "202-1")
+        self.assert_recorded_identity(key)
+        self.assertEqual(before, {p: p.read_bytes() for p in history.rglob("*.json")})
+        self.assertTrue(old_runs.isdisjoint({row["run_id"] for row in results.load_reports(self.output)}))
+
+    def test_recorded_cli_preserves_auto_identity_from_separate_assessment_history(self):
+        history, key = self.prior_auto_identity(assessment=True)
+        before = {p: p.read_bytes() for p in history.rglob("*.json")}
+        code, _, stderr = self.recorded_cli(history=history, skill_key=key)
+        self.assertEqual((code, stderr), (0, ""))
+        self.assert_recorded_identity(key)
+        self.assertEqual(before, {p: p.read_bytes() for p in history.rglob("*.json")})
+        self.assertFalse((self.output / "sample_repo/123-1").exists())
+
+    def test_recorded_cli_without_history_keeps_path_identity(self):
+        code, _, stderr = self.recorded_cli()
+        self.assertEqual((code, stderr), (0, ""))
+        self.assert_recorded_identity(self.key)
+
+    def test_recorded_cli_unknown_skill_does_not_fall_back_to_history_identity(self):
+        history, _ = self.prior_auto_identity()
+        code, stdout, stderr = self.recorded_cli(history=history, skill_key="auto:" + "b" * 32)
+        self.assertEqual((code, stdout), (2, ""))
+        self.assertEqual(json.loads(stderr)["code"], "unknown_skill")
+        self.assertEqual(self.raw.calls, [])
+        self.assertFalse(self.output.exists())
+
+    def test_recorded_cli_rejects_corrupt_history_even_when_path_identity_matches(self):
+        history, _ = self.prior_auto_identity()
+        sidecar = next(history.glob("*/*/replay-evaluation.json"))
+        data = results.read_json(sidecar)
+        data["report_sha256"] = "0" * 64
+        sidecar.write_bytes(results.encoded(data))
+        before = sidecar.read_bytes()
+        code, stdout, stderr = self.recorded_cli(history=history)
+        self.assertEqual((code, stdout), (2, ""))
+        self.assertEqual(json.loads(stderr)["code"], "replay_report_mismatch")
+        self.assertEqual(self.raw.calls, [])
+        self.assertFalse(self.output.exists())
+        self.assertEqual(sidecar.read_bytes(), before)
+
+    def test_recorded_cli_rejects_missing_or_non_directory_history(self):
+        for history in (self.root / "missing-history", self.work_path):
+            with self.subTest(history=history):
+                code, stdout, stderr = self.recorded_cli(history=history)
+                self.assertEqual((code, stdout), (2, ""))
+                self.assertEqual(json.loads(stderr)["code"], "invalid_history")
+                self.assertEqual(self.raw.calls, [])
+                self.assertFalse(self.output.exists())
+
+    def test_actions_selection_without_dispatch_live_is_blocked_before_private_reads(self):
+        action = self.api(runner, "run_recorded_iterations")
+        with patch.object(runner.os.environ, "pop") as secret, self.assertRaises(RuntimeFailure) as raised:
+            action(self.root, project_id="sample_repo", skill_key=self.key, work_id=self.work["task_id"],
+                   max_rounds=2, output=self.output, source_commit=self.commit, cycle_id="202-1", live=False,
+                   policy={"enabled": True, "authenticated": True, "budget": self.budget})
+        self.assertEqual(raised.exception.code, "live_disabled")
+        secret.assert_not_called()
+        self.assertEqual(self.raw.calls, [])
+
+    def test_actions_fresh_checkout_initializes_the_real_private_owner_before_retention(self):
+        import copilot_runtime
+        self.raw.private.rmdir()
+        created = []
+
+        def factory(root):
+            with patch.object(copilot_runtime.shutil, "which", return_value="/test-only/copilot"):
+                runtime = copilot_runtime.CopilotRuntime(root, inherited={"PATH": runner.os.environ["PATH"]})
+            created.append(runtime)
+            return runtime
+
+        with patch.dict(runner.os.environ, {
+                "SKILLOPS_RECORDED_WORK_ITEMS": json.dumps({self.work["task_id"]: {"work_item": self.work}})}), \
+                patch.object(runner, "resolve_images", side_effect=RuntimeFailure(
+                    "offline_probe_stop", "Stop at the external image boundary; no model call.")), \
+                self.assertRaises(RuntimeFailure) as raised:
+            runner.run_recorded_iterations(
+                self.root, project_id="sample_repo", skill_key=self.key, work_id=self.work["task_id"],
+                max_rounds=2, output=self.output, source_commit=self.commit, cycle_id="202-1", live=True,
+                policy={"enabled": True, "authenticated": True, "budget": self.budget}, runtime_factory=factory)
+        self.assertEqual(raised.exception.code, "offline_probe_stop")
+        self.assertEqual(len(created), 1)
+        self.assertTrue((created[0].private / ".owner").is_file())
+        self.assertEqual(self.budget["calls"], 0)
+
     def test_exhausted_shared_budget_never_fabricates_completed_evaluation(self):
         self.budget["max_calls"] = 2
         output = self.run_one()
@@ -303,6 +538,7 @@ class ReplayIntegrationTests(unittest.TestCase):
             output = run(
                 self.root, project_id="sample_repo", skill_key=self.key, work_item=self.work_path,
                 confirmation_work_item=self.final_path if confirmation else None, max_rounds=2,
+                confirmation_disclosure=self.disclosure_path if confirmation else None,
                 output=self.output, model="offline-model", execution_mode="offline_test",
                 policy={"enabled": True, "authenticated": True, "budget": self.budget},
                 runtime_factory=lambda root: self.raw)
@@ -316,10 +552,56 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(cycle["execution_mode"], "offline_test")
         self.assertEqual(results.tree_hash(self.project), self.work["project_tree_sha256"])
         self.assertEqual(len(self.raw.calls), self.budget["calls"])
-        for _, prompt in self.raw.calls:
-            self.assertNotIn("FINAL_REQUEST_SENTINEL", prompt)
+        for role, prompt in self.raw.calls:
+            if role != "developer":
+                self.assertNotIn("FINAL_REQUEST_SENTINEL", prompt)
             self.assertNotIn("HIDDEN_CONFIRMATION_SENTINEL", prompt)
         return cycle
+
+    def test_actual_registered_confirmation_callback_persists_selected_capture_once(self):
+        self.raw.reject_confirmation = False
+        cycle = self.run_iterations()
+        self.assertEqual(cycle["confirmation_status"], "passed")
+        self.assertEqual(self.raw.generated, 2)
+        final = results.load_replays(self.output)[("sample_repo", cycle["confirmation_ref"]["run_id"])]
+        self.assertIsNone(final["generation"])
+        self.assertEqual(final["evaluation"]["candidate_version_id"], cycle["selected_candidate_version_id"])
+        self.assertEqual(final["evaluation"]["work"]["input_sha256"], self.final_work["input_sha256"])
+        self.assertEqual(len(list(self.raw.private.glob("confirmation-exposures/*.json"))), 1)
+        self.assertFalse(self.raw.isolated)
+
+    def test_registered_confirmation_required_case_failure_is_not_passed(self):
+        self.raw.reject_confirmation = False
+        capture = self.container
+        def failed_final(source, *args, **kwargs):
+            observed = capture(source, *args, **kwargs)
+            if self.raw.calls and "FINAL_REQUEST_SENTINEL" in self.raw.calls[-1][1]:
+                data = json.loads(observed.stdout)
+                data["status"] = "failed"
+                data["cases"][-1]["status"] = "failed"
+                observed.stdout = json.dumps(data)
+            return observed
+        with patch.object(project_checks, "container_capture", side_effect=failed_final):
+            cycle = self.run_iterations()
+        self.assertEqual(cycle["confirmation_status"], "failed")
+        self.assertIsNotNone(cycle["confirmation_ref"])
+
+    def test_confirmation_requires_disclosure_before_any_model_exposure(self):
+        with self.assertRaises(RuntimeFailure) as raised:
+            runner.run_iterations(
+                self.root, project_id="sample_repo", skill_key=self.key, work_item=self.work_path,
+                confirmation_work_item=self.final_path, output=self.output, model="offline-model",
+                execution_mode="offline_test", policy={"enabled": True, "authenticated": True, "budget": self.budget},
+                runtime_factory=lambda root: self.raw)
+        self.assertEqual(raised.exception.code, "confirmation_disclosure_required")
+        self.assertEqual(self.raw.calls, [])
+
+    def test_missing_real_boundary_blocks_before_registration_or_generation(self):
+        with patch.object(self.raw, "confirmation_isolation", None), self.assertRaises(RuntimeFailure) as raised:
+            self.run_iterations()
+        self.assertEqual(raised.exception.code, "confirmation_isolation_unverified")
+        self.assertEqual(self.raw.calls, [])
+        self.assertFalse(list(self.raw.private.glob("replays/*/registration/*.json")))
 
     def test_iterations_n2_uses_real_feedback_and_persists_blocked_confirmation(self):
         cycle = self.run_iterations()
@@ -336,13 +618,12 @@ class ReplayIntegrationTests(unittest.TestCase):
         replays = results.load_replays(self.output)
         self.assertEqual({r["evaluation"]["base_version_id"] for r in replays.values()},
                          {cycle["original_version_id"]})
-        self.assertEqual(len(replays), 2)
+        self.assertEqual(len(replays), 3)
         self.assertEqual(cycle["confirmation_status"], "unverified")
-        self.assertIsNone(cycle["confirmation_ref"])
-        failures = list(self.raw.private.glob("replays/*/cycle/confirmation/failure.json"))
-        self.assertEqual(len(failures), 1)
-        self.assertEqual(results.read_json(failures[0])["code"], "confirmation_isolation_unverified")
-        self.assertEqual(self.budget["calls"], 9)
+        final = replays[("sample_repo", cycle["confirmation_ref"]["run_id"])]
+        self.assertIsNone(final["generation"])
+        self.assertEqual(final["evaluation"]["errors"], [{"stage": "base_application", "code": "runtime_error"}])
+        self.assertEqual(self.budget["calls"], 11)
 
     def test_iterations_stop_after_first_improvement(self):
         self.raw.scores = (3, 3)
@@ -351,7 +632,7 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(cycle["stop_reason"], "improved")
         self.assertEqual(cycle["confirmation_status"], "unverified")
         self.assertEqual(self.raw.generated, 1)
-        self.assertEqual(self.budget["calls"], 5)
+        self.assertEqual(self.budget["calls"], 7)
 
     def test_iterations_max_rounds_never_invokes_confirmation(self):
         self.raw.scores = (2, 2)
@@ -454,7 +735,7 @@ class ReplayIntegrationTests(unittest.TestCase):
         with patch.object(results, "atomic_json", side_effect=interrupted), self.assertRaises(OSError):
             self.run_iterations()
         self.assertEqual(results.load_cycles(self.output), {})
-        self.assertEqual(len(results.load_replays(self.output)), 2)
+        self.assertEqual(len(results.load_replays(self.output)), 3)
 
     def test_iteration_module_is_in_evaluator_fingerprint(self):
         code = self.root / "skill_iterations.py"
@@ -474,6 +755,7 @@ class ReplayIntegrationTests(unittest.TestCase):
             yield images
         argv = ["skillops.py", "iterate", "--project", "sample_repo", "--skill-key", self.key,
                 "--work-item", str(self.work_path), "--confirmation-work-item", str(self.final_path),
+                "--confirmation-disclosure", str(self.disclosure_path),
                 "--max-rounds", "2", "--results", str(self.output), "--live", "--model", "offline-model"]
         env = {"SKILLOPS_LIVE_EVALUATION_ENABLED": "true", "COPILOT_GITHUB_TOKEN": "offline-test-only",
                "SKILLOPS_MAX_INVOCATIONS": str(max_calls), "SKILLOPS_MAX_SECONDS": "120",
@@ -560,8 +842,10 @@ class ReplayIntegrationTests(unittest.TestCase):
         with patch.object(self.raw, "invoke", side_effect=mutate_file):
             cycle = self.run_iterations()
         self.assertEqual(cycle["confirmation_status"], "unverified")
-        failure = next(self.raw.private.glob("replays/*/cycle/confirmation/failure.json"))
-        self.assertEqual(results.read_json(failure)["code"], "confirmation_isolation_unverified")
+        final = results.load_replays(self.output)[("sample_repo", cycle["confirmation_ref"]["run_id"])]
+        self.assertEqual(final["evaluation"]["work"]["input_sha256"], self.final_work["input_sha256"])
+        self.assertTrue(any("FINAL_REQUEST_SENTINEL" in prompt for role, prompt in self.raw.calls if role == "developer"))
+        self.assertTrue(all("FINAL_REQUEST_SENTINEL" not in prompt for role, prompt in self.raw.calls if role == "generator"))
 
     def test_invalid_confirmation_precommit_blocks_before_model_invocation(self):
         self.final_work["task_id"] = self.work["task_id"]

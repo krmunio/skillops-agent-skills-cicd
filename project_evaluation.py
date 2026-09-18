@@ -10,11 +10,12 @@ import json
 import math
 import os
 from pathlib import Path
+import stat
 import sys
 import time
 from uuid import uuid4
 
-from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture
+from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture, strict_json
 import project_results as results
 import repositories
 import project_checks
@@ -228,9 +229,10 @@ def _replay_run_id(execution_mode):
 
 
 def _replay_report(reference, run_id, execution_mode, *, complete_quality=False):
+    origin = "github_actions" if execution_mode == "live" and os.environ.get("GITHUB_ACTIONS") == "true" else "local"
     return {
         "schema_version": 1, "project_id": reference["project_id"], "run_id": run_id,
-        "created_at": datetime.now(timezone.utc).isoformat(), "origin": "sample" if execution_mode == "sample" else "local",
+        "created_at": datetime.now(timezone.utc).isoformat(), "origin": "sample" if execution_mode == "sample" else origin,
         "purpose": "project_assessment", "source_commit": reference["source_commit"],
         "project_tree_sha256": reference["project_tree_sha256"], "evaluator_sha256": reference["evaluator_sha256"],
         "source_report_sha256": None, "source_schema_version": None,
@@ -303,10 +305,85 @@ def persist_cycle(output, cycle, reference):
             "sha256": sha256(results.encoded(stored)).hexdigest()}
 
 
-@contextmanager
-def _replay_session(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
-                    runtime_factory=None, confirmation_work_item=None):
-    """Keep preparation, image lifetime, lock and budget shared across either execution path."""
+def persist_adoption(output, *, approval, receipt=None, reviewed=False):
+    """Project reviewed local observations, never private authority or fabricated task metrics."""
+    import skill_approvals
+
+    results.require(reviewed is True, "publication_review_required")
+    evolution.exact(approval, skill_approvals.APPROVAL_FIELDS)
+    output = results.safe_path(output)
+    reports = {(row["project_id"], row["run_id"]): row for row in results.load_reports(output)}
+    cycles = results.load_cycles(output)
+    key = (approval["project_id"], approval["cycle_id"])
+    results.require(key in cycles and cycles[key]["execution_mode"] == "live", "cycle_not_approvable")
+    public_approval = {field: approval[field] for field in results.APPROVAL_PUBLIC_FIELDS.split()
+                       if field not in ("approved_by", "trust_scope")}
+    public_approval.update(approved_by="local_operator", trust_scope="local_environment")
+    executions = []
+    if receipt is None:
+        report = {**reports[key], "run_id": _replay_run_id("live"), "origin": "local",
+                  "created_at": datetime.now(timezone.utc).isoformat(),
+                  "guide": results.axis("not_assessed", "adoption_observation"),
+                  "execution": results.axis("not_assessed", "adoption_observation")}
+    else:
+        evolution.exact(receipt, skill_approvals.EXECUTION_FIELDS)
+        results.require(receipt["approval_sha256"] == sha256(results.encoded(approval)).hexdigest()
+                        and all(receipt[field] == approval[field] for field in (
+                            "approval_id", "environment_id", "previous_active_version_id",
+                            "previous_active_execution_sha256")), "execution_binding_mismatch")
+        execution_key = (receipt["project_id"], receipt["run_id"])
+        results.require(execution_key in reports, "missing_execution_report")
+        report = reports[execution_key]
+        executions = [{field: receipt[field] for field in results.EXECUTION_PUBLIC_FIELDS.split()}]
+    data = {
+        "schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+        "report_sha256": sha256(results.encoded(report)).hexdigest(), "execution_mode": "live",
+        "approvals": [public_approval], "executions": executions,
+    }
+    results.validate_adoption(data, report=report, reports=reports, cycles=cycles,
+                             adoptions=results.load_adoptions(output), evaluations=results.load_replays(output))
+    results.store(output, report)
+    path = results.store_adoption(output, data)
+    stored = results.load_adoptions(output)[(data["project_id"], data["run_id"])]
+    results.require(stored == data, "adoption_evidence_mismatch")
+    return {"project_id": data["project_id"], "run_id": data["run_id"], "path": path.name,
+            "sha256": sha256(results.read_bytes(path)).hexdigest()}
+
+
+def retain_work_item(root, work):
+    """Retain a validated private input immutably, before any model exposure."""
+    root = results.safe_path(root)
+    results.require(isinstance(work, dict), "invalid_work_item")
+    results.require(results.matches(results.ID, work.get("project_id")), "invalid_project_id")
+    skill_assessments.validate_work_item(
+        work, project=root / "projects" / work["project_id"], source_commit=work.get("source_commit"))
+    folder = root / ".skillops-private"
+    for directory in (folder, folder / "work-items", folder / "work-items" / work["task_id"]):
+        results.safe_path(directory)
+        directory.mkdir(mode=0o700, exist_ok=True)
+        info = directory.stat()
+        results.require(directory.is_dir() and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                        "unsafe_work_store")
+        descriptor = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    path = directory / (work["input_sha256"] + ".json")
+    results.atomic_json(path, work, immutable=True)
+    info = path.stat()
+    results.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+                    and info.st_mode & 0o077 == 0 and info.st_nlink == 1, "unsafe_work_store")
+    descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    results.require(results.read_bytes(path) == results.encoded(work), "work_input_changed")
+    return path
+
+
+def _authorized_budget(policy, *, fresh=False):
     results.require(policy.get("enabled") is True, "live_disabled")
     results.require(policy.get("authenticated") is True, "missing_auth")
     budget = policy.get("budget")
@@ -319,6 +396,15 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
     results.require(remaining > 0, "time_limit")
     results.require(remaining <= limits["max_seconds"], "missing_limits")
     results.require(budget["calls"] < budget["max_calls"], "call_limit")
+    results.require(not fresh or budget["calls"] == 0, "fresh_execution_budget_required")
+    return budget
+
+
+@contextmanager
+def _replay_session(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
+                    runtime_factory=None, confirmation_work_item=None, confirmation_disclosure=None, history=None):
+    """Keep preparation, image lifetime, lock and budget shared across either execution path."""
+    budget = _authorized_budget(policy)
     results.require(execution_mode in ("live", "offline_test"), "invalid_execution_mode")
     root, output = results.safe_path(root), results.safe_path(output)
     results.require(results.matches(results.ID, project_id), "invalid_project_id")
@@ -330,6 +416,8 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
     results.require(work["project_id"] == project_id, "work_project_mismatch")
     results.require(work["split"] == "development", "confirmation_isolation_unverified")
     final = None
+    results.require((confirmation_work_item is None) == (confirmation_disclosure is None),
+                    "confirmation_disclosure_required")
     if confirmation_work_item is not None:
         final = results.read_json(confirmation_work_item)
         skill_assessments.validate_work_item(final, project=project, source_commit=work["source_commit"])
@@ -337,28 +425,56 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
                         and final["input_sha256"] != work["input_sha256"]
                         and not set(final["checks"]["required_case_ids"]) & set(work["checks"]["required_case_ids"]),
                         "confirmation_isolation_unverified")
-    history = list(results.load_assessments(output).values())
-    history.extend({"project_id": row["project_id"], "skills": [row["evaluation"]]}
-                   for row in results.load_replays(output).values())
+    directories = [output]
+    if history is not None:
+        history = results.safe_path(history)
+        results.require(history.is_dir(), "invalid_history")
+        if history != output:
+            directories.append(history)
+    identity_history = []
+    for directory in directories:
+        identity_history.extend(results.load_assessments(directory).values())
+        identity_history.extend({"project_id": row["project_id"], "skills": [row["evaluation"]]}
+                                for row in results.load_replays(directory).values())
     selected = [bundle for bundle in skill_guide.discover(project)
-                if skill_pipeline.skill_key(project_id, bundle["path"], history) == skill_key]
+                if skill_pipeline.skill_key(project_id, bundle["path"], identity_history) == skill_key]
     results.require(len(selected) == 1, "unknown_skill")
+    disclosure = None
+    if final is not None:
+        disclosure = results.read_json(confirmation_disclosure)
+        skill_assessments.validate_confirmation_disclosure(
+            disclosure, project=project, development_work_item=work, confirmation_work_item=final,
+            original=skill_pipeline.captured_files(project, selected[0]), source_path=selected[0]["path"])
     rubric = results.read_json(root / "eval/skill-guide-rubric.json")
     raw_runtime = (runtime_factory or CopilotRuntime)(root)
     runtime = BudgetRuntime(raw_runtime, budget)
     runtime.execution_mode = execution_mode
     artifact = runtime.private / "replays" / uuid4().hex
     with raw_runtime.locked():
+        retain_work_item(root, work)
+        if final is not None:
+            retain_work_item(root, final)
         images = resolve_images(project)
         remaining = min(180, budget["deadline"] - time.monotonic())
         results.require(remaining > 0, "time_limit")
-        with project_checks.prepared_images(project, images, timeout=remaining) as prepared:
+        with project_checks.prepared_images(project, images, timeout=remaining) as prepared, ExitStack() as scope:
+            registration = None
+            if final is not None:
+                isolation = getattr(raw_runtime, "confirmation_isolation", None)
+                results.require(callable(isolation), "confirmation_isolation_unverified")
+                scope.enter_context(isolation(deadline=budget["deadline"]))
+                registration = skill_pipeline.register_confirmation(
+                    runtime, model, project, selected[0], skill_key, rubric, prepared, artifact / "registration",
+                    development_work_item=work, confirmation_work_item=final,
+                    disclosure=disclosure, deadline=budget["deadline"])
             context = skill_pipeline.prepare_replay(
                 runtime, model, project, selected[0], skill_key, rubric, prepared, artifact / "prepare",
                 work_item=work, deadline=budget["deadline"])
-            confirmation = None if final is None else partial(
-                skill_pipeline.prepare_replay, runtime, model, project, selected[0], skill_key, rubric, prepared,
-                artifact / "confirmation-prepare", work_item=final, deadline=budget["deadline"])
+            def prepare_selected(selected):
+                return skill_pipeline.prepare_confirmation(
+                    runtime, model, context, selected, artifact / "confirmation-prepare",
+                    registration_id=registration, deadline=budget["deadline"])
+            confirmation = prepare_selected if registration is not None else None
             yield runtime, context, artifact, confirmation
 
 
@@ -384,7 +500,8 @@ def run_replay(root, *, project_id, skill_key, work_item, output, model, executi
 
 
 def run_iterations(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
-                   max_rounds=1, confirmation_work_item=None, runtime_factory=None, cycle_id=None):
+                   max_rounds=1, confirmation_work_item=None, confirmation_disclosure=None,
+                   runtime_factory=None, cycle_id=None, history=None):
     """Connect the delivered loop; do not duplicate its attempt or failure semantics."""
     import skill_iterations
     results.require(type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_round_limit")
@@ -393,17 +510,146 @@ def run_iterations(root, *, project_id, skill_key, work_item, output, model, exe
     with _replay_session(
             root, project_id=project_id, skill_key=skill_key, work_item=work_item, output=output,
             model=model, execution_mode=execution_mode, policy=policy, runtime_factory=runtime_factory,
-            confirmation_work_item=confirmation_work_item
+            confirmation_work_item=confirmation_work_item, confirmation_disclosure=confirmation_disclosure,
+            history=history
     ) as (runtime, context, artifact, confirmation):
         cycle = skill_iterations.run_cycle(
             runtime, model, context, artifact / "cycle", cycle_id=cycle_id, max_rounds=max_rounds,
             budget=runtime.budget, confirmation_context=confirmation,
             persist_round=partial(persist_replay, output, execution_mode=execution_mode))
         evidence = persist_cycle(output, cycle, context["reference"])
+        stored = results.load_cycles(output)[(project_id, cycle_id)]
+        eligible = (stored["execution_mode"] == "live" and stored["confirmation_status"] == "passed"
+                    and stored["confirmation_ref"] is not None and stored["selected_candidate_version_id"] is not None)
     return {"status": cycle["stop_reason"], "execution_mode": execution_mode, "cycle_id": cycle_id,
             "cycle_ref": evidence, "rounds": len(cycle["rounds"]), "budget": cycle["budget"],
             "calls": runtime.budget["calls"], "selected_candidate_version_id": cycle["selected_candidate_version_id"],
-            "approval_eligible": False, "confirmation_status": cycle["confirmation_status"]}
+            "approval_eligible": eligible, "confirmation_status": stored["confirmation_status"]}
+
+
+def run_recorded_iterations(root, *, project_id, skill_key, work_id, max_rounds, output,
+                            source_commit, cycle_id, live, policy, runtime_factory=None, history=None):
+    """Select private recorded work by public ID; never put requests in dispatch arguments."""
+    results.require(live is True and policy.get("enabled") is True, "live_disabled")
+    results.require(policy.get("authenticated") is True, "missing_auth")
+    results.require(results.matches(results.ID, work_id) and results.matches(results.ID, project_id)
+                    and evolution.matches(evolution.SKILL_KEY, skill_key)
+                    and type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_work_selection")
+    budget_limits(policy.get("budget"))
+    private = os.environ.pop("SKILLOPS_RECORDED_WORK_ITEMS", None)
+    results.require(isinstance(private, str) and 0 < len(private.encode("utf-8")) <= results.LIMIT,
+                    "missing_private_work")
+    choices = strict_json(private)
+    results.require(isinstance(choices, dict) and work_id in choices, "unknown_private_work")
+    selected = choices[work_id]
+    evolution.exact(selected, "work_item")
+    work = selected["work_item"]
+    skill_assessments.validate_work_item(
+        work, project=results.safe_path(root) / "projects" / project_id, source_commit=source_commit)
+    results.require(work["task_id"] == work_id and work["project_id"] == project_id
+                    and work["split"] == "development", "work_selection_mismatch")
+    raw_runtime = (runtime_factory or CopilotRuntime)(root)
+    with raw_runtime.locked():
+        path = retain_work_item(root, work)
+    return run_iterations(
+        root, project_id=project_id, skill_key=skill_key, work_item=path, output=output,
+        model="gpt-6-astra", execution_mode="live", policy=policy, max_rounds=max_rounds,
+        cycle_id=cycle_id, runtime_factory=lambda root: raw_runtime, history=history)
+
+
+def run_approved(root, *, project_id, skill_key, approval_id, candidate_version_id,
+                 evidence_sha256, work_item, output, model, policy, publish_reviewed=False, runtime_factory=None):
+    """Run only the resolved complete Capture; session 4 alone persists use and updates Active."""
+    import skill_approvals
+
+    results.require(not any(os.environ.get(key) for key in ("CI", "GITHUB_ACTIONS")), "local_approval_only")
+    budget = _authorized_budget(policy, fresh=True)
+    execute_work = getattr(skill_pipeline, "execute_work", None)
+    results.require(callable(execute_work), "approved_execution_unavailable")
+    root, output = results.safe_path(root), results.safe_path(output)
+    project = root / "projects" / project_id
+    results.require(not output.is_relative_to(project), "unsafe_path")
+    selection = dict(project_id=project_id, skill_key=skill_key, approval_id=approval_id,
+                     candidate_version_id=candidate_version_id, evidence_sha256=evidence_sha256, results=output)
+    approval, captured = skill_approvals.resolve_approved(root, **selection)
+    version, files = evolution.capture_version(
+        captured[1], capture_scope="complete_bundle", complete_inventory=list(captured[1]))
+    results.require((version, files) == captured and version["version_id"] == candidate_version_id,
+                    "approval_candidate_mismatch")
+    work = results.read_json(work_item)
+    skill_assessments.validate_work_item(work, project=project, source_commit=approval["source_commit"])
+    results.require(work["project_id"] == project_id and work["split"] == "development", "invalid_execution_work")
+    previous = [item["evaluation"]["work"] for item in results.load_replays(output).values()
+                if item["project_id"] == project_id]
+    results.require(all(work["task_id"] != item["task_id"] and work["input_sha256"] != item["input_sha256"]
+                        for item in previous), "fresh_execution_work_required")
+    run_id = _replay_run_id("live")
+    results.require(not (output / project_id / run_id).exists(), "execution_run_exists")
+    raw_runtime = (runtime_factory or CopilotRuntime)(root)
+    runtime = BudgetRuntime(raw_runtime, budget)
+    runtime.execution_mode = "live"
+    isolation = getattr(raw_runtime, "confirmation_isolation", None)
+    results.require(callable(isolation), "confirmation_isolation_unverified")
+    artifact = runtime.private / "approved-executions" / run_id
+    with raw_runtime.locked():
+        results.require(not (runtime.private / "work-items" / work["task_id"]).exists(),
+                        "fresh_execution_work_required")
+        retain_work_item(root, work)
+        images = resolve_images(project)
+        remaining = min(180, budget["deadline"] - time.monotonic())
+        results.require(remaining > 0, "time_limit")
+        with project_checks.prepared_images(project, images, timeout=remaining) as prepared, \
+                isolation(deadline=budget["deadline"]):
+            application, checked = execute_work(
+                runtime, model, project, captured, prepared, artifact, work_item=work, deadline=budget["deadline"])
+            runtime.require_confirmation_isolation()
+        project_checks.validate_observation(checked)
+        results.require(isinstance(application, dict)
+                        and application.get("activated") is True
+                        and application.get("version_id") == application.get("staged_version_id") == candidate_version_id
+                        and application.get("work_sha256") == work["input_sha256"], "unverified_skill_use")
+        results.require(application.get("task_outcome") == project_checks.replay_outcome(checked, work["checks"]),
+                        "execution_observation_mismatch")
+        again, current = skill_approvals.resolve_approved(root, **selection)
+        results.require(again == approval and current == captured, "approval_evidence_changed")
+        reference = {**approval, "evaluator_sha256": results.evaluator_hash(root)}
+        report = _replay_report(reference, run_id, "live")
+        outcome = application["task_outcome"]
+        state, reason = {
+            "satisfied": ("completed", "evaluation_completed"),
+            "not_satisfied": ("failed", "evaluation_failed"),
+            "unverified": ("blocked", "assessment_unverified"),
+        }[outcome]
+        report["guide"] = results.axis("not_assessed", "adoption_observation")
+        report["execution"] = results.axis(state, reason, {
+            "requested": len(checked["cases"]),
+            "correctness_successes": sum(row["status"] == "passed" for row in checked["cases"]),
+            "cli_invocations": budget["calls"],
+        })
+        results.store(output, report)
+        receipt = {
+            "schema_version": 1, "execution_id": "execution-" + uuid4().hex, "run_id": run_id,
+            **{field: approval[field] for field in (
+                "project_id", "skill_key", "approval_id", "evidence_sha256", "environment_id",
+                "previous_active_version_id", "previous_active_execution_sha256")},
+            "approval_sha256": sha256(results.encoded(approval)).hexdigest(), "work_input_sha256": work["input_sha256"],
+            "approved_version_id": candidate_version_id, "loaded_version_id": application["staged_version_id"],
+            "skill_version_verified": True, "observed_at": datetime.now(timezone.utc).isoformat(),
+            "status": "verified", "reason_code": None,
+        }
+        saved = skill_approvals.record_execution(root, approval=approval, receipt=receipt)
+    publication = None
+    if publish_reviewed:
+        try:
+            publication = persist_adoption(output, approval=approval, receipt=saved, reviewed=True)
+        except (RuntimeFailure, OSError) as error:
+            raise RuntimeFailure(
+                "execution_publication_failed", "Verified private use/Active were retained; public projection failed.") from error
+    return {"status": "verified", "run_id": run_id, "execution_id": saved["execution_id"],
+            "approved_version_id": candidate_version_id, "loaded_version_id": saved["loaded_version_id"],
+            "skill_version_verified": True, "task_outcome": outcome, "budget": budget_limits(budget),
+            "calls": budget["calls"], "adoption_ref": publication,
+            "publication_status": "stored_locally" if publication else "not_requested"}
 
 
 def changed_projects(root, projects, before, source_commit):
@@ -444,6 +690,10 @@ def main():
     selection.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
     selection.add_argument("--changed-since", help="Evaluate projects affected since this full Git commit.")
     parser.add_argument("--history", type=Path, help="Previously validated results, used for stable Skill identity.")
+    parser.add_argument("--work-id", help="Select one private recorded development task; never pass its request.")
+    parser.add_argument("--skill-key", help="Exact Skill for recorded-work iteration.")
+    parser.add_argument("--max-rounds", type=int, choices=range(1, 11))
+    parser.add_argument("--live", action="store_true", help="Separate live opt-in required for recorded-work dispatch.")
     args = parser.parse_args()
     try:
         results.require(results.matches(results.RUN, args.run_id))
@@ -455,6 +705,16 @@ def main():
         elif args.changed_since is not None:
             projects = changed_projects(args.root, projects, args.changed_since, args.source_commit)
         policy = policy_from_environment()
+        if any(value is not None for value in (args.work_id, args.skill_key, args.max_rounds)):
+            results.require(args.project is not None and args.work_id is not None and args.skill_key is not None
+                            and args.max_rounds is not None and args.changed_since is None, "invalid_work_selection")
+            report = run_recorded_iterations(
+                args.root, project_id=args.project, skill_key=args.skill_key, work_id=args.work_id,
+                max_rounds=args.max_rounds, output=args.output, source_commit=args.source_commit,
+                cycle_id=args.run_id, live=args.live, policy=policy, history=args.history)
+            results.reindex(args.root, args.output)
+            print(json.dumps(report))
+            return 0 if report["status"] in ("improved", "max_rounds", "no_change") else 2
         if policy["progress"] and os.environ.get("GITHUB_OUTPUT"):
             with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
                 output.write(f"selected_projects={len(projects)}\n")

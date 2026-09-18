@@ -2,7 +2,6 @@
 
 from contextlib import ExitStack
 from copy import deepcopy
-import base64
 from hashlib import sha256
 import importlib.util
 import json
@@ -277,7 +276,10 @@ class IterationTests(unittest.TestCase):
 
     def test_confirmation_once_uses_frozen_selected_bytes_and_never_becomes_feedback(self):
         result = self.run_cycle()
-        self.confirmation_factory.assert_called_once_with()
+        self.confirmation_factory.assert_called_once_with(self.candidates[1])
+        supplied = self.confirmation_factory.call_args.args[0]
+        self.assertIsNot(supplied[0], self.candidates[1][0])
+        self.assertIsNot(supplied[1], self.candidates[1][1])
         self.assertEqual(len(self.generated), 2)
         self.assertEqual(len(self.evaluated), 3)
         self.assertEqual(self.evaluated[-1], (self.confirmation, self.candidates[1]))
@@ -346,7 +348,8 @@ class IterationTests(unittest.TestCase):
         self.raw.invoke("offline-preparation-marker")
         self.runtime.invoke("test-only-initial-preparation")
         self.assertEqual(self.budget["calls"], 1)
-        def prepare_confirmation():
+        def prepare_confirmation(selected):
+            self.assertEqual(selected, self.candidates[1])
             self.assertIs(self.runtime.budget, self.budget)
             self.runtime.invoke("test-only-confirmation-preparation")
             return self.confirmation
@@ -382,9 +385,122 @@ class IterationTests(unittest.TestCase):
         self.budget["max_calls"] = self.limits["max_invocations"] = 2
         result = self.run_cycle()
         self.assertEqual(result["stop_reason"], "improved")
-        self.assertEqual(result["confirmation_status"], "unverified")
+        self.assertEqual(result["confirmation_status"], "not_run")
         self.confirmation_factory.assert_not_called()
         self.assertIsNone(result["confirmation_ref"])
+
+    def test_expired_deadline_before_confirmation_keeps_not_run(self):
+        self.statuses = ["improved"]
+        clock = [100.0]
+        self.budget["deadline"] = 120.0
+        def slow_store(*args):
+            reference = self.persist(*args)
+            clock[0] = 121.0
+            return reference
+        with patch("time.monotonic", side_effect=lambda: clock[0]):
+            result = self.run_cycle(persist_round=slow_store)
+        self.assertEqual(result["stop_reason"], "improved")
+        self.assertEqual(result["confirmation_status"], "not_run")
+        self.confirmation_factory.assert_not_called()
+        self.assertEqual(len(self.saved), 1)
+
+    def test_confirmation_preparation_failure_preserves_selection_without_more_generation(self):
+        self.statuses = ["not_improved", "improved"]
+        self.confirmation_factory.side_effect = KeyboardInterrupt()
+        result = self.run_cycle()
+        self.assertEqual(result["stop_reason"], "improved")
+        self.assertEqual(result["confirmation_status"], "unverified")
+        self.assertEqual(result["selected_candidate_version_id"], self.candidates[1][0]["version_id"])
+        self.assertEqual(len(self.generated), 2)
+        self.assertEqual(len(self.saved), 2)
+        self.confirmation_factory.assert_called_once_with(self.candidates[1])
+
+    def test_changed_budget_during_confirmation_preparation_is_rejected(self):
+        self.statuses = ["improved"]
+        for field, value in (("max_calls", 101), ("max_seconds", 121),
+                             ("max_ai_credits", 30), ("deadline", float("inf")), ("calls", 0)):
+            with self.subTest(field=field):
+                self.artifact = self.root / f"changed-{field}"
+                before = dict(self.budget)
+                def changed(selected):
+                    self.assertEqual(selected, self.candidates[0])
+                    self.budget[field] = value
+                    return self.confirmation
+                self.confirmation_factory.side_effect = changed
+                result = self.run_cycle()
+                self.assertEqual(result["stop_reason"], "improved")
+                self.assertEqual(result["confirmation_status"], "unverified")
+                self.assertIsNone(result["confirmation_ref"])
+                self.assertEqual(len(self.evaluated), 1)
+                self.assertEqual(len(self.saved), 1)
+                self.assertEqual(project_results.read_json(
+                    self.artifact / "confirmation/failure.json")["code"], "inputs_changed")
+                self.budget.clear()
+                self.budget.update(before)
+                self.generated.clear()
+                self.evaluated.clear()
+                self.saved.clear()
+
+    def test_confirmation_uses_bytes_frozen_before_preparation(self):
+        self.statuses = ["improved"]
+        expected = deepcopy(self.candidates[0])
+        def mutate_source_candidate(selected):
+            self.assertEqual(selected, expected)
+            selected[0]["version_id"] = "sha256:" + "0" * 64
+            selected[1]["SKILL.md"] = b"Changed callback argument."
+            self.candidates[0][1]["SKILL.md"] = b"Changed after selection."
+            return self.confirmation
+        self.confirmation_factory.side_effect = mutate_source_candidate
+        result = self.run_cycle()
+        self.assertEqual(result["confirmation_status"], "passed")
+        self.assertEqual(self.evaluated[-1], (self.confirmation, expected))
+
+    def test_changed_confirmation_capture_or_reference_cannot_be_persisted(self):
+        self.statuses = ["improved"]
+        for kind in ("bytes", "reference"):
+            with self.subTest(kind=kind):
+                self.artifact = self.root / f"confirmation-{kind}"
+                def changed(runtime, model, context, candidate, artifact, **kwargs):
+                    row, captures = self.evaluate(runtime, model, context, candidate, artifact, **kwargs)
+                    if context is self.confirmation:
+                        if kind == "bytes":
+                            captures[-1][1]["SKILL.md"] = b"Not the selected bytes."
+                        else:
+                            row["reference_sha256"] = "0" * 64
+                    return row, captures
+                self.evaluate_mock.side_effect = changed
+                result = self.run_cycle()
+                self.assertEqual(result["stop_reason"], "improved")
+                self.assertEqual(result["confirmation_status"], "unverified")
+                self.assertIsNone(result["confirmation_ref"])
+                self.assertEqual(len(self.generated), 1)
+                self.assertEqual(len(self.saved), 1)
+                self.generated.clear()
+                self.evaluated.clear()
+                self.saved.clear()
+
+    def test_revision_14_admission_errors_never_start_another_round(self):
+        self.statuses = ["improved"]
+        for code in ("confirmation_not_registered", "confirmation_inputs_changed",
+                     "confirmation_candidate_mismatch", "confirmation_already_used",
+                     "development_closed", "confirmation_isolation_unverified"):
+            with self.subTest(code=code):
+                self.artifact = self.root / code
+                self.confirmation_factory.reset_mock()
+                self.confirmation_factory.side_effect = RuntimeFailure(code, "Offline negative admission.")
+                result = self.run_cycle()
+                self.assertEqual(result["stop_reason"], "improved")
+                self.assertEqual(result["confirmation_status"], "unverified")
+                self.assertIsNone(result["confirmation_ref"])
+                self.assertEqual(len(self.generated), 1)
+                self.assertEqual(len(self.evaluated), 1)
+                self.assertEqual(len(self.saved), 1)
+                self.confirmation_factory.assert_called_once_with(self.candidates[0])
+                self.assertEqual(project_results.read_json(
+                    self.artifact / "confirmation/failure.json")["code"], code)
+                self.generated.clear()
+                self.evaluated.clear()
+                self.saved.clear()
 
     def test_failed_invocation_retains_usage_unknown_is_not_zero_and_recorder_is_restored(self):
         error = RuntimeFailure("credit_limit", "Actual test-double runtime limit.")
@@ -793,48 +909,14 @@ class RealProviderIntegrationTests(unittest.TestCase):
             self.runtime, self.model, self.project, self.bundle, "skillops:develop", self.rubric, self.images,
             self.runtime.private / name, work_item=work or self.work, deadline=self.budget["deadline"])
 
-    def report(self, run_id, reference):
-        return {
-            "schema_version": 1, "project_id": "fixture", "run_id": run_id,
-            "created_at": "2026-09-17T14:00:00+00:00", "origin": "local", "purpose": "project_assessment",
-            **{key: reference[key] for key in ("source_commit", "project_tree_sha256", "evaluator_sha256")},
-            "source_report_sha256": None, "source_schema_version": None,
-            "guide": project_results.axis("completed", "evaluation_completed"),
-            "execution": project_results.axis("completed", "evaluation_completed"),
-        }
-
     def persist(self, evaluation, captures, generation, reference):
-        """Test caller adapter; real common validators/readers check actual generated evidence."""
         run_id = f"local-20260917T140001Z-{len(self.saved) + 1:012x}"
-        report = self.report(run_id, reference)
-        common = {"schema_version": 1, "project_id": "fixture", "run_id": run_id, "report_sha256": digest(report)}
-        records = evolution.empty_records()
-        key = reference["skill_key"]
-        records["identities"] = [{"skill_key": key, "display_name": "develop"}]
-        records["sources"] = [{"skill_key": key, "project_id": "fixture", "kind": "workspace", "scope": "project",
-                               "path": reference["source_path"], "observed_at": report["created_at"],
-                               "evidence_ref": None}]
-        records["versions"] = [item[0] for item in captures]
-        records["skill_versions"] = [{"skill_key": key, "version_id": item[0]["version_id"]} for item in captures]
-        lifecycle = {
-            **common, "records": records,
-            "bindings": [{"skill_key": key, "base_version_id": evaluation["base_version_id"],
-                          "candidate_version_id": evaluation["candidate_version_id"], "legacy_skill_id": None}],
-            "file_contents": [{"version_id": version["version_id"], "path": path, "encoding": "base64",
-                               "data": base64.b64encode(raw).decode()}
-                              for version, files in captures for path, raw in files.items()],
-        }
-        replay = {**common, "execution_mode": "offline_test", "reference": reference,
-                  "generation": generation, "evaluation": evaluation}
-        skill_assessments.validate_replay(replay, report=report, lifecycle=lifecycle)
-        project_results.store(self.results, report)
-        project_results.store_evolution(self.results, lifecycle)
-        path = self.results / "fixture" / run_id / "replay-evaluation.json"
-        project_results.atomic_json(path, replay, immutable=True)
-        self.saved[("fixture", run_id)] = {"report": report, "lifecycle": lifecycle, "replay": replay}
-        self.assertEqual(project_results.load_replays(self.results)[("fixture", run_id)], replay)
-        return {"project_id": "fixture", "run_id": run_id, "path": path.name,
-                "sha256": sha256(path.read_bytes()).hexdigest()}
+        artifact = project_evaluation.persist_replay(
+            self.results, evaluation, captures, generation, reference,
+            execution_mode="offline_test", run_id=run_id)
+        self.saved = project_results.load_replay_evidence(self.results)
+        self.assertEqual(self.saved[("fixture", run_id)]["replay"]["evaluation"], evaluation)
+        return artifact
 
     def run_cycle(self, context, *, confirmation=None, max_rounds=2):
         return skill_iterations.run_cycle(
@@ -843,9 +925,10 @@ class RealProviderIntegrationTests(unittest.TestCase):
             persist_round=self.persist)
 
     def validate_cycle(self, cycle, context):
-        report = self.report(self.cycle_id, context["reference"])
-        bound = {**cycle, "report_sha256": digest(report)}
-        self.assertEqual(project_results.validate_cycle(bound, report=report, evaluations=self.saved), bound)
+        artifact = project_evaluation.persist_cycle(self.results, cycle, context["reference"])
+        bound = project_results.load_cycles(self.results)[("fixture", self.cycle_id)]
+        self.assertEqual({key: value for key, value in bound.items() if key != "report_sha256"}, cycle)
+        self.assertEqual(artifact["sha256"], digest(bound))
 
     def test_real_provider_chains_retained_rows_and_common_decisions(self):
         context = self.prepare()
@@ -876,9 +959,10 @@ class RealProviderIntegrationTests(unittest.TestCase):
         final_work.update(task_id="distinct-confirmation", split="confirmation", request="A distinct held-out task.")
         final_work["checks"]["required_case_ids"] = ["hidden-case"]
         final_work["input_sha256"] = digest({key: value for key, value in final_work.items() if key != "input_sha256"})
-        confirmation = Mock(side_effect=lambda: self.prepare(work=final_work, name="confirmation-prepare"))
+        confirmation = Mock(side_effect=lambda selected: self.prepare(work=final_work, name="confirmation-prepare"))
         cycle = self.run_cycle(context, confirmation=confirmation)
-        confirmation.assert_called_once_with()
+        confirmation.assert_called_once()
+        self.assertEqual(confirmation.call_args.args[0][0]["version_id"], cycle["selected_candidate_version_id"])
         self.assertEqual(cycle["stop_reason"], "improved")
         self.assertEqual(cycle["confirmation_status"], "unverified")
         self.assertIsNone(cycle["confirmation_ref"])
@@ -960,6 +1044,115 @@ class RealProviderIntegrationTests(unittest.TestCase):
                          ["not_improved", "not_improved"])
         confirmation.assert_not_called()
         self.validate_cycle(cycle, context)
+
+    def test_actual_replay_and_cycle_writers_are_used(self):
+        context = self.prepare()
+        with patch.object(project_evaluation, "persist_replay", wraps=project_evaluation.persist_replay) as replay, \
+                patch.object(project_evaluation, "persist_cycle", wraps=project_evaluation.persist_cycle) as cycle:
+            result = self.run_cycle(context)
+            self.validate_cycle(result, context)
+        self.assertEqual(replay.call_count, 2)
+        cycle.assert_called_once()
+        stored = project_results.load_cycles(self.results)[("fixture", self.cycle_id)]
+        self.assertEqual(stored["execution_mode"], "offline_test")
+        self.assertEqual(stored["confirmation_status"], "not_run")
+        self.assertEqual(len(project_results.load_replays(self.results)), 2)
+
+    def test_n1_uses_initial_issued_feedback_and_one_attempt(self):
+        context = self.prepare()
+        result = self.run_cycle(context, max_rounds=1)
+        self.assertEqual(result["stop_reason"], "max_rounds")
+        self.assertEqual(len(result["rounds"]), 1)
+        self.assertEqual(self.generated_feedback, [context["feedback"]])
+        self.assertEqual(result["rounds"][0]["parent_version_id"], context["original"][0]["version_id"])
+        self.assertEqual(self.budget["calls"], 5)
+        self.validate_cycle(result, context)
+
+    def test_no_change_is_admitted_but_not_saved_and_passes_common_validation(self):
+        context = self.prepare()
+        invoke = self.raw.invoke.side_effect
+        def unchanged(prompt, model, role, *args, **kwargs):
+            receipt = invoke(prompt, model, role, *args, **kwargs)
+            if role == "generator":
+                response = json.loads(receipt["content"])
+                response["instructions"] = self.body
+                receipt["content"] = json.dumps(response)
+            return receipt
+        self.raw.invoke.side_effect = unchanged
+        cycle = self.run_cycle(context, max_rounds=1)
+        self.assertEqual(cycle["stop_reason"], "no_change")
+        self.assertEqual(len(cycle["rounds"]), 1)
+        for field in ("run_id", "evaluation_ref", "decision", "candidate_version_id"):
+            self.assertIsNone(cycle["rounds"][0][field])
+        self.assertEqual(len(self.generated_feedback), 1)
+        self.assertEqual(self.budget["calls"], 2)
+        self.validate_cycle(cycle, context)
+
+    def test_cancelled_second_attempt_preserves_first_stored_evaluation(self):
+        context = self.prepare()
+        invoke = self.raw.invoke.side_effect
+        preserved = {}
+        def cancelled(prompt, model, role, *args, **kwargs):
+            if role == "generator" and len(self.generated_feedback) == 1:
+                preserved.update({p: p.read_bytes() for p in self.results.rglob("*.json")})
+                raise KeyboardInterrupt()
+            return invoke(prompt, model, role, *args, **kwargs)
+        self.raw.invoke.side_effect = cancelled
+        cycle = self.run_cycle(context)
+        self.assertEqual(cycle["stop_reason"], "cancelled")
+        self.assertEqual(len(cycle["rounds"]), 2)
+        self.assertIsNotNone(cycle["rounds"][0]["evaluation_ref"])
+        self.assertIsNone(cycle["rounds"][1]["run_id"])
+        self.assertIsNone(cycle["rounds"][1]["decision"])
+        self.assertEqual(self.budget["calls"], 6)
+        self.validate_cycle(cycle, context)
+        self.assertTrue(preserved)
+        for path, raw in preserved.items():
+            self.assertEqual(path.read_bytes(), raw)
+
+    def test_budget_after_generation_keeps_candidate_in_unsaved_attempt(self):
+        context = self.prepare()
+        self.budget["max_calls"] = 2
+        cycle = self.run_cycle(context)
+        self.assertEqual(cycle["stop_reason"], "call_limit")
+        self.assertEqual(len(cycle["rounds"]), 1)
+        self.assertIsNotNone(cycle["rounds"][0]["candidate_version_id"])
+        self.assertIsNone(cycle["rounds"][0]["run_id"])
+        self.validate_cycle(cycle, context)
+
+    def test_input_drift_during_generation_does_not_save_an_evaluation(self):
+        context = self.prepare()
+        invoke = self.raw.invoke.side_effect
+        def changed(prompt, model, role, *args, **kwargs):
+            receipt = invoke(prompt, model, role, *args, **kwargs)
+            if role == "generator":
+                (context["project"] / "api.py").write_text("VALUE = 99\n")
+            return receipt
+        self.raw.invoke.side_effect = changed
+        cycle = self.run_cycle(context)
+        self.assertEqual(cycle["stop_reason"], "input_changed")
+        self.assertEqual(len(cycle["rounds"]), 1)
+        self.assertEqual(self.evaluation_rows, [])
+        self.assertEqual((self.project / "api.py").read_text(), "VALUE = 0\n")
+        self.validate_cycle(cycle, context)
+
+    def test_real_persistence_failure_propagates_and_preserves_prior_run_bytes(self):
+        context = self.prepare()
+        store_replay = project_results.store_replay
+        preserved = {}
+        def fail_second(results, data):
+            if self.saved:
+                preserved.update({p: p.read_bytes() for p in self.results.rglob("*.json")
+                                  if p.parent.name in {key[1] for key in self.saved}})
+                raise OSError("Offline injected second replay persistence failure.")
+            return store_replay(results, data)
+        with patch.object(project_results, "store_replay", side_effect=fail_second), self.assertRaises(OSError):
+            self.run_cycle(context)
+        self.assertEqual(len(project_results.load_replays(self.results)), 1)
+        self.assertEqual(list(self.results.rglob("cycle.json")), [])
+        self.assertTrue(preserved)
+        for path, raw in preserved.items():
+            self.assertEqual(path.read_bytes(), raw)
 
 
 if __name__ == "__main__":

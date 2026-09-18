@@ -2,19 +2,28 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 
+// Official compiled assets, with test-only response fixtures; not publisher evidence.
+const assetRoot = process.env.SKILLOPS_DASHBOARD_BUILD || 'dashboard';
+const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/sample-data.json': 'sample-data.json' };
+for (const module of ['app', 'views', 'evolution', 'assessments', 'trace']) {
+  const names = process.env.SKILLOPS_DASHBOARD_BUILD
+    ? fs.readdirSync(assetRoot).filter(name => new RegExp(`^${module}\\.[a-f0-9]{12}\\.js$`).test(name))
+    : [`${module}.js`];
+  if (names.length !== 1) throw new Error(`Expected exactly one ${module} module in ${assetRoot}`);
+  assets[`/${names[0]}`] = names[0];
+}
+const moduleUrl = module => '/' + Object.values(assets).find(name => name === `${module}.js` || name.startsWith(`${module}.`));
+
 async function pageWith(page, index, status = 200, origin = 'http://dashboard.test', pathname = '/') {
   await page.route(`${origin}/**`, route => {
     const name = new URL(route.request().url()).pathname;
     if (name === '/results/index.json') {
       return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(index) });
     }
-    const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/app.js': 'app.js',
-      '/views.js': 'views.js', '/evolution.js': 'evolution.js', '/assessments.js': 'assessments.js', '/trace.js': 'trace.js',
-      '/sample-data.json': 'sample-data.json' };
     if (!assets[name]) return route.fallback();
     const contentType = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' :
       name.endsWith('.json') ? 'application/json' : 'text/html';
-    return route.fulfill({ contentType, body: fs.readFileSync(path.join('dashboard', assets[name])) });
+    return route.fulfill({ contentType, body: fs.readFileSync(path.join(assetRoot, assets[name])) });
   });
   await page.goto(`${origin}${pathname}`);
 }
@@ -779,9 +788,9 @@ function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond
   const items = [];
   const make = (run, body) => {
     const item = evolutionFixture({ full: true, candidateText: body });
-    Object.assign(item.report, { run_id: run, purpose: 'project_assessment', origin: 'github_actions',
-      created_at: `2026-09-17T12:00:${run.slice(1, 3)}Z`, source_commit: 'a'.repeat(40),
-      evaluator_sha256: hash('evaluator'), project_tree_sha256: hash('project'),
+    Object.assign(item.report, { run_id: run, purpose: 'project_assessment', origin: mode === 'sample' ? 'sample' : 'local',
+      created_at: `2026-09-17T12:00:${run.slice(1, 3)}Z`, source_commit: mode === 'sample' ? null : 'a'.repeat(40),
+      evaluator_sha256: mode === 'sample' ? null : hash('evaluator'), project_tree_sha256: mode === 'sample' ? null : hash('project'),
       source_report_sha256: null, source_schema_version: null,
       guide: { status: 'completed', reason_code: 'evaluation_completed', metrics: null, decision: null },
       execution: { status: 'completed', reason_code: 'evaluation_completed', metrics: null, decision: null } });
@@ -803,9 +812,9 @@ function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond
     dimensions: [{ id: 'instruction_quality', score }], findings: [] });
   const reference = (input) => {
     const value = { schema_version: 1, project_id: project, skill_key: key, source_path: source,
-      source_commit: 'a'.repeat(40), project_tree_sha256: hash('project'), input_sha256: input,
+      source_commit: mode === 'sample' ? null : 'a'.repeat(40), project_tree_sha256: mode === 'sample' ? null : hash('project'), input_sha256: input,
       original_version_id: original, rubric_sha256: hash('rubric'), quality_context_sha256: hash('context'),
-      evaluator_sha256: hash('evaluator'), policy_sha256: policyHash, plan_sha256: hash('plan'),
+      evaluator_sha256: mode === 'sample' ? null : hash('evaluator'), policy_sha256: policyHash, plan_sha256: hash('plan'),
       environment_sha256: hash('images'), protected_sha256: hash('protected'),
       original_checks: checks, base_quality: quality(2) };
     return { ...value, reference_sha256: H(value) };
@@ -867,6 +876,22 @@ function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond
   adopted.summary.adoption = '105-1/adoption.json';
   return { items, cycle, adopted, key };
 }
+function rebindTraceFixture(fixture) {
+  for (const item of fixture.items) {
+    if (item.envelope) item.envelope.report_sha256 = H(item.report);
+    for (const name of ['replay', 'cycle', 'adoption']) if (item[name]) item[name].report_sha256 = H(item.report);
+  }
+  for (const round of fixture.cycle.cycle.rounds) {
+    if (round.evaluation_ref) {
+      round.evaluation_ref.sha256 = H(fixture.items.find(item => item.report.run_id === round.run_id).replay);
+    }
+  }
+  const ref = fixture.cycle.cycle.confirmation_ref;
+  if (ref) ref.sha256 = H(fixture.items.find(item => item.report.run_id === ref.run_id).replay);
+  for (const item of fixture.items) for (const row of [...(item.adoption?.approvals || []), ...(item.adoption?.executions || [])]) {
+    row.evidence_sha256 = H(fixture.cycle.cycle);
+  }
+}
 async function tracePage(page, fixture, run = '104-1') {
   const origin = 'https://dashboard.test';
   await page.route(`${origin}/results/sample_repo/index.json`, route => route.fulfill({
@@ -885,7 +910,7 @@ async function tracePage(page, fixture, run = '104-1') {
 }
 
 test('trace links original, two parents, feedback, confirmation and verified use without claiming task success or Active', async ({ page }) => {
-  const fixture = traceFixture({ mode: 'live' });
+  const fixture = traceFixture();
   await tracePage(page, fixture);
   const panel = page.locator('#evidence-trace');
   await expect(panel).toContainText('최초 원본');
@@ -908,7 +933,7 @@ test('trace links original, two parents, feedback, confirmation and verified use
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
   }
 });
-for (const mode of ['live', 'offline_test']) {
+for (const mode of ['offline_test', 'sample']) {
   for (const [use, label] of [['none', '승인됐지만 사용 미기록'], ['failed', '사용 실패']]) {
     test(`trace distinguishes local approval/use: ${mode} ${use}`, async ({ page }) => {
       await tracePage(page, traceFixture({ mode, use }), '105-1');
@@ -924,6 +949,25 @@ for (const mode of ['offline_test', 'sample']) {
     await expect(page.locator('#trace-mode')).toContainText(mode);
     await expect(page.locator('#trace-mode')).toContainText('실측 성과·실제 채택 근거 아님');
     await expect(page.locator('#quality-summary')).not.toContainText('실제 버전 평가');
+  });
+}
+for (const [name, mutate] of [
+  ['sample mode on a non-sample report', f => {
+    for (const item of f.items) for (const field of ['replay', 'cycle', 'adoption']) {
+      if (item[field]) item[field].execution_mode = 'sample';
+    }
+  }],
+  ['replay attached to a comparison report', f => {
+    f.items[0].report.purpose = f.items[0].summary.purpose = 'comparison';
+  }],
+]) {
+  test(`public trace rejects ${name} even with rebound artifact hashes`, async ({ page }) => {
+    const fixture = traceFixture();
+    mutate(fixture);
+    rebindTraceFixture(fixture);
+    await tracePage(page, fixture);
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
   });
 }
 test('legacy missing sidecars stay unrecorded, not N=1 or no approval', async ({ page }) => {
@@ -951,7 +995,7 @@ for (const [name, mutate] of [
   ['invalid observation date', f => { f.adopted.adoption.executions[0].observed_at = '2026-02-30T12:00:00Z'; }],
 ]) {
   test(`trace rejects ${name} without falling back`, async ({ page }) => {
-    const fixture = traceFixture({ mode: 'live' });
+    const fixture = traceFixture();
     mutate(fixture);
     await tracePage(page, fixture);
     await expect(page.locator('#trace-error')).toBeVisible();
@@ -962,8 +1006,8 @@ for (const [name, mutate] of [
 
 test('public parser rejects duplicate keys, nonfinite numbers and fractional integer metadata but preserves Python hash encoding', async ({ page }) => {
   await evolutionPage(page, evolutionFixture());
-  const result = await page.evaluate(async () => {
-    const { parsePublic } = await import('/trace.js');
+  const result = await page.evaluate(async url => {
+    const { parsePublic } = await import(url);
     const rejected = [];
     for (const raw of ['{"schema_version":1,"schema_version":1}\n',
       '{\n  "schema_version": 1.0\n}\n', '{\n  "max_rounds": 1e0\n}\n', '{\n  "cost": 1e999\n}\n']) {
@@ -972,7 +1016,7 @@ test('public parser rejects duplicate keys, nonfinite numbers and fractional int
     const raw = '{\n  "cost": 1.0,\n  "label": "\\ud55c\\uae00",\n  "reference_sha256": "omit"\n}\n';
     const parsed = parsePublic(raw);
     return { rejected, hash: await parsed.hashObject(parsed.value, 'reference_sha256') };
-  });
+  }, moduleUrl('trace'));
   expect(result.rejected).toEqual([true, true, true, true]);
   expect(result.hash).toBe(hash('{\n  "cost": 1.0,\n  "label": "\\ud55c\\uae00"\n}\n'));
 });
@@ -993,14 +1037,26 @@ for (const bad of ['missing', 'oversize', 'duplicate']) {
   });
 }
 
-test('completed confirmation without a published approval is pending, not a claim of no approvals', async ({ page }) => {
-  const fixture = traceFixture({ mode: 'live' });
-  fixture.items = fixture.items.filter(item => item !== fixture.adopted);
-  await tracePage(page, fixture);
-  await expect(page.locator('#evidence-trace')).toContainText('승인 대기');
-  await expect(page.locator('#evidence-trace')).toContainText('승인·사용: 미기록');
-  await expect(page.locator('#evidence-trace')).not.toContainText('승인 없음');
-});
+for (const mode of ['offline_test', 'sample', 'live']) {
+  test(`passed ${mode} confirmation gates approval readiness by execution mode`, async ({ page }) => {
+    // The live case is a rendering-only control, never operational approval evidence.
+    const fixture = traceFixture({ mode });
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted);
+    await tracePage(page, fixture);
+    for (const reload of [false, true]) {
+      if (reload) await page.reload();
+      const panel = page.locator('#evidence-trace');
+      await expect(panel).toContainText('confirmation: passed');
+      await expect(panel).toContainText(mode === 'live' ? '승인 대기' : '테스트/샘플 · 승인 불가');
+      if (mode !== 'live') await expect(panel).not.toContainText('승인 대기');
+      await expect(panel).toContainText('승인·사용: 미기록');
+      await expect(panel).not.toContainText('승인 없음');
+      await expect(page.locator('#trace-error')).toHaveCount(0);
+      await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+      await expect(page).toHaveURL(/run=104-1/);
+    }
+  });
+}
 
 test('alternate replay policy is rejected even when all reference digests and lineage match', async ({ page }) => {
   await tracePage(page, traceFixture({ policyHash: hash('different policy') }));
@@ -1029,8 +1085,93 @@ for (const status of ['not_run', 'unverified']) {
   });
 }
 
+for (const [decision, confirmation] of [['not_improved', 'passed'], ['rejected', 'failed'], ['unverified', 'unverified']]) {
+  test(`offline confirmation ${decision} remains ${confirmation} through its exact link and reload`, async ({ page }) => {
+    const fixture = traceFixture(), final = fixture.items.find(item => item.report.run_id === '103-1');
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted);
+    final.replay.evaluation.decision.status = decision;
+    if (decision === 'unverified') final.replay.evaluation.applications.candidate = null;
+    else final.replay.evaluation.quality.candidate.dimensions[0].score = decision === 'rejected' ? 1 : 2;
+    fixture.cycle.cycle.confirmation_status = confirmation;
+    rebindTraceFixture(fixture);
+    await tracePage(page, fixture);
+    const panel = page.locator('#evidence-trace');
+    await expect(panel).toContainText(`confirmation: ${confirmation}`);
+    await expect(panel).toContainText(confirmation === 'passed' ? '테스트/샘플 · 승인 불가' : '최종 확인 미완료');
+    await expect(panel).not.toContainText('승인 대기');
+    await expect(panel).toContainText('승인·사용: 미기록');
+    await panel.getByRole('link', { name: '별도 최종 확인 근거' }).click();
+    await expect(page).toHaveURL(/run=103-1/);
+    await expect(page.locator('#quality-summary')).toContainText('offline_test');
+    await expect(page.locator('#improvement-evidence')).toContainText('추가 생성 없음');
+    await page.reload();
+    await expect(panel).toContainText(`confirmation: ${confirmation}`);
+    await expect(panel).not.toContainText('승인 대기');
+    await expect(page.locator('#trace-error')).toHaveCount(0);
+    await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  });
+}
+
+test('offline verified use remains distinct from a blocked task report and unknown Active', async ({ page }) => {
+  const fixture = traceFixture();
+  fixture.adopted.report.execution = { status: 'blocked', reason_code: 'assessment_unverified', metrics: null, decision: null };
+  fixture.adopted.summary.execution_status = 'blocked';
+  rebindTraceFixture(fixture);
+  await tracePage(page, fixture, '105-1');
+  const panel = page.locator('#evidence-trace');
+  await expect(panel).toContainText('테스트/샘플의 검증된 사용');
+  await expect(page.locator('#execution')).toContainText('차단');
+  await expect(panel).toContainText('작업 성공을 의미하지 않습니다');
+  await expect(panel).toContainText('현재 로컬 Active: 공개 근거로 확인 불가');
+  await panel.getByRole('link', { name: '다음 실행의 작업 결과 확인' }).click();
+  await page.reload();
+  await expect(panel).toContainText('테스트/샘플의 검증된 사용');
+  await expect(page.locator('#execution')).toContainText('차단');
+});
+
+test('offline blocked use keeps loaded version unrecorded without becoming verified', async ({ page }) => {
+  const fixture = traceFixture();
+  Object.assign(fixture.adopted.adoption.executions[0], { status: 'blocked', reason_code: 'activation_unverified',
+    loaded_version_id: null, skill_version_verified: false });
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#evidence-trace')).toContainText('테스트/샘플의 사용 차단');
+  await expect(page.locator('#evidence-trace')).toContainText('실제 사용 버전: 미기록');
+  await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+for (const [name, mutate] of [
+  ['missing approval', f => { f.adopted.adoption.approvals = []; }],
+  ['cycle evidence hash mismatch', f => { f.adopted.adoption.approvals[0].evidence_sha256 = hash('wrong cycle'); }],
+  ['use approval binding mismatch', f => { f.adopted.adoption.executions[0].approval_id = 'another-approval'; }],
+  ['use predating approval', f => { f.adopted.adoption.executions[0].observed_at = '2026-09-17T12:00:00Z'; }],
+  ['private execution authority', f => { f.adopted.adoption.executions[0].environment_id = 'private-environment'; }],
+]) {
+  test(`offline adoption rejects ${name}`, async ({ page }) => {
+    const fixture = traceFixture();
+    mutate(fixture);
+    await tracePage(page, fixture, '105-1');
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+    await expect(page.locator('#evidence-trace')).not.toContainText('private-environment');
+    await expect(page).toHaveURL(/run=105-1/);
+  });
+}
+
+test('offline adoption exceeding one MiB fails without changing the exact selection', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#evidence-trace')).toContainText('테스트/샘플의 검증된 사용');
+  await page.route('https://dashboard.test/results/sample_repo/105-1/adoption.json', route =>
+    route.fulfill({ contentType: 'application/json', body: ' '.repeat(1048576) + publicBytes(fixture.adopted.adoption) }));
+  await page.reload();
+  await expect(page.locator('#trace-error')).toBeVisible();
+  await expect(page).toHaveURL(/run=105-1/);
+  await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+});
+
 test('cycle and later use projections remain selectable without redundant local captures or approval copies', async ({ page }) => {
-  const fixture = traceFixture({ mode: 'live' });
+  const fixture = traceFixture();
   const approvalRun = structuredClone(fixture.adopted);
   approvalRun.report.run_id = '106-1';
   approvalRun.report.created_at = '2026-09-17T12:03:00Z';
@@ -1054,13 +1195,13 @@ test('cycle and later use projections remain selectable without redundant local 
 });
 
 test('same parent bytes cannot become a newly generated improved round even when every digest matches', async ({ page }) => {
-  await tracePage(page, traceFixture({ mode: 'live', unchangedSecond: true }));
+  await tracePage(page, traceFixture({ unchangedSecond: true }));
   await expect(page.locator('#trace-error')).toBeVisible();
   await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
 });
 
 test('approval-only Skill remains selectable alongside an unrelated captured Skill', async ({ page }) => {
-  const fixture = traceFixture({ mode: 'live' }), item = fixture.adopted;
+  const fixture = traceFixture(), item = fixture.adopted;
   const other = 'other:captured';
   for (const row of [...item.envelope.records.identities, ...item.envelope.records.sources,
     ...item.envelope.records.skill_versions, ...item.envelope.bindings, ...item.summary.evolution_skills]) row.skill_key = other;
@@ -1160,10 +1301,10 @@ function pythonDecisionCases() {
 test('Python and JavaScript decisions agree on efficiency boundaries, missing measurements, rejections and legacy policy', async ({ page }) => {
   const cases = pythonDecisionCases();
   await pageWith(page, { schema_version: 1, projects: [] }, 200, 'https://dashboard.test');
-  const decisions = await page.evaluate(async cases => {
-    const { decide } = await import('/assessments.js');
+  const decisions = await page.evaluate(async ({ cases, url }) => {
+    const { decide } = await import(url);
     return cases.map(item => decide(item.row, item.legacy ? null : undefined));
-  }, cases);
+  }, { cases, url: moduleUrl('assessments') });
   for (const [index, item] of cases.entries()) expect(decisions[index], item.name).toEqual(item.expected);
 });
 
@@ -1612,7 +1753,8 @@ test('projects without assessments show unevaluated decisions and no numeric can
   await expect(page.locator('#summary-decisions')).not.toHaveText(/\d/);
   await expect(page.locator('#summary-skills')).toHaveText('Skill 2개 · 버전 3개');
   await expect(page.locator('#summary-history')).toHaveText('평가 기록 6건 · 완료 1 · 차단 3 · 과거 가져오기 2 · 미평가 0');
-  const stamp = await page.evaluate(async value => (await import('/views.js')).stamp(value), fixture.completed.created_at);
+  const stamp = await page.evaluate(async ({ value, url }) => (await import(url)).stamp(value),
+    { value: fixture.completed.created_at, url: moduleUrl('views') });
   await expect(page.locator('#summary-completed')).toContainText(stamp);
   await expect(page.locator('#summary-completed code')).toHaveText(fixture.completed.source_commit.slice(0, 12));
   await expect(page.locator('#summary-completed code')).toHaveAttribute('title', fixture.completed.source_commit);
