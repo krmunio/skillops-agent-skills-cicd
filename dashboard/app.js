@@ -283,7 +283,7 @@ function renderSkillHistory() {
     `${current.id}의 기록 · 선택하면 위의 As-Is / To-Be와 평가 결과가 바뀝니다.` :
     `${current.name} · 탐지된 Skill이며 아직 연결된 평가 기록이 없습니다.`));
 }
-const automaticRun = run => !['offline_test', 'sample'].includes(run.trace_mode);
+const automaticRun = run => run.origin !== 'sample' && !['offline_test', 'sample'].includes(run.trace_mode);
 async function chooseSkill(id) {
   if (sampleMode) { selectSampleSkill(id); return; }
   const group = skillGroups().find(group => group.id === id);
@@ -302,11 +302,11 @@ async function chooseSkill(id) {
     $('detail').hidden = true;
     $('error').hidden = true;
     clearEvolution();
-    clearTrace(group.runs.length ? '실행 선택 필요 · 오프라인 예제 근거 있음' : undefined);
-    $('origin').textContent = group.runs.length ? '오프라인 예제 · 별도 선택' : '미평가';
+    clearTrace();
+    $('origin').textContent = group.runs.length ? '테스트/샘플 예제 · 별도 선택' : '미평가';
     $('freshness').textContent = `${group.source_path || group.id} · 현재 품질이나 승인 자격을 추정하지 않습니다.`;
     $('selection-summary').textContent = group.runs.length ?
-      `${group.name} · 오프라인 예제는 이력에서 명시적으로 선택하세요.` : `${group.name} · 아직 평가 기록이 없습니다.`;
+      `${group.name} · 테스트/샘플 예제는 이력에서 별도로 선택하세요.` : `${group.name} · 아직 평가 기록이 없습니다.`;
     renderHistory();
     rememberSelection();
   }
