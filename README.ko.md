@@ -205,6 +205,9 @@ Active 버전/영수증 해시 쌍을 저장합니다. 검증된 사용과 작�
 명령행 인자·로그·공개 아티팩트로 전달하지 않으며 정확한 dispatch 소스 커밋과 일치해야 합니다.
 기존 반복·provider·저장을 재사용하고 workflow run/attempt를 cycle ID로 씁니다.
 이 개발 전용 dispatch는 후보를 승인하거나 로컬 승인을 Actions 실행 권한으로 사용하지 않습니다.
+별도 `--history` 결과 디렉터리를 검증하여 출력이 비어 있어도 기존 `auto:` 등 정확한 Skill ID를
+유지합니다. 과거 결과를 수정하거나 새 출력으로 복사하지 않으며, 잘못된 history나
+존재하지 않는 Skill은 다른 ID로 대체하지 않고 거부합니다.
 이번 구현 작업에서 secret 설정이나 live dispatch를 실행하지 않습니다.
 
 ### 오프라인 발표 백업
