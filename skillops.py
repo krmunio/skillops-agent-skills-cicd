@@ -518,10 +518,20 @@ def approve_local(root, args):
         root, project_id=args.project, skill_key=args.skill_key, candidate_version_id=args.candidate_version,
         cycle_id=args.cycle, evidence_sha256=args.evidence_sha256, expected_active_version_id=version,
         expected_active_execution_sha256=receipt_hash, results=args.results)
+    publication = None
+    if args.publish_reviewed:
+        from project_evaluation import persist_adoption
+        try:
+            publication = persist_adoption(args.results, approval=approved, reviewed=True)
+        except (RuntimeFailure, OSError) as error:
+            raise RuntimeFailure(
+                "approval_publication_failed",
+                f"Private approval {approved['approval_id']} was retained; public projection failed.") from error
     return {"status": "approved", "approval_id": approved["approval_id"],
             "project_id": approved["project_id"], "skill_key": approved["skill_key"],
             "candidate_version_id": approved["candidate_version_id"], "evidence_sha256": approved["evidence_sha256"],
-            "approved_at": approved["approved_at"], "active_changed": False, "model_calls": 0}
+            "approved_at": approved["approved_at"], "active_changed": False, "model_calls": 0,
+            "adoption_ref": publication, "publication_status": "stored_locally" if publication else "not_requested"}
 
 
 def main():
@@ -554,6 +564,8 @@ def main():
     for option in ("project", "skill-key", "candidate-version", "cycle", "evidence-sha256",
                    "expected-active-version", "expected-active-execution-sha256", "results"):
         approval_parser.add_argument("--" + option, required=True)
+    approval_parser.add_argument("--publish-reviewed", action="store_true",
+                                 help="Store an explicitly reviewed public-safe projection locally; never deploy.")
     for name in ("replay", "iterate"):
         replay_parser = commands.add_parser(name, help="Run explicitly authorized recorded development work; never approve.")
         replay_parser.add_argument("--project", required=True)

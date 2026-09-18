@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import repositories
+import project_results
 import skillops
 import test_skill_approvals as approval_fixtures
 
@@ -81,6 +82,16 @@ class ApprovalCLITests(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("active_conflict", errors)
         prompt.assert_not_called()
+
+    def test_reviewed_cli_projection_uses_real_public_loader(self):
+        self.argv.append("--publish-reviewed")
+        status, output, _, _ = self.run_cli(response="approve " + self.candidate)
+        self.assertEqual(status, 0)
+        self.assertIn('"publication_status": "stored_locally"', output)
+        data = list(project_results.load_adoptions(self.fixture.output).values())
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["executions"], [])
+        self.assertEqual(data[0]["approvals"][0]["approved_by"], "local_operator")
 
 
 if __name__ == "__main__":

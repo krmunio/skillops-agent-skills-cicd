@@ -178,9 +178,17 @@ Approval calls no model and does not change Active. The original Skill and evide
 stay immutable. Canonical private WorkItems are retained before replay execution;
 no private requests/operator identities are copied to public results.
 The current development-only/offline outputs are **not approvable**. Runtime
-isolation probes are implemented, but confirmation provider, next-use and adoption
-publication integration remain separate checkpoints; no operational success is
+isolation probes and reviewed adoption publication are implemented, but confirmation
+provider and next-use integration remain separate checkpoints; no operational success is
 implied by the synthetic authorization-contract tests.
+
+Add `--publish-reviewed` only after reviewing the public projection and referenced
+Skill captures. It stores a new local `adoption.json` observation; no deployment
+occurs. Official `validate`, `merge`, `index` and `build` resolve all confirmed
+cycle, approval and task-report references, reject private/extra fields and
+conflicting observations, and preserve immutable evidence. Approval-only reports
+have no task metrics. Projection failure leaves the private approval recorded but
+returns an explicit publication error; it never changes Active.
 
 ### Offline presentation backup
 
