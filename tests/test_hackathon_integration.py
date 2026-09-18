@@ -227,6 +227,40 @@ class ReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), before)
         self.assertFalse(list(self.output.rglob("*work-item*")))
 
+    def test_actions_private_selection_uses_actual_iteration_without_exposing_request(self):
+        action = self.api(runner, "run_recorded_iterations")
+        @contextmanager
+        def prepared(project, images, **kwargs):
+            yield images
+        private = json.dumps({self.work["task_id"]: {"work_item": self.work}})
+        with patch.dict(runner.os.environ, {"SKILLOPS_RECORDED_WORK_ITEMS": private, "GITHUB_ACTIONS": "true"}), \
+                patch.object(runner, "resolve_images", return_value=self.images), \
+                patch.object(project_checks, "prepared_images", side_effect=prepared):
+            result = action(
+                self.root, project_id="sample_repo", skill_key=self.key, work_id=self.work["task_id"],
+                max_rounds=2, output=self.output, source_commit=self.commit, cycle_id="202-1", live=True,
+                policy={"enabled": True, "authenticated": True, "budget": self.budget},
+                runtime_factory=lambda root: self.raw)
+            self.assertNotIn("SKILLOPS_RECORDED_WORK_ITEMS", runner.os.environ)
+        self.assertEqual(result["rounds"], 2)
+        self.assertFalse(result["approval_eligible"])
+        self.assertEqual(len(results.load_cycles(self.output)), 1)
+        self.assertTrue(all(row["origin"] == "github_actions" for row in results.load_reports(self.output)))
+        public = b"".join(path.read_bytes() for path in self.output.glob("*/*/*.json"))
+        self.assertNotIn(self.work["request"].encode(), public)
+        self.assertNotIn(b"HIDDEN_CONFIRMATION_SENTINEL", public)
+        self.assertFalse((self.root / ".skillops/active.json").exists())
+
+    def test_actions_selection_without_dispatch_live_is_blocked_before_private_reads(self):
+        action = self.api(runner, "run_recorded_iterations")
+        with patch.object(runner.os.environ, "pop") as secret, self.assertRaises(RuntimeFailure) as raised:
+            action(self.root, project_id="sample_repo", skill_key=self.key, work_id=self.work["task_id"],
+                   max_rounds=2, output=self.output, source_commit=self.commit, cycle_id="202-1", live=False,
+                   policy={"enabled": True, "authenticated": True, "budget": self.budget})
+        self.assertEqual(raised.exception.code, "live_disabled")
+        secret.assert_not_called()
+        self.assertEqual(self.raw.calls, [])
+
     def test_exhausted_shared_budget_never_fabricates_completed_evaluation(self):
         self.budget["max_calls"] = 2
         output = self.run_one()

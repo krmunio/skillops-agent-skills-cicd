@@ -192,6 +192,17 @@ returns an explicit publication error; it never changes Active.
 
 ### Offline presentation backup
 
+For an authorized recorded-development Actions dispatch, select **project,
+work_id, skill_key and max_rounds (1-10)**. `live=true`, authentication and the
+approved invocation/time/Credit limits are all required; defaults remain disabled.
+The separately provisioned `SKILLOPS_RECORDED_WORK_ITEMS` secret maps each task ID
+to `{"work_item": <private development WorkItem>}`. Requests are never dispatch
+inputs, command arguments, logs or public artifacts. Inputs must match the exact
+dispatched source commit. The existing iteration/provider/storage path is reused,
+and the cycle ID is the workflow run/attempt. This development-only dispatch
+neither approves a candidate nor imports local approvals as Actions authority.
+No secret configuration or live dispatch is performed by the implementation.
+
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration
 checkout and a new output directory:
 

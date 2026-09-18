@@ -15,7 +15,7 @@ import sys
 import time
 from uuid import uuid4
 
-from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture
+from copilot_runtime import MIN_AI_CREDITS, CopilotRuntime, RuntimeFailure, capture, strict_json
 import project_results as results
 import repositories
 import project_checks
@@ -229,9 +229,10 @@ def _replay_run_id(execution_mode):
 
 
 def _replay_report(reference, run_id, execution_mode, *, complete_quality=False):
+    origin = "github_actions" if execution_mode == "live" and os.environ.get("GITHUB_ACTIONS") == "true" else "local"
     return {
         "schema_version": 1, "project_id": reference["project_id"], "run_id": run_id,
-        "created_at": datetime.now(timezone.utc).isoformat(), "origin": "sample" if execution_mode == "sample" else "local",
+        "created_at": datetime.now(timezone.utc).isoformat(), "origin": "sample" if execution_mode == "sample" else origin,
         "purpose": "project_assessment", "source_commit": reference["source_commit"],
         "project_tree_sha256": reference["project_tree_sha256"], "evaluator_sha256": reference["evaluator_sha256"],
         "source_report_sha256": None, "source_schema_version": None,
@@ -488,6 +489,34 @@ def run_iterations(root, *, project_id, skill_key, work_item, output, model, exe
             "approval_eligible": False, "confirmation_status": cycle["confirmation_status"]}
 
 
+def run_recorded_iterations(root, *, project_id, skill_key, work_id, max_rounds, output,
+                            source_commit, cycle_id, live, policy, runtime_factory=None):
+    """Select private recorded work by public ID; never put requests in dispatch arguments."""
+    results.require(live is True and policy.get("enabled") is True, "live_disabled")
+    results.require(policy.get("authenticated") is True, "missing_auth")
+    results.require(results.matches(results.ID, work_id) and results.matches(results.ID, project_id)
+                    and evolution.matches(evolution.SKILL_KEY, skill_key)
+                    and type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_work_selection")
+    budget_limits(policy.get("budget"))
+    private = os.environ.pop("SKILLOPS_RECORDED_WORK_ITEMS", None)
+    results.require(isinstance(private, str) and 0 < len(private.encode("utf-8")) <= results.LIMIT,
+                    "missing_private_work")
+    choices = strict_json(private)
+    results.require(isinstance(choices, dict) and work_id in choices, "unknown_private_work")
+    selected = choices[work_id]
+    evolution.exact(selected, "work_item")
+    work = selected["work_item"]
+    skill_assessments.validate_work_item(
+        work, project=results.safe_path(root) / "projects" / project_id, source_commit=source_commit)
+    results.require(work["task_id"] == work_id and work["project_id"] == project_id
+                    and work["split"] == "development", "work_selection_mismatch")
+    path = retain_work_item(root, work)
+    return run_iterations(
+        root, project_id=project_id, skill_key=skill_key, work_item=path, output=output,
+        model="gpt-6-astra", execution_mode="live", policy=policy, max_rounds=max_rounds,
+        cycle_id=cycle_id, runtime_factory=runtime_factory)
+
+
 def changed_projects(root, projects, before, source_commit):
     results.require(results.matches(r"[a-f0-9]{40}", before)
                     and results.matches(r"[a-f0-9]{40}", source_commit), "invalid_change_revision")
@@ -526,6 +555,10 @@ def main():
     selection.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
     selection.add_argument("--changed-since", help="Evaluate projects affected since this full Git commit.")
     parser.add_argument("--history", type=Path, help="Previously validated results, used for stable Skill identity.")
+    parser.add_argument("--work-id", help="Select one private recorded development task; never pass its request.")
+    parser.add_argument("--skill-key", help="Exact Skill for recorded-work iteration.")
+    parser.add_argument("--max-rounds", type=int, choices=range(1, 11))
+    parser.add_argument("--live", action="store_true", help="Separate live opt-in required for recorded-work dispatch.")
     args = parser.parse_args()
     try:
         results.require(results.matches(results.RUN, args.run_id))
@@ -537,6 +570,16 @@ def main():
         elif args.changed_since is not None:
             projects = changed_projects(args.root, projects, args.changed_since, args.source_commit)
         policy = policy_from_environment()
+        if any(value is not None for value in (args.work_id, args.skill_key, args.max_rounds)):
+            results.require(args.project is not None and args.work_id is not None and args.skill_key is not None
+                            and args.max_rounds is not None and args.changed_since is None, "invalid_work_selection")
+            report = run_recorded_iterations(
+                args.root, project_id=args.project, skill_key=args.skill_key, work_id=args.work_id,
+                max_rounds=args.max_rounds, output=args.output, source_commit=args.source_commit,
+                cycle_id=args.run_id, live=args.live, policy=policy)
+            results.reindex(args.root, args.output)
+            print(json.dumps(report))
+            return 0 if report["status"] in ("improved", "max_rounds", "no_change") else 2
         if policy["progress"] and os.environ.get("GITHUB_OUTPUT"):
             with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
                 output.write(f"selected_projects={len(projects)}\n")
