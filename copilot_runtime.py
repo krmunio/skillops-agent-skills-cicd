@@ -2,10 +2,12 @@
 
 from contextlib import contextmanager
 import fcntl
+from hashlib import sha256
 import json
 import math
 import os
 from pathlib import Path
+import platform
 import re
 import selectors
 import shlex
@@ -15,11 +17,15 @@ import subprocess
 import tempfile
 import time
 from uuid import uuid4
+from weakref import WeakKeyDictionary
 
 
 TOKEN_KEYS = ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
 PROMPT_LIMIT = 100000
 MIN_AI_CREDITS = 30
+MODEL_IMAGE = "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5"
+_BOUNDARIES = WeakKeyDictionary()
+_SANDBOX_CALLS = WeakKeyDictionary()
 
 
 class RuntimeFailure(Exception):
@@ -333,6 +339,227 @@ class CopilotRuntime:
         })
         self.check_profile()
 
+    def _isolation_material(self, deadline):
+        from project_results import read_bytes, read_json, safe_path
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeFailure("time_limit", "The authorized isolation preparation time elapsed.")
+        docker = shutil.which("docker", path=self.env.get("PATH"))
+        architecture = {"x86_64": "x64", "aarch64": "arm64"}.get(platform.machine())
+        if not docker or platform.system() != "Linux" or architecture is None or os.getuid() == 0:
+            raise RuntimeFailure("confirmation_isolation_unverified", "A supported non-root Docker runtime is required.")
+        root = Path(__file__).resolve().parent
+        package = f"node_modules/@github/copilot-linux-{architecture}"
+        try:
+            lock_path = root / "package-lock.json"
+            lock = read_json(lock_path)
+            installed = read_json(root / package / "package.json")
+            locked = lock["packages"][package]
+            version = lock["packages"][""]["devDependencies"]["@github/copilot"]
+            binary = safe_path(root / package / "copilot")
+            if installed.get("version") != version or locked.get("version") != version:
+                raise RuntimeFailure("confirmation_inputs_changed", "Installed native CLI differs from the lock.")
+            if not binary.is_file() or not os.access(binary, os.X_OK) or binary.stat().st_size > 256 * 1024 * 1024:
+                raise RuntimeFailure("confirmation_isolation_unverified", "The locked native CLI is unavailable.")
+            digest = sha256()
+            with binary.open("rb") as stream:
+                if stream.read(4) != b"\x7fELF":
+                    raise RuntimeFailure("confirmation_isolation_unverified", "The isolated CLI must be a native executable.")
+                stream.seek(0)
+                for block in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(block)
+            observed = capture([docker, "image", "inspect", MODEL_IMAGE, "--format", "{{.Id}}"],
+                               env=self.env, timeout=min(30, remaining), limit=65536)
+            image = observed.stdout.strip()
+            if observed.returncode or not re.fullmatch(r"sha256:[a-f0-9]{64}", image):
+                raise RuntimeFailure("confirmation_isolation_unverified", "The pinned model image is not available locally.")
+            return {"docker": docker, "image": image, "binary": binary, "binary_sha256": digest.hexdigest(),
+                    "lock_sha256": sha256(read_bytes(lock_path)).hexdigest(), "version": version}
+        except (OSError, KeyError, TypeError) as error:
+            raise RuntimeFailure("confirmation_isolation_unverified", "Isolation prerequisites are unavailable.") from error
+
+    def _container_capture(self, args, *, state, workspace, home, output, timeout,
+                           network="none", tokens=None):
+        if timeout <= 0:
+            raise RuntimeFailure("time_limit", "The authorized isolated execution time elapsed.")
+        if network not in ("none", "bridge") or os.getuid() == 0:
+            raise RuntimeFailure("confirmation_isolation_unverified", "Unsupported isolated execution configuration.")
+        name = "skillops-model-" + uuid4().hex
+        env = {key: value for key, value in self.env.items() if key not in TOKEN_KEYS}
+        env.update(tokens or {})
+        command = [
+            state["docker"], "run", "--rm", "--init", "--pull=never", "--name", name,
+            "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
+            "--user", f"{os.getuid()}:{os.getgid()}", "--pids-limit=128", "--memory=1g", "--cpus=2",
+            "--network", network, "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=67108864",
+            "--workdir", "/work", "--entrypoint", args[0],
+        ]
+        for source, destination, readonly in (
+                (workspace, "/work", True), (home, "/home/copilot", False),
+                (output, "/output", False), (state["binary"], "/opt/copilot", True)):
+            if any(character in str(source) for character in (",", "\n", "\r")):
+                raise RuntimeFailure("unsafe_path", "Invalid sandbox mount path.")
+            mount = f"type=bind,src={Path(source).absolute()},dst={destination}"
+            command.extend(["--mount", mount + (",readonly" if readonly else "")])
+        for setting in ("HOME=/home/copilot", "COPILOT_HOME=/home/copilot/.copilot",
+                        "XDG_CONFIG_HOME=/home/copilot/.config", "XDG_CACHE_HOME=/home/copilot/.cache",
+                        "COPILOT_CACHE_HOME=/home/copilot/.cache/copilot"):
+            command.extend(["--env", setting])
+        for key in tokens or {}:
+            if key not in TOKEN_KEYS:
+                raise RuntimeFailure("confirmation_isolation_unverified", "Unapproved model environment key.")
+            command.extend(["--env", key])
+        command.extend([state["image"], *args[1:]])
+        try:
+            return capture(command, env=env, timeout=timeout)
+        finally:
+            cleaned = capture([state["docker"], "rm", "--force", name], env=env, timeout=15, limit=65536)
+            if cleaned.returncode and "No such container" not in cleaned.stderr:
+                raise RuntimeFailure("sandbox_cleanup_failed", "The exact isolated container could not be removed.")
+
+    @contextmanager
+    def confirmation_isolation(self, *, deadline):
+        if self in _BOUNDARIES:
+            raise RuntimeFailure("confirmation_isolation_unverified", "An isolation scope is already active.")
+        state = self._isolation_material(deadline)
+        self.check_profile()
+        with tempfile.TemporaryDirectory(prefix="isolation-probe-", dir=self.private) as temporary:
+            folder = Path(temporary)
+            work, home, output = [folder / name for name in ("work", "home", "output")]
+            for path in (work, home, output):
+                path.mkdir(mode=0o700)
+            marker = uuid4().hex
+            (work / "allowed").write_text(marker)
+            denied = folder / "denied"
+            denied.write_text(marker)
+            forbidden = [str(denied), str(self.project), str(self.private), str(self.home),
+                         "/var/run/docker.sock", "/proc/" + str(os.getpid()) + "/root" + str(denied)]
+            probe = (
+                "const fs=require('fs'); const fail=()=>{throw Error('isolation probe failed')};"
+                f"if(fs.readFileSync('/work/allowed','utf8')!=={json.dumps(marker)})fail();"
+                f"for(const p of {json.dumps(forbidden)}){{if(fs.existsSync(p))fail();}}"
+                "if(process.getuid()===0)fail();"
+                "const s=fs.readFileSync('/proc/self/status','utf8');"
+                "if(!/^CapEff:\\s+0+$/m.test(s)||!/^NoNewPrivs:\\s+1$/m.test(s))fail();"
+                "for(const p of ['/blocked-root','/work/blocked']){"
+                "let denied=false;try{fs.writeFileSync(p,'x')}catch(e){denied=true}if(!denied)fail();}"
+                "console.log('skillops-filesystem-probe-v1');"
+            )
+            result = self._container_capture(["/usr/local/bin/node", "-e", probe], state=state,
+                                             workspace=work, home=home, output=output,
+                                             timeout=min(30, deadline - time.monotonic()))
+            if result.returncode or result.stdout.strip() != "skillops-filesystem-probe-v1":
+                raise RuntimeFailure("confirmation_isolation_unverified", "Actual isolated filesystem checks failed.")
+            version = self._container_capture(["/opt/copilot", "--no-auto-update", "--version"], state=state,
+                                              workspace=work, home=home, output=output,
+                                              timeout=min(30, deadline - time.monotonic()))
+            if version.returncode or not re.search(
+                    r"^GitHub Copilot CLI " + re.escape(state["version"]) + r"\.?(?:\n|$)", version.stdout):
+                raise RuntimeFailure("confirmation_isolation_unverified", "The isolated native CLI version check failed.")
+        _BOUNDARIES[self] = {"material": state, "deadline": deadline}
+        try:
+            self.require_confirmation_isolation()
+            yield
+        finally:
+            _BOUNDARIES.pop(self, None)
+
+    def require_confirmation_isolation(self):
+        state = _BOUNDARIES.get(self)
+        if state is None:
+            raise RuntimeFailure("confirmation_isolation_unverified", "No verified model-process boundary is active.")
+        if self._isolation_material(state["deadline"]) != state["material"]:
+            raise RuntimeFailure("confirmation_inputs_changed", "The verified model runtime changed.")
+
+    @contextmanager
+    def _invocation_isolation(self, role, workdir, expected_skill, expected_version):
+        if self not in _BOUNDARIES:
+            yield
+            return
+        self.require_confirmation_isolation()
+        if self in _SANDBOX_CALLS or role not in ("developer", "generator", "judge"):
+            raise RuntimeFailure("confirmation_isolation_unverified", "Invalid isolated invocation state.")
+        if role == "developer":
+            if expected_skill is None or not isinstance(expected_version, dict) \
+                    or expected_version.get("capture_scope") != "complete_bundle":
+                raise RuntimeFailure("confirmation_isolation_unverified", "Isolated development requires a complete Capture.")
+            verify_staged_version(expected_skill, expected_version)
+        elif expected_skill is not None or expected_version is not None:
+            raise RuntimeFailure("invalid_role", "Only the developer may receive a Skill filesystem.")
+        with tempfile.TemporaryDirectory(prefix="isolated-call-", dir=self.private) as temporary:
+            folder = Path(temporary)
+            work, home, output = [folder / name for name in ("work", "home", "output")]
+            for path in (work, home, output, home / ".copilot", home / ".cache", home / ".config"):
+                path.mkdir(mode=0o700)
+            if expected_skill is not None:
+                original = Path(expected_skill).absolute()
+                source_work = Path(workdir).absolute()
+                if not original.is_relative_to(source_work):
+                    raise RuntimeFailure("unsafe_skill_path", "The selected Skill is outside its role workspace.")
+                relative = original.relative_to(source_work)
+                if relative.parts[:2] != (".github", "skills") or len(relative.parts) != 4:
+                    raise RuntimeFailure("unsafe_skill_path", "Use one selected Skill in the isolated workspace.")
+                shutil.copytree(original.parent, (work / relative).parent)
+                verify_staged_version(work / relative, expected_version)
+            _SANDBOX_CALLS[self] = {
+                "work": work, "home": home, "output": output, "host_work": Path(workdir).absolute(),
+                "state": _BOUNDARIES[self]["material"],
+            }
+            try:
+                yield
+                self.require_confirmation_isolation()
+                if expected_skill is not None:
+                    verify_staged_version(work / relative, expected_version)
+                    verify_staged_version(expected_skill, expected_version)
+            finally:
+                _SANDBOX_CALLS.pop(self, None)
+
+    def _capture(self, args, *, cwd=None, env=None, timeout=180):
+        sandbox = _SANDBOX_CALLS.get(self)
+        if sandbox is None:
+            if self in _BOUNDARIES:
+                raise RuntimeFailure("confirmation_isolation_unverified", "No isolated invocation workspace is active.")
+            return capture(args, cwd=cwd, env=env, timeout=timeout)
+        self.require_confirmation_isolation()
+        if args[0] != self.cli:
+            raise RuntimeFailure("confirmation_isolation_unverified", "Only the pinned model CLI may run here.")
+        mapped = ["/opt/copilot", *args[1:]]
+        usage = None
+        if "-C" in mapped:
+            index = mapped.index("-C") + 1
+            if Path(mapped[index]).absolute() != sandbox["host_work"]:
+                raise RuntimeFailure("unsafe_workspace", "Unexpected isolated working directory.")
+            mapped[index] = "/work"
+        if "--usage-output-file" in mapped:
+            index = mapped.index("--usage-output-file") + 1
+            usage = Path(mapped[index])
+            mapped[index] = "/output/usage.json"
+        settings = self.config / "settings.json"
+        if settings.exists():
+            shutil.copyfile(settings, sandbox["home"] / ".copilot/settings.json")
+        model_call = "-p" in mapped
+        remaining = _BOUNDARIES[self]["deadline"] - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeFailure("time_limit", "The shared deadline elapsed while preparing isolated execution.")
+        result = self._container_capture(
+            mapped, state=sandbox["state"], workspace=sandbox["work"], home=sandbox["home"],
+            output=sandbox["output"], timeout=min(timeout, remaining), network="bridge" if model_call else "none",
+            tokens={key: self.env[key] for key in TOKEN_KEYS if key in self.env} if model_call else None)
+        if usage is not None:
+            from project_results import read_bytes
+            path = sandbox["output"] / "usage.json"
+            if path.exists():
+                usage.write_bytes(read_bytes(path))
+        if "-C" in mapped and not result.returncode:
+            value = strict_json(result.stdout)
+            if isinstance(value, list):
+                for row in value:
+                    if isinstance(row, dict) and isinstance(row.get("path"), str):
+                        path = Path(row["path"])
+                        if path.is_relative_to("/work"):
+                            row["path"] = str(sandbox["host_work"] / path.relative_to("/work"))
+            result.stdout = json.dumps(value)
+        return result
+
     def check_profile(self):
         registry = self.config / "providers.json"
         if registry.exists() or registry.is_symlink():
@@ -380,7 +607,7 @@ class CopilotRuntime:
         )
 
     def inventory(self, workdir, kind):
-        result = capture(self.command("-C", str(workdir), kind, "list", "--json"), env=self.env, timeout=30)
+        result = self._capture(self.command("-C", str(workdir), kind, "list", "--json"), env=self.env, timeout=30)
         if result.returncode:
             raise RuntimeFailure("inventory_error", f"Could not inspect {kind} inventory: {result.stderr[:1024]}")
         return strict_json(result.stdout)
@@ -423,6 +650,13 @@ class CopilotRuntime:
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
                skill_name="develop", expected_version=None, max_ai_credits=None):
+        with self._invocation_isolation(role, workdir, expected_skill, expected_version):
+            return self._invoke(prompt, model, role, workdir, artifact, expected_skill, timeout=timeout,
+                                skill_name=skill_name, expected_version=expected_version,
+                                max_ai_credits=max_ai_credits)
+
+    def _invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
+                skill_name="develop", expected_version=None, max_ai_credits=None):
         if len(prompt.encode("utf-8")) > PROMPT_LIMIT:
             raise RuntimeFailure("prompt_limit", "Prompt exceeds the bounded CLI input size.")
         artifact = Path(artifact)
@@ -448,7 +682,7 @@ class CopilotRuntime:
             record["inventory"] = self.configure(workdir, expected_skill, skill_name=skill_name)
             command = self.model_command(prompt, model, role, max_ai_credits=max_ai_credits)
             command += ["--usage-output-file", str(usage_path)]
-            result = capture(command, cwd=workdir, env=self.env, timeout=timeout)
+            result = self._capture(command, cwd=workdir, env=self.env, timeout=timeout)
             stdout, stderr = redact(result.stdout, self.env), redact(result.stderr, self.env)
             (private / f"{identifier}.jsonl").write_text(stdout)
             record.update(returncode=result.returncode, stderr=stderr[:16384])

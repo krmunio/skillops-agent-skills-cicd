@@ -1272,6 +1272,22 @@ explicit failure. A missing/failed sandbox never retries on the host. Exiting th
 scope invalidates its capability. Unsupported runtime/platform configurations
 keep confirmation blocked. No paid execution is authorized by these declarations.
 
+**Runtime implementation checkpoint (September 18, 2026):** these two runtime
+methods and isolated invocation transport are implemented in `copilot_runtime.py`.
+`tests/test_confirmation_runtime.py` exercises actual Docker filesystem denial
+and native CLI inventories without model calls when
+`SKILLOPS_ISOLATION_TESTS=1`; the `contracts` job explicitly enables them and
+installs the locked native CLI. Linux, a non-root caller, the local pinned image
+and the locked native x64/ARM64 distribution are prerequisites. Version/inventory
+probes have no credentials or network; an additional offline wiring test doubles
+only the billable model transport, not the filesystem/inventory probes.
+The 64 MiB `/tmp`, process count and memory limits are container-enforced;
+the fresh private writable profile/output directories are not a general host disk
+quota. Imported usage is capped at 1 MiB and captured process output at 4 MiB.
+Preparation consumes the shared deadline, which caps each container invocation.
+This checkpoint supplies the runtime boundary only, not connected confirmation,
+operator-reviewed disclosure independence, paid model evidence or approval.
+
 ### 10.3 Frozen selection, one-use exposure and failures
 
 `prepare_confirmation` accepts only the exact retained improved development
