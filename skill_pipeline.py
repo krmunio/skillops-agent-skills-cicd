@@ -5,11 +5,13 @@ import base64
 from copy import deepcopy
 import json
 import math
+import os
 from pathlib import Path
 import re
 import tempfile
 import time
 from weakref import WeakKeyDictionary
+from uuid import uuid4
 
 from copilot_runtime import RuntimeFailure, capture, redact, strict_json, verify_staged_version
 import evolution_records as evolution
@@ -90,14 +92,200 @@ def _replay_identity(runtime, model, context):
     }
 
 
+def _require_isolation(runtime):
+    verify = getattr(runtime, "require_confirmation_isolation", None)
+    require(callable(verify), "confirmation_isolation_unverified")
+    verify()
+
+
+def _budget_binding(runtime):
+    from project_evaluation import budget_limits
+    budget = runtime.budget
+    limits = budget_limits(budget)
+    require(type(budget.get("calls")) is int and 0 <= budget["calls"] <= budget["max_calls"],
+            "confirmation_inputs_changed")
+    return {**limits, "deadline": budget["deadline"]}
+
+
+def _check_registration(runtime, registered, model, *, deadline=None):
+    _require_isolation(runtime)
+    require(runtime.budget is registered["budget"] and runtime.runtime is registered["runtime"]
+            and _budget_binding(runtime) == registered["record"]["budget"]
+            and runtime.budget["calls"] >= registered["calls"]
+            and runtime.execution_mode == registered["record"]["execution_mode"]
+            and project_results.safe_path(runtime.private) == registered["private"]
+            and (deadline is None or deadline == runtime.budget["deadline"]),
+            "confirmation_inputs_changed")
+    registered["calls"] = runtime.budget["calls"]
+    require(project_results.read_bytes(registered["path"]) == registered["bytes"],
+            "confirmation_inputs_changed")
+    if registered.get("exposure") is not None:
+        path, raw = registered["exposure"]
+        require(project_results.read_bytes(path) == raw, "confirmation_inputs_changed")
+    seed = registered["seed"]
+    require(_replay_identity(runtime, model, seed) == registered["record"]["identity"],
+            "confirmation_inputs_changed")
+    commit = capture(["git", "-C", str(seed["project"]), "rev-parse", "HEAD"])
+    require(not commit.returncode and commit.stdout.strip() == seed["work_item"]["source_commit"],
+            "confirmation_inputs_changed")
+    _replay_provider("validate_confirmation_disclosure")(
+        registered["record"]["disclosure"], project=seed["project"],
+        development_work_item=seed["work_item"],
+        confirmation_work_item=registered["record"]["confirmation_work_item"],
+        original=seed["original"], source_path=seed["reference"]["source_path"])
+    return registered
+
+
+def register_confirmation(runtime, model, project, bundle, skill_key, rubric, images, artifact, *,
+                          development_work_item, confirmation_work_item, disclosure, deadline):
+    """Retain the reviewed pair before development; a runtime capability is mandatory."""
+    _remaining(deadline)
+    _require_isolation(runtime)
+    from project_evaluation import BudgetRuntime
+    require(isinstance(runtime, BudgetRuntime), "confirmation_not_registered")
+    state = _REPLAYS.setdefault(runtime, {"contexts": {}, "evaluations": {}, "issued": {}})
+    require(not state["contexts"] and not state.get("registration") and runtime.budget["calls"] == 0,
+            "confirmation_not_registered")
+    budget = _budget_binding(runtime)
+    require(deadline == budget["deadline"], "confirmation_inputs_changed")
+    require(runtime.execution_mode in ("live", "offline_test", "sample"), "invalid_execution_mode")
+    project = project_results.safe_path(project)
+    require(bundle in skill_guide.discover(project), "skill_inputs_changed")
+    require(evolution.matches(evolution.SKILL_KEY, skill_key), "invalid_skill_identity")
+    original = _complete_capture(captured_files(project, bundle))
+    development, confirmation, disclosure = deepcopy((development_work_item, confirmation_work_item, disclosure))
+    _replay_provider("validate_confirmation_disclosure")(
+        disclosure, project=project, development_work_item=development,
+        confirmation_work_item=confirmation, original=original, source_path=bundle["path"])
+    marker = project_results.safe_path(
+        Path(runtime.private) / "confirmation-exposures" / (confirmation["input_sha256"] + ".json"))
+    require(not marker.exists(), "confirmation_already_used")
+    require(isinstance(images, dict) and images and all(
+        key in ("python", "node") and evolution.matches(evolution.VERSION_ID, value)
+        for key, value in images.items()), "missing_check_image")
+    for work in (development, confirmation):
+        project_checks.replay_sources(project, work["sources"])
+    seed = {
+        "reference": {"skill_key": skill_key, "source_path": bundle["path"]},
+        "work_item": development, "project": project, "original": original,
+        "rubric": deepcopy(rubric), "images": deepcopy(images),
+    }
+    identifier = uuid4().hex
+    record = {
+        "registration_id": identifier, "identity": _replay_identity(runtime, model, seed),
+        "development_work_item": development, "confirmation_work_item": confirmation,
+        "disclosure": disclosure, "budget": budget, "execution_mode": runtime.execution_mode,
+        "original": original[0],
+    }
+    artifact = _private_artifact(runtime, artifact)
+    require(not artifact.is_relative_to(project), "unsafe_replay_artifact")
+    path = artifact / "registration.json"
+    project_results.atomic_json(path, record, immutable=True)
+    registered = {
+        "id": identifier, "seed": seed, "record": record, "bytes": project_results.encoded(record),
+        "path": path, "private": project_results.safe_path(runtime.private), "budget": runtime.budget,
+        "runtime": runtime.runtime, "calls": runtime.budget["calls"], "context_project": None,
+        "closed": False, "selected": None,
+    }
+    _check_registration(runtime, registered, model, deadline=deadline)
+    state["registration"] = registered
+    return identifier
+
+
+def prepare_confirmation(runtime, model, context, selected, artifact, *, registration_id, deadline):
+    """Consume a registered final task once, closing development before any final exposure."""
+    state = _REPLAYS.get(runtime, {})
+    registered = state.get("registration")
+    require(registered is not None and registered["id"] == registration_id, "confirmation_not_registered")
+    require(not registered["closed"], "confirmation_already_used")
+    _check_registration(runtime, registered, model, deadline=deadline)
+    _check_replay(runtime, context, model)
+    require(context["work_item"]["split"] == "development"
+            and registered["context_project"] == context["project"], "confirmation_not_registered")
+    selected = deepcopy(selected)
+    _complete_capture(selected)
+    entries = [entry for entry in state["evaluations"].values()
+               if entry["context_project"] == context["project"] and entry["candidate"] == selected]
+    require(bool(entries), "confirmation_candidate_mismatch")
+    entry = entries[-1]
+    row = entry["row"]
+    require(entry["bytes"] == project_results.encoded(row)
+            and entry["bytes"] == project_results.read_bytes(entry["path"])
+            and row["decision"]["status"] == "improved" and not row["errors"]
+            and row["decision"] == _replay_provider("decide_replay")(row, work_item=context["work_item"])
+            and row["reference_sha256"] == context["reference"]["reference_sha256"],
+            "confirmation_candidate_mismatch")
+    verify_staged_version(entry["path"].parent / "versions/candidate/SKILL.md", selected[0])
+    work = deepcopy(registered["record"]["confirmation_work_item"])
+    marker = project_results.safe_path(
+        registered["private"] / "confirmation-exposures" / (work["input_sha256"] + ".json"))
+    marker.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    exposure = {
+        "registration_id": registration_id, "development_input_sha256": context["work_item"]["input_sha256"],
+        "confirmation_input_sha256": work["input_sha256"],
+        "disclosure_sha256": registered["record"]["disclosure"]["disclosure_sha256"],
+        "selected_version_id": selected[0]["version_id"], "execution_mode": context["execution_mode"],
+    }
+    try:
+        descriptor = os.open(marker, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    except FileExistsError as error:
+        registered["closed"] = True
+        raise RuntimeFailure("confirmation_already_used", "This final input has already been admitted.") from error
+    registered["closed"], registered["selected"] = True, selected
+    raw_exposure = project_results.encoded(exposure)
+    registered["exposure"] = (marker, raw_exposure)
+    with os.fdopen(descriptor, "wb") as stream:
+        stream.write(raw_exposure)
+        stream.flush()
+        os.fsync(stream.fileno())
+    _remaining(deadline)
+    artifact = _private_artifact(runtime, artifact)
+    frozen = artifact / "source"
+    copy_project(context["project"], frozen)
+    final = deepcopy(context)
+    final.update(work_item=work, project=frozen, feedback=None,
+                 sources=project_checks.replay_sources(frozen, work["sources"]),
+                 feedback_scope={"input_sha256": work["input_sha256"],
+                                 "case_ids": work["checks"]["required_case_ids"],
+                                 "gate_ids": work["checks"]["required_gate_ids"], "test_context_paths": []})
+    identity = _replay_identity(runtime, model, final)
+    require({k: v for k, v in identity.items() if k != "input_sha256"}
+            == {k: context["reference"][k] for k in identity if k != "input_sha256"},
+            "confirmation_inputs_changed")
+    observed = project_checks.execute(frozen, final["plan"], final["images"], deadline=deadline)
+    project_checks.validate_observation(observed)
+    require(all(observed[key] == identity[key] for key in
+                ("plan_sha256", "environment_sha256", "protected_sha256")), "check_inputs_changed")
+    for field, required in (("cases", "required_case_ids"), ("gates", "required_gate_ids")):
+        require(set(work["checks"][required]) <= {row["id"] for row in observed[field]}, "missing_work_checks")
+    reference = {**identity, "original_checks": observed, "base_quality": deepcopy(context["reference"]["base_quality"])}
+    reference["reference_sha256"] = _replay_hash(reference)
+    final["reference"] = reference
+    record = {"reference": reference, "work_item": work, "execution_mode": final["execution_mode"]}
+    path = artifact / "preparation.json"
+    project_results.atomic_json(path, record, immutable=True)
+    state["contexts"][str(frozen)] = {
+        "context": deepcopy(final), "model": model, "path": path, "bytes": project_results.encoded(record),
+        "registration": registered, "evaluation_started": False,
+    }
+    _check_replay(runtime, final, model)
+    return final
+
+
 def _check_replay(runtime, context, model=None):
     require(isinstance(context, dict) and set(context) == set(
         "reference work_item original source_project project plan images rubric sources "
         "execution_mode feedback_scope feedback".split()), "invalid_replay_context")
-    require(context["work_item"]["split"] == "development", "confirmation_isolation_unverified")
     reference = context["reference"]
     state = _REPLAYS.get(runtime, {})
     retained = state.get("contexts", {}).get(str(context["project"]))
+    registered = state.get("registration")
+    if registered is not None:
+        require(not registered["closed"] or context["work_item"]["split"] == "confirmation", "development_closed")
+        _check_registration(runtime, registered, retained["model"] if model is None and retained else model)
+    if context["work_item"]["split"] == "confirmation":
+        require(retained is not None and retained.get("registration") is registered and registered is not None
+                and registered["closed"] and context["feedback"] is None, "confirmation_isolation_unverified")
     require(retained is not None and context == retained["context"], "replay_inputs_changed")
     require(runtime.execution_mode == context["execution_mode"], "execution_mode_changed")
     require(project_results.read_bytes(retained["path"]) == retained["bytes"], "replay_inputs_changed")
@@ -124,7 +312,7 @@ def _check_replay(runtime, context, model=None):
 
 
 def prepare_replay(runtime, model, project, bundle, skill_key, rubric, images, artifact, *, work_item, deadline):
-    """Freeze a recorded development task; confirmation remains explicitly unsupported.
+    """Freeze development; registered final tasks must use prepare_confirmation.
 
     Set runtime.execution_mode explicitly. All artifacts must be below runtime.private.
     Shared validators are required; absence never selects a substitute policy.
@@ -144,6 +332,16 @@ def prepare_replay(runtime, model, project, bundle, skill_key, rubric, images, a
     require(bundle in skill_guide.discover(project), "skill_inputs_changed")
     sources = project_checks.replay_sources(project, work["sources"])
     original = _complete_capture(captured_files(project, bundle))
+    state = _REPLAYS.setdefault(runtime, {"contexts": {}, "evaluations": {}, "issued": {}})
+    registered = state.get("registration")
+    if registered is not None:
+        require(not registered["closed"], "development_closed")
+        _check_registration(runtime, registered, model, deadline=deadline)
+        seed = registered["seed"]
+        require(registered["context_project"] is None, "confirmation_not_registered")
+        require(work == seed["work_item"] and original == seed["original"] and project == seed["project"]
+                and seed["reference"] == {"skill_key": skill_key, "source_path": bundle["path"]}
+                and rubric == seed["rubric"] and images == seed["images"], "confirmation_inputs_changed")
     artifact = _private_artifact(runtime, artifact)
     require(not artifact.is_relative_to(project), "unsafe_replay_artifact")
     frozen = artifact / "source"
@@ -175,7 +373,11 @@ def prepare_replay(runtime, model, project, bundle, skill_key, rubric, images, a
         require(set(context["feedback_scope"][scope]) <= {row["id"] for row in observed[name]},
                 "missing_work_checks")
     _remaining(deadline)
+    if registered is not None:
+        _check_registration(runtime, registered, model, deadline=deadline)
     quality = assess_quality(runtime, model, frozen, bundle["path"], context["rubric"], artifact / "base-quality")
+    if registered is not None:
+        _check_registration(runtime, registered, model, deadline=deadline)
     require(quality["rubric_sha256"] == identity["rubric_sha256"]
             and quality["context_sha256"] == identity["quality_context_sha256"], "quality_inputs_changed")
     require(identity == _replay_identity(runtime, model, context), "replay_inputs_changed")
@@ -185,7 +387,8 @@ def prepare_replay(runtime, model, project, bundle, skill_key, rubric, images, a
     path = artifact / "preparation.json"
     record = {"reference": reference, "work_item": work, "execution_mode": mode}
     project_results.atomic_json(path, record, immutable=True)
-    state = _REPLAYS.setdefault(runtime, {"contexts": {}, "evaluations": {}, "issued": {}})
+    if registered is not None:
+        registered["context_project"] = frozen
     state["contexts"][str(frozen)] = {
         "context": deepcopy(context), "model": model, "path": path, "bytes": project_results.encoded(record),
     }
@@ -202,6 +405,9 @@ def development_feedback(runtime, context, evaluation, *, source_round_id):
     A copied/reconstructed row or a new runtime cannot restore private issuance.
     The shared validator must reproduce the unchanged decision from visible checks.
     """
+    registered = _REPLAYS.get(runtime, {}).get("registration")
+    require(registered is None or not registered["closed"], "development_closed")
+    require(context["work_item"]["split"] == "development", "confirmation_isolation_unverified")
     retained = _check_replay(runtime, context)
     state, reference = _REPLAYS[runtime], context["reference"]
     entry = None
@@ -271,6 +477,7 @@ def generate_candidate(runtime, model, parent, feedback, artifact, *, deadline):
     _remaining(deadline)
     _complete_capture(parent)
     state = _REPLAYS.get(runtime, {})
+    require(not state.get("registration", {}).get("closed"), "development_closed")
     issued = state.get("issued", {}).get(_replay_hash(feedback))
     require(issued is not None and issued["parent"] == parent, "unissued_development_feedback")
     require(project_results.read_bytes(issued["path"]) == issued["bytes"], "feedback_binding_mismatch")
@@ -317,8 +524,55 @@ def generate_candidate(runtime, model, parent, feedback, artifact, *, deadline):
     return generation, (version, files)
 
 
+def execute_work(runtime, model, project, captured, images, artifact, *, work_item, deadline):
+    """Apply one complete captured Skill to fresh recorded work; never grant approval."""
+    _remaining(deadline)
+    project = project_results.safe_path(project)
+    captured, work, images = deepcopy((captured, work_item, images))
+    _complete_capture(captured)
+    commit = capture(["git", "-C", str(project), "rev-parse", "HEAD"])
+    require(not commit.returncode, "work_inputs_changed")
+    _replay_provider("validate_work_item")(work, project=project, source_commit=commit.stdout.strip())
+    require(work["split"] == "development", "confirmation_isolation_unverified")
+    sources = project_checks.replay_sources(project, work["sources"])
+    require(isinstance(images, dict) and images and all(
+        key in ("python", "node") and evolution.matches(evolution.VERSION_ID, value)
+        for key, value in images.items()), "missing_check_image")
+    artifact = _private_artifact(runtime, artifact)
+    require(not artifact.is_relative_to(project), "unsafe_replay_artifact")
+    frozen = artifact / "source"
+    copy_project(project, frozen)
+    context = {
+        "project": frozen, "work_item": work, "sources": sources,
+        "plan": project_checks.discover(frozen), "images": images,
+        "reference": {"plan_sha256": work["checks"]["plan_sha256"],
+                      "protected_sha256": work["checks"]["protected_sha256"],
+                      "environment_sha256": project_checks.digest(images)},
+    }
+    registered = _REPLAYS.get(runtime, {}).get("registration")
+    require(registered is None, "development_closed" if registered and registered["closed"]
+            else "confirmation_not_registered")
+
+    def check_inputs():
+        current = capture(["git", "-C", str(project), "rev-parse", "HEAD"])
+        require(not current.returncode and current.stdout.strip() == work["source_commit"]
+                and project_results.tree_hash(project) == work["project_tree_sha256"]
+                and project_results.tree_hash(frozen) == work["project_tree_sha256"], "work_inputs_changed")
+        _replay_provider("validate_work_item")(work, project=project, source_commit=current.stdout.strip())
+        require(project_checks.discover(frozen) == context["plan"]
+                and project_checks.replay_sources(frozen, work["sources"]) == sources, "work_inputs_changed")
+
+    return _apply_work(runtime, model, context, captured, artifact / "application",
+                       deadline=deadline, check_inputs=check_inputs)
+
+
 def _replay_application(runtime, model, context, captured, artifact, *, deadline):
-    _check_replay(runtime, context, model)
+    return _apply_work(runtime, model, context, captured, artifact, deadline=deadline,
+                       check_inputs=lambda: _check_replay(runtime, context, model))
+
+
+def _apply_work(runtime, model, context, captured, artifact, *, deadline, check_inputs):
+    check_inputs()
     version, files = _complete_capture(captured)
     work = context["work_item"]
     name = skill_guide.frontmatter(files["SKILL.md"].decode("utf-8"))[0].get("name")
@@ -329,7 +583,7 @@ def _replay_application(runtime, model, context, captured, artifact, *, deadline
         staged = stage_skill(role, ".github/skills/" + name, files)
         verify_staged_version(staged, version)
         prompt = (
-            f"Invoke /{name} first. Use the Skill to fulfill the recorded development request below. "
+            f"Invoke /{name} first. Use the Skill to fulfill the recorded {work['split']} request below. "
             "Only the Skill tool is available; do not claim tests were executed. "
             "Return one JSON object with exactly files, mapping permitted paths to complete UTF-8 source. "
             "Do not edit tests, fixtures, configuration, dependency manifests, Skills or unlisted paths. "
@@ -340,7 +594,7 @@ def _replay_application(runtime, model, context, captured, artifact, *, deadline
         invoked = runtime.invoke(prompt, model, "developer", role, artifact / "developer.json", staged,
                                  skill_name=name, expected_version=version, timeout=_remaining(deadline))
         verify_staged_version(staged, version)
-        _check_replay(runtime, context, model)
+        check_inputs()
         require(invoked.get("skill_version_verified") is True
                 and invoked.get("skill_activated") is True
                 and invoked.get("staged_version_id") == version["version_id"], "skill_version_mismatch")
@@ -352,7 +606,7 @@ def _replay_application(runtime, model, context, captured, artifact, *, deadline
         project_checks.validate_observation(checked)
         require(all(checked[key] == context["reference"][key] for key in
                     ("plan_sha256", "protected_sha256", "environment_sha256")), "check_inputs_changed")
-        _check_replay(runtime, context, model)
+        check_inputs()
         return {
             "version_id": version["version_id"], "staged_version_id": invoked["staged_version_id"],
             "work_sha256": work["input_sha256"], "output_sha256": project_checks.digest(value),
@@ -365,9 +619,17 @@ def _replay_application(runtime, model, context, captured, artifact, *, deadline
 def evaluate_candidate(runtime, model, context, candidate, artifact, *, deadline, progress=None):
     """Fresh original/candidate replay, returning private evidence only; never regenerate."""
     _remaining(deadline)
-    _check_replay(runtime, context, model)
+    retained = _check_replay(runtime, context, model)
     candidate = deepcopy(candidate)
     _complete_capture(candidate)
+    registered = _REPLAYS[runtime].get("registration")
+    if registered is not None:
+        _check_registration(runtime, registered, model, deadline=deadline)
+    confirmation = context["work_item"]["split"] == "confirmation"
+    if confirmation:
+        require(not retained["evaluation_started"], "confirmation_already_used")
+        require(candidate == registered["selected"], "confirmation_candidate_mismatch")
+        retained["evaluation_started"] = True
     original = context["original"]
     require(candidate[0]["version_id"] != original[0]["version_id"], "unchanged_candidate")
     # Replay candidates can replace only the body, including when supplied rather than generated.
@@ -423,11 +685,12 @@ def evaluate_candidate(runtime, model, context, candidate, artifact, *, deadline
     project_results.atomic_json(path, row, immutable=True)
     for arm, captured in (("base", original), ("candidate", candidate)):
         stage_skill(artifact, "versions/" + arm, captured[1])
-    _REPLAYS[runtime]["evaluations"][id(row)] = {
-        "row": row, "bytes": project_results.encoded(row), "path": path,
-        "reference_sha256": reference["reference_sha256"], "candidate": deepcopy(candidate), "source_round_id": None,
-        "context_project": context["project"], "execution_mode": context["execution_mode"],
-    }
+    if not confirmation:
+        _REPLAYS[runtime]["evaluations"][id(row)] = {
+            "row": row, "bytes": project_results.encoded(row), "path": path,
+            "reference_sha256": reference["reference_sha256"], "candidate": deepcopy(candidate), "source_round_id": None,
+            "context_project": context["project"], "execution_mode": context["execution_mode"],
+        }
     return row, [deepcopy(original), deepcopy(candidate)]
 
 
