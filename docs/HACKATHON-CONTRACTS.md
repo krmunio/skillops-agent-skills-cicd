@@ -474,6 +474,11 @@ python3 skillops.py run-approved --project <project> --skill-key <key> \
 
 `run-approved` does not generate a candidate or re-approve one. It is a model
 execution and separately requires approved call/time/Credit conditions.
+The implemented adapter requires `--live` and the same explicit enabled/auth/
+limit gates, rejects CI/Actions, and creates a fresh runtime, run and zero-call
+budget. A next-execution task ID must not already exist in the canonical private
+WorkItem store, including failed attempts; admission is checked under the runtime
+lock before retaining the task. There is no automatic retry with that task.
 The next work item may describe a new request against the same approved source
 snapshot; it is execution, not reused evaluation evidence. Changed project,
 Skill path/key, source snapshot, candidate bytes, evaluation bytes or environment
@@ -780,9 +785,9 @@ is fabricated. The CLI reports `confirmation_status: not_run`,
 `confirmation_reason: confirmation_isolation_unverified` and
 `approval_eligible: false`, even when the development decision is `improved`.
 At the PR #33 stage, iteration and cycle storage were separate unfinished
-integrations. The following handoff adds those two pieces only; adoption writers,
-human-approval/next-use CLI and live iteration Actions remain unfinished.
-The final demo publisher connects replay/cycle evidence, not adoption.
+integrations. The original handoff added those two pieces only. Revision 1.4 completion now
+also connects adoption, human approval/next-use and recorded-development Actions;
+the historical main audit in section 1 remains a snapshot, not current status.
 
 `tests/test_hackathon_integration.py` exercises real provider/guide evaluator,
 common validation, staged-bundle verification and storage with explicitly
@@ -799,7 +804,7 @@ no replacement loop or evaluation/persistence callback.
 ```python
 project_evaluation.run_iterations(
     root, *, project_id, skill_key, work_item, output, model, execution_mode,
-    policy, max_rounds=1, confirmation_work_item=None, runtime_factory=None,
+    policy, max_rounds=1, confirmation_work_item=None, confirmation_disclosure=None, runtime_factory=None,
     cycle_id=None,
 )
 project_evaluation.persist_cycle(output, cycle, reference)  # -> cycle artifact reference
@@ -815,18 +820,24 @@ stored historical hashes and decisions are not rewritten.
 
 Optional confirmation input is read and validated before any model invocation:
 same project/source commitment, a distinct task/input, disjoint required cases
-and `split: confirmation`. Its retained value is passed only to a lazy preparation
-callback after selection, with the exact same runtime/images/deadline. It never
-enters development context or prompts. This does not implement semantic isolation:
-the actual provider still raises `confirmation_isolation_unverified`.
+and `split: confirmation`. The separate reviewed disclosure is mandatory with
+this input. The caller enters the runtime isolation scope and registers both
+WorkItems/disclosure before development preparation. A lazy callback accepting
+the actual selected Capture calls `prepare_confirmation` with that registration,
+the same runtime/images/budget/deadline and a fresh private path. Confirmation
+never enters development prompts or feedback. Missing isolation remains
+`confirmation_isolation_unverified`; semantic independence still needs operator
+review, not just matching hashes. The provider retains the private disclosure
+in immutable `replays/<id>/registration/registration.json`.
 
 `persist_cycle` accepts only the terminal payload returned by the loop, binds an
 aggregate report, validates all stored report/capture/replay references, then
 uses `store_cycle`. It rereads the result through `load_cycles` and compares
 canonical bytes before returning `{project_id, run_id, path: "cycle.json", sha256}`.
 `load_replay_evidence` supplies the transitive mapping consumed by this same
-validator and writer. The aggregate report remains blocked/unverified, never
-an approval or a passed final confirmation. Storage errors are not caught as
+validator and writer. The aggregate report does not invent execution metrics or
+approval: the cycle's explicit confirmation status identifies final evidence.
+Storage errors are not caught as
 normal cycle termination. No resume, repair, overwrite or additional cycle is
 attempted on failure.
 
@@ -835,6 +846,7 @@ The opt-in CLI is:
 ```text
 python3 skillops.py iterate --project <project> --skill-key <key> \
   --work-item <development-json> --confirmation-work-item <confirmation-json> \
+  --confirmation-disclosure <reviewed-private-disclosure-json> \
   --max-rounds 2 --results <results-directory>
 ```
 
@@ -845,7 +857,10 @@ production CLI flag. Exit 0 means a recorded normal development stop
 (`improved`, `max_rounds`, `no_change`), not improvement proof or approval.
 Budget/runtime/unverified termination returns 2 but may include a valid terminal
 cycle reference; callback/storage failure returns 2 without a success reference.
-The CLI always reports `approval_eligible: false`.
+The CLI reports `approval_eligible: true` only for a reloaded valid live cycle
+with passed final confirmation, a selected complete candidate and its final
+reference. This is evidence eligibility, not an approval or an Active update.
+Offline/sample or unverified/failed/not-run confirmation remains ineligible.
 
 `tests/test_hackathon_integration.py` exercises the actual loop, provider,
 validators, writer, loader and CLI dispatch. Only external transport/IO boundaries
@@ -1084,6 +1099,7 @@ The development iteration CLI is opt-in (see the implemented handoff above):
 ```text
 python3 skillops.py iterate --project <project> --skill-key <key> \
   --work-item <development-work-json> --confirmation-work-item <confirmation-json> \
+  --confirmation-disclosure <reviewed-private-disclosure-json> \
   --max-rounds 2 --results <results-directory>
 ```
 
@@ -1091,8 +1107,9 @@ Without the replay command/options, existing single-cycle CLI and project
 evaluation behavior stays unchanged. Actions integration adds only explicit
 work/Skill/round selection and append-only publication; default model access
 remains disabled, and local approval is never an Actions execution credential.
-The local command and read-only replay/cycle publication are implemented.
-Live iteration Actions and operational approval remain separate. Shared CLI
+The local commands and read-only replay/cycle/adoption publication are implemented.
+Recorded-development Actions is wired; operating it or granting real approval
+requires separate authorization. Shared CLI
 changes require synchronized English/Korean README updates.
 
 **Recorded-development Actions checkpoint:** workflow dispatch now takes optional
@@ -1207,6 +1224,15 @@ production gates are implemented and verified together. Until then
 `confirmation_isolation_unverified` remains mandatory. Schema/fixture success
 or an adapter flag is not permission to remove either provider guard.
 Development-only calls without registration retain their existing behavior.
+
+**Connected implementation checkpoint:** the real session 2 registration/final/
+next-use APIs and session 3 selected-Capture callback are wired through the CLI,
+shared runtime/budget and actual immutable stores/loaders. Actual non-model
+runtime probes are distinct from synthetic model/container transport tests.
+`tests/test_approval_flow.py` creates new temporary synthetic live-shaped inputs
+for the whole CLI chain and copies the exact evaluator files; it does not
+relabel offline results or export authorization fixtures. No paid evaluation,
+operational approval/use, main merge or public deployment is implied.
 
 ### 10.1 Private reviewed disclosure and registration
 
