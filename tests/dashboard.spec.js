@@ -373,7 +373,7 @@ test('sample skill and run selection keep baseline and candidate evidence separa
   await expect(page.locator('#cost-card')).not.toContainText('1.64%');
 });
 
-async function nativeExamplePage(page) {
+async function nativeExamplePage(page, pathname = '/') {
   const projects = [];
   for (const id of ['project-a', 'project-b']) {
     const stored = JSON.parse(fs.readFileSync(`results/${id}/index.json`, 'utf8'));
@@ -390,8 +390,34 @@ async function nativeExamplePage(page) {
       }
     }
   }
-  await pageWith(page, { schema_version: 1, projects }, 200, 'https://dashboard.test');
+  await pageWith(page, { schema_version: 1, projects }, 200, 'https://dashboard.test', pathname);
   return projects;
+}
+
+for (const entry of ['exact Skill link', 'Skill dropdown']) {
+  test(`legacy sample history stays opt-in for an unevaluated ${entry}`, async ({ page }) => {
+    const key = 'path:096d1d195c864df34280ab5e';
+    const query = `?project=project-b&skill=${encodeURIComponent(key)}`;
+    await nativeExamplePage(page, entry === 'exact Skill link' ? `/${query}` : '/?project=project-b');
+    if (entry === 'Skill dropdown') await page.locator('#skill-select').selectOption(key);
+    for (const reload of [false, true]) {
+      if (reload) await page.reload();
+      await expect(page.locator('#selection-summary')).toContainText('별도');
+      await expect(page.locator('#detail')).toBeHidden();
+      await expect(page.locator('#skill-select')).toHaveValue(key);
+      await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+      expect(new URL(page.url()).search).toBe(query);
+      await expect(page.locator('#skill-history-runs .skill-run')).toHaveCount(3);
+    }
+    const run = await page.locator('#skill-history-runs .skill-run').first().getAttribute('data-run');
+    await page.locator('#skill-history-runs .skill-run').first().click();
+    await expect(page.locator('#detail')).toBeVisible();
+    await expect(page.locator('#provenance')).toContainText('sample');
+    expect(new URL(page.url()).searchParams.get('run')).toBe(run);
+    await page.reload();
+    await expect(page.locator('#detail')).toBeVisible();
+    await expect(page.locator('#report-link')).toHaveAttribute('href', `/results/project-b/${run}/report.json`);
+  });
 }
 
 test('native result examples show baseline project evaluation and all45 candidates without sample mode', async ({ page }) => {
@@ -399,6 +425,8 @@ test('native result examples show baseline project evaluation and all45 candidat
   const decisions = ['품질 점수 상승', '개선 미확인', '후보 거절'];
   for (const project of projects) {
     await page.locator(`.project[data-project="${project.id}"]`).click();
+    await expect(page.locator('#detail')).toBeHidden();
+    await page.locator('#skill-history-runs .skill-run').first().click();
     await expect(page.locator('#detail')).toBeVisible();
     await expect(page.locator('#skill-select option')).toHaveCount(project.detected_skills.length);
     await expect(page.locator('#project-summary')).toBeVisible();
@@ -431,6 +459,8 @@ test('native result examples remain usable on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await nativeExamplePage(page);
   await page.locator('.project[data-project="project-b"]').click();
+  await expect(page.locator('#detail')).toBeHidden();
+  await page.locator('#skill-history-runs .skill-run').first().click();
   await expect(page.locator('#detail')).toBeVisible();
   await expect(page.locator('#skill-select option')).toHaveCount(14);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
