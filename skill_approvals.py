@@ -261,7 +261,7 @@ def _candidate(lifecycle, skill_key, version_id):
 def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, evidence_sha256, results):
     # Shared providers are mandatory; absence is a blocked handoff, never a validator substitute.
     _require(all(callable(getattr(module, name, None)) for module, name in (
-        (project_results, "load_cycles"), (project_results, "load_replays"),
+        (project_results, "load_cycles"), (project_results, "load_replay_evidence"),
         (skill_assessments, "validate_work_item"))), "approval_validation_unavailable")
     _identity(project_id, skill_key)
     _version(candidate_version_id)
@@ -272,8 +272,7 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
     _require(sha256(raw_cycle).hexdigest() == evidence_sha256, "approval_evidence_changed")
     reports = project_results.load_reports(results)
     report_map = {(row["project_id"], row["run_id"]): row for row in reports}
-    lifecycles = project_results.load_evolution(results, rows=reports)
-    replays = project_results.load_replays(results, rows=reports)
+    evaluations = project_results.load_replay_evidence(results, rows=reports)
     cycles = project_results.load_cycles(results, rows=reports)
     cycle = cycles.get((project_id, cycle_id))
     _require(cycle is not None and raw_cycle == project_results.encoded(cycle), "approval_evidence_changed")
@@ -281,6 +280,16 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
              and cycle["selected_candidate_version_id"] == candidate_version_id
              and cycle["skill_key"] == skill_key and cycle["confirmation_ref"] is not None, "cycle_not_approvable")
     evolution.relative_path(cycle["source_path"])
+    observed = {}
+
+    def retain(path, value, limit=project_results.LIMIT):
+        raw = project_results.read_bytes(path, limit)
+        _require(raw == project_results.encoded(value), "approval_evidence_changed")
+        observed[path] = (sha256(raw).hexdigest(), limit)
+
+    retain(results / project_id / cycle_id / "cycle.json", cycle)
+    _require((project_id, cycle_id) in report_map, "missing_approval_evidence")
+    retain(results / project_id / cycle_id / "report.json", report_map[(project_id, cycle_id)])
     references = [row["evaluation_ref"] for row in cycle["rounds"] if row["evaluation_ref"] is not None]
     _require(references, "cycle_not_approvable")
     selected = None
@@ -291,14 +300,14 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
         _require(ref["project_id"] == project_id and ref["path"] == "replay-evaluation.json"
                  and project_results.matches(project_results.RUN, ref["run_id"]), "invalid_approval_reference")
         key = (project_id, ref["run_id"])
-        _require(key in replays and key in report_map and key in lifecycles, "missing_approval_evidence")
-        replay, report, lifecycle = replays[key], report_map[key], lifecycles[key]
+        _require(key in evaluations, "missing_approval_evidence")
+        item = evaluations[key]
+        replay, report, lifecycle = item["replay"], item["report"], item["lifecycle"]
         folder = results / project_id / ref["run_id"]
         for filename, value, limit in (("replay-evaluation.json", replay, project_results.LIMIT),
                                        ("report.json", report, project_results.LIMIT),
                                        ("skill-evolution.json", lifecycle, project_results.EVOLUTION_LIMIT)):
-            _require(project_results.read_bytes(folder / filename, limit) == project_results.encoded(value),
-                     "approval_evidence_changed")
+            retain(folder / filename, value, limit)
         _require(_digest(replay) == ref["sha256"] and replay["execution_mode"] == "live"
                  and report["origin"] not in ("sample", "historical_import"), "approval_evidence_changed")
         reference, row = replay["reference"], replay["evaluation"]
@@ -318,10 +327,10 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
         work_path = (Path(root) / ".skillops-private/work-items" / work["task_id"]
                      / (work["input_sha256"] + ".json"))
         private = project_results.read_json(work_path)
-        _require(project_results.read_bytes(work_path) == project_results.encoded(private)
-                 and private["input_sha256"] == _digest({k: v for k, v in private.items() if k != "input_sha256"}),
-                 "approval_work_changed")
         private = skill_assessments.validate_work_item(private, project=project, source_commit=reference["source_commit"])
+        retain(work_path, private)
+        _require(private["input_sha256"] == _digest({k: v for k, v in private.items() if k != "input_sha256"}),
+                 "approval_work_changed")
         _require(work == {**{key: private[key] for key in ("task_id", "input_sha256", "split", "checks")},
                           "provenance": "recorded"} and private["project_id"] == project_id
                  and private["input_sha256"] == reference["input_sha256"], "approval_work_changed")
@@ -338,9 +347,10 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
                      and row["decision"]["status"] in ("improved", "not_improved"), "confirmation_not_verified")
         source = reference
     _require(selected is not None and development, "cycle_not_approvable")
+    for path, (expected, limit) in observed.items():
+        _require(sha256(project_results.read_bytes(path, limit)).hexdigest() == expected, "approval_evidence_changed")
     _source(root, project_id, source)
-    _require(project_results.read_bytes(results / project_id / cycle_id / "cycle.json") == raw_cycle,
-             "approval_evidence_changed")
+    _require(project_results.evaluator_hash(root) == source["evaluator_sha256"], "approval_evaluator_changed")
     return {"source_path": cycle["source_path"], "source_commit": source["source_commit"],
             "project_tree_sha256": source["project_tree_sha256"]}, selected
 
@@ -419,14 +429,16 @@ def record_execution(root, *, approval, receipt):
         path = folder / "executions" / (receipt["execution_id"] + ".json")
         if path.exists() or path.is_symlink():
             _require(_read(path) == receipt, "immutable_local_record")
-            if receipt["status"] == "verified":
-                _require(active["selections"].get(project_id, {}).get(skill_key) == pointer,
-                         "active_conflict")
+            _require(active["selections"].get(project_id, {}).get(skill_key) == pointer, "active_conflict")
             return receipt
         _require(_active_snapshot(folder, active, project_id, skill_key) == _previous(saved), "active_conflict")
         if (folder / "executions").exists():
             for existing in (folder / "executions").glob("*.json"):
-                _require(_read(existing)["run_id"] != receipt["run_id"], "execution_run_exists")
+                prior = _read(existing)
+                evolution.exact(prior, EXECUTION_FIELDS)
+                _execution(prior, _approval(folder, environment, prior["approval_id"]))
+                _require(existing.stem == prior["execution_id"], "invalid_execution")
+                _require(prior["run_id"] != receipt["run_id"], "execution_run_exists")
         _write(path, receipt)
         _require(_environment(folder) == environment, "local_environment_mismatch")
         _require(_approval(folder, environment, saved["approval_id"]) == saved, "approval_binding_mismatch")
