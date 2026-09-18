@@ -304,6 +304,51 @@ def persist_cycle(output, cycle, reference):
             "sha256": sha256(results.encoded(stored)).hexdigest()}
 
 
+def persist_adoption(output, *, approval, receipt=None, reviewed=False):
+    """Project reviewed local observations, never private authority or fabricated task metrics."""
+    import skill_approvals
+
+    results.require(reviewed is True, "publication_review_required")
+    evolution.exact(approval, skill_approvals.APPROVAL_FIELDS)
+    output = results.safe_path(output)
+    reports = {(row["project_id"], row["run_id"]): row for row in results.load_reports(output)}
+    cycles = results.load_cycles(output)
+    key = (approval["project_id"], approval["cycle_id"])
+    results.require(key in cycles and cycles[key]["execution_mode"] == "live", "cycle_not_approvable")
+    public_approval = {field: approval[field] for field in results.APPROVAL_PUBLIC_FIELDS.split()
+                       if field not in ("approved_by", "trust_scope")}
+    public_approval.update(approved_by="local_operator", trust_scope="local_environment")
+    executions = []
+    if receipt is None:
+        report = {**reports[key], "run_id": _replay_run_id("live"), "origin": "local",
+                  "created_at": datetime.now(timezone.utc).isoformat(),
+                  "guide": results.axis("not_assessed", "adoption_observation"),
+                  "execution": results.axis("not_assessed", "adoption_observation")}
+    else:
+        evolution.exact(receipt, skill_approvals.EXECUTION_FIELDS)
+        results.require(receipt["approval_sha256"] == sha256(results.encoded(approval)).hexdigest()
+                        and all(receipt[field] == approval[field] for field in (
+                            "approval_id", "environment_id", "previous_active_version_id",
+                            "previous_active_execution_sha256")), "execution_binding_mismatch")
+        execution_key = (receipt["project_id"], receipt["run_id"])
+        results.require(execution_key in reports, "missing_execution_report")
+        report = reports[execution_key]
+        executions = [{field: receipt[field] for field in results.EXECUTION_PUBLIC_FIELDS.split()}]
+    data = {
+        "schema_version": 1, "project_id": report["project_id"], "run_id": report["run_id"],
+        "report_sha256": sha256(results.encoded(report)).hexdigest(), "execution_mode": "live",
+        "approvals": [public_approval], "executions": executions,
+    }
+    results.validate_adoption(data, report=report, reports=reports, cycles=cycles,
+                             adoptions=results.load_adoptions(output), evaluations=results.load_replays(output))
+    results.store(output, report)
+    path = results.store_adoption(output, data)
+    stored = results.load_adoptions(output)[(data["project_id"], data["run_id"])]
+    results.require(stored == data, "adoption_evidence_mismatch")
+    return {"project_id": data["project_id"], "run_id": data["run_id"], "path": path.name,
+            "sha256": sha256(results.read_bytes(path)).hexdigest()}
+
+
 def retain_work_item(root, work):
     """Retain a validated private input immutably, before any model exposure."""
     root = results.safe_path(root)

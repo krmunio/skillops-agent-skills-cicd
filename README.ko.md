@@ -161,9 +161,15 @@ python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
 표시된 전체 바인딩을 확인하고 `approve <전체 후보 버전>`을 별도로 입력합니다.
 승인은 모델을 호출하거나 Active를 바꾸지 않습니다. 원본 Skill·기존 평가 근거는 유지하며,
 replay 실행 전에 정규 private WorkItem을 보존합니다. 비공개 요청·운영자 식별자는 공개하지 않습니다.
-현재 development-only·offline 결과는 **승인할 수 없습니다**. 런타임 격리 검사는 구현됐지만
-confirmation provider·다음 실행·adoption 게시 연결은 별도 단계입니다.
+현재 development-only·offline 결과는 **승인할 수 없습니다**. 런타임 격리 검사와 검토된 adoption
+게시 경로는 구현됐지만 confirmation provider·다음 실행 연결은 별도 단계입니다.
 합성 승인 계약 테스트를 실제 운영 성공으로 해석하면 안 됩니다.
+
+공개 projection과 참조된 Skill 캡처를 검토한 경우에만 `--publish-reviewed`를 추가합니다.
+새 로컬 `adoption.json` 관측을 저장할 뿐 배포하지 않습니다. 공식 `validate`·`merge`·`index`·`build`가
+최종 확인 cycle·승인·실제 작업 보고서의 참조 전체를 검증하고 private/추가 필드·상충 관측은 거부합니다.
+기존 근거는 수정하지 않고 승인만 기록한 보고서에는 작업 수치를 만들지 않습니다.
+Projection 실패 시 private 승인은 남아 있으나 명시적인 게시 오류를 반환하며 Active는 바꾸지 않습니다.
 
 ### 오프라인 발표 백업
 

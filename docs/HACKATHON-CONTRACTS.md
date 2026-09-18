@@ -588,6 +588,32 @@ Sample replay references retain null `source_commit`, `project_tree_sha256` and
 `evaluator_sha256`, matching the sample report; never invent measured identities.
 Publish only explicitly reviewed projections; never copy private roots wholesale.
 
+**Implemented public integration checkpoint:** `validate_adoption`,
+`store_adoption` and `load_adoptions` enforce exact public fields, report hashes,
+the complete confirmed cycle graph, execution mode/source bindings, full selected
+versions, timestamps, duplicate identities and actual next-run report existence.
+Execution `run_id` means the actual fresh task run, not necessarily the containing
+observation wrapper's `run_id`: a later observation may use another new report.
+Neither run may reuse a replay/cycle run. Duplicate observations must be identical
+and in the same mode; different execution IDs cannot claim one task run.
+Cross-wrapper approval references are supported, but each incoming publication
+packet must include its own full transitive public graph. Empty, malformed or
+unverified observations fail before the official merge/build writes anything.
+
+`project_evaluation.persist_adoption(output, *, approval, receipt=None,
+reviewed=False)` requires explicit review and uses field allowlists to remove
+private authority fields. The optional `approve --publish-reviewed` flag writes
+only a local observation, never deploys. An approval-only observation has a fresh
+report with both axes `not_assessed`, reason `adoption_observation`, no fabricated
+task metrics, and no execution row. A next-use projection requires the actual
+previously stored task report. If projection fails after approval, CLI reports
+that the private approval remains recorded; no successful publication is claimed.
+The official validator/merge/index/build and Actions artifact allowlist now
+include `adoption.json`; the former blanket `adoption_publication_pending` guard
+is replaced by this complete validation path, not simply removed. Non-live
+observations and their task runs are excluded from current-run selection.
+This publication support does not establish live confirmation or observed use.
+
 The existing project history index gains optional keys
 `replay_evaluation`, `cycle`, `adoption`, each equal to
 `<run_id>/<matching-allowlisted-filename>`. Reports remain reachable by their
@@ -635,6 +661,9 @@ project_results.load_replays(results, rows=None)                     # -> {(proj
 project_results.store_cycle(results, data)                           # -> Path
 project_results.load_cycles(results, rows=None)                      # -> {(project, cycle): cycle}
 project_results.load_replay_evidence(results, rows=None)             # -> {(project, run): {report, lifecycle, replay}}
+project_results.validate_adoption(
+    data, *, report, reports, cycles, adoptions=None, evaluations=(),
+)  # -> wrapper; cycles/reports are already validated; supplied graph is rechecked
 project_results.store_adoption(results, data)                        # -> Path
 project_results.load_adoptions(results, rows=None)                    # -> {(project, run): wrapper}
 ```
@@ -1083,9 +1112,11 @@ Only allowlisted public files are copied. Optional history keys are precisely
 Non-live replay/cycle runs are never selected as `current_run`, even when their
 input/evaluator hashes happen to match. This pointer is not an Active claim.
 
-Adoption publication remains unsupported and explicitly blocked; no operational
-approval or next-use API is enabled by the UI integration. The browser can show
-historical absence and unverified state but cannot approve or deploy.
+The later section 7 adoption checkpoint supersedes the presentation-era blanket
+publication block: validated reviewed public observations now use the same
+official graph path. No operational approval or next-use authority is enabled by
+the UI; the browser can show historical absence and unverified state but cannot
+approve or deploy.
 
 For the presentation, combine the reviewed N=2 `offline_test` package produced
 by the integration exporter with unchanged pre-run public reports, using the

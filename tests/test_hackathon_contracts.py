@@ -446,7 +446,7 @@ class CommonContractsTests(unittest.TestCase):
             self.assertEqual(self.data["evaluations"][("sample_repo", run)]["replay"]["generation"]["feedback_sha256"],
                              digest(packet))
 
-    def test_unwired_adoption_publisher_must_not_silently_drop_evidence(self):
+    def test_adoption_publisher_must_not_silently_drop_malformed_evidence(self):
         directory = write_results(self.root / "results", self.data)
         results.atomic_json(directory / "sample_repo/100-1/adoption.json", {"schema_version": 1})
         root = Path(results.__file__).parent
@@ -457,4 +457,4 @@ class CommonContractsTests(unittest.TestCase):
                         results.merge_results(root, directory, self.root / "merged")
                     else:
                         results.build(root, directory, self.root / "site")
-                self.assertEqual(raised.exception.code, "adoption_publication_pending")
+                self.assertFalse((self.root / ("merged" if operation == "merge" else "site")).exists())

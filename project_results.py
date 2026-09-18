@@ -44,7 +44,7 @@ REASONS = {
     "no_skills", "no_adapter", "live_disabled", "missing_auth", "missing_limits",
     "guide_integration_pending", "historical_import", "evaluation_completed",
     "evaluation_failed", "unsupported_adapter", "unsafe_project", "runtime_error",
-    "call_limit", "time_limit", "assessment_unverified",
+    "call_limit", "time_limit", "assessment_unverified", "adoption_observation",
 }
 STATES = {"completed", "failed", "blocked", "not_assessed", "configuration_required"}
 DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_passed", "calibration_failed"}
@@ -310,13 +310,7 @@ def load_snapshots(results, rows=None):
     return snapshots
 
 
-def _require_supported_publication(results):
-    require(not any(safe_path(results).glob("*/*/adoption.json")), "adoption_publication_pending")
-
-
 def merge_results(root, incoming, results):
-    _require_supported_publication(incoming)
-    _require_supported_publication(results)
     rows = load_reports(incoming)
     snapshots = load_snapshots(incoming, rows)
     lifecycles = load_evolution(incoming, rows, snapshots)
@@ -324,6 +318,7 @@ def merge_results(root, incoming, results):
     measurements = load_telemetry(incoming, rows, skill_assessments)
     replays = load_replays(incoming, rows)
     cycles = load_cycles(incoming, rows)
+    adoptions = load_adoptions(incoming, rows)
     existing_rows = load_reports(results)
     existing_snapshots = load_snapshots(results, existing_rows)
     existing_lifecycles = load_evolution(results, existing_rows, existing_snapshots)
@@ -331,6 +326,7 @@ def merge_results(root, incoming, results):
     existing_measurements = load_telemetry(results, existing_rows, existing_assessments)
     existing_replays = load_replays(results, existing_rows)
     existing_cycles = load_cycles(results, existing_rows)
+    existing_adoptions = load_adoptions(results, existing_rows)
     merged_rows = {(row["project_id"], row["run_id"]): row for row in existing_rows}
     merged_snapshots = dict(existing_snapshots)
     merged_lifecycles = dict(existing_lifecycles)
@@ -338,6 +334,7 @@ def merge_results(root, incoming, results):
     merged_measurements = dict(existing_measurements)
     merged_replays = dict(existing_replays)
     merged_cycles = dict(existing_cycles)
+    merged_adoptions = dict(existing_adoptions)
     for mapping, values, name in (
         (merged_rows, {(row["project_id"], row["run_id"]): row for row in rows}, "report.json"),
         (merged_snapshots, snapshots, "skill-snapshots.json"),
@@ -346,6 +343,7 @@ def merge_results(root, incoming, results):
         (merged_measurements, measurements, "stage-metrics.json"),
         (merged_replays, replays, "replay-evaluation.json"),
         (merged_cycles, cycles, "cycle.json"),
+        (merged_adoptions, adoptions, "adoption.json"),
     ):
         for key, value in values.items():
             path = safe_path(Path(results) / key[0] / key[1] / name)
@@ -364,6 +362,8 @@ def merge_results(root, incoming, results):
                 for key, value in merged_replays.items()}
     for key, value in merged_cycles.items():
         validate_cycle(value, report=merged_rows[key], evaluations=evidence)
+    _validate_adoption_graph(merged_adoptions, reports=merged_rows, cycles=merged_cycles,
+                             evaluations=merged_replays)
     for row in rows:
         store(results, row)
     for data in snapshots.values():
@@ -378,6 +378,8 @@ def merge_results(root, incoming, results):
         store_replay(results, data)
     for data in cycles.values():
         store_cycle(results, data)
+    for data in adoptions.values():
+        atomic_json(safe_path(results) / data["project_id"] / data["run_id"] / "adoption.json", data, immutable=True)
     return reindex(root, results)
 
 
@@ -651,6 +653,150 @@ def load_cycles(results, rows=None):
     return values
 
 
+APPROVAL_PUBLIC_FIELDS = (
+    "approval_id project_id skill_key candidate_version_id cycle_id evidence_sha256 "
+    "approved_at approved_by trust_scope previous_active_version_id"
+)
+EXECUTION_PUBLIC_FIELDS = (
+    "execution_id run_id project_id skill_key approval_id evidence_sha256 work_input_sha256 "
+    "approved_version_id loaded_version_id skill_version_verified observed_at status reason_code"
+)
+
+
+def _validate_adoption_graph(values, *, reports, cycles, evaluations=()):
+    approvals, executions, runs = {}, {}, {}
+    for key, data in values.items():
+        evolution.exact(data, "schema_version project_id run_id report_sha256 execution_mode approvals executions")
+        require(key in reports, "orphan_adoption")
+        require(key not in cycles and key not in evaluations, "adoption_run_reused")
+        report = validate(reports[key])
+        require(type(data["schema_version"]) is int and data["schema_version"] == 1
+                and (data["project_id"], data["run_id"]) == key
+                and data["report_sha256"] == sha256(encoded(report)).hexdigest(), "adoption_report_mismatch")
+        require(data["execution_mode"] in ("live", "offline_test", "sample")
+                and (data["execution_mode"] == "sample") == (report["origin"] == "sample")
+                and report["origin"] != "historical_import", "adoption_mode_mismatch")
+        require(isinstance(data["approvals"], list) and isinstance(data["executions"], list)
+                and 0 < len(data["approvals"]) + len(data["executions"]) <= 256
+                and len(encoded(data)) <= LIMIT, "invalid_adoption")
+        local = set()
+        for row in data["approvals"]:
+            evolution.exact(row, APPROVAL_PUBLIC_FIELDS)
+            require(matches(ID, row["approval_id"]) and row["approval_id"] not in local
+                    and row["project_id"] == key[0] and matches(evolution.SKILL_KEY, row["skill_key"])
+                    and matches(evolution.VERSION_ID, row["candidate_version_id"])
+                    and matches(RUN, row["cycle_id"]) and matches(evolution.DIGEST, row["evidence_sha256"])
+                    and row["approved_by"] == "local_operator" and row["trust_scope"] == "local_environment"
+                    and (row["previous_active_version_id"] is None
+                         or matches(evolution.VERSION_ID, row["previous_active_version_id"])), "invalid_public_approval")
+            local.add(row["approval_id"])
+            require(row["approved_at"] is not None, "invalid_public_approval")
+            evolution.timestamp(row["approved_at"])
+            cycle_key = (key[0], row["cycle_id"])
+            require(cycle_key in cycles and cycle_key in reports, "missing_adoption_cycle")
+            cycle = cycles[cycle_key]
+            require(sha256(encoded(cycle)).hexdigest() == row["evidence_sha256"]
+                    and cycle["skill_key"] == row["skill_key"]
+                    and cycle["selected_candidate_version_id"] == row["candidate_version_id"]
+                    and cycle["confirmation_status"] == "passed" and cycle["confirmation_ref"] is not None
+                    and cycle["execution_mode"] == data["execution_mode"], "adoption_evidence_mismatch")
+            require(all(report[field] == reports[cycle_key][field]
+                        for field in ("source_commit", "project_tree_sha256", "evaluator_sha256")),
+                    "adoption_source_mismatch")
+            require(datetime.fromisoformat(row["approved_at"].replace("Z", "+00:00"))
+                    >= datetime.fromisoformat(reports[cycle_key]["created_at"].replace("Z", "+00:00")),
+                    "adoption_time_mismatch")
+            bound = (data["execution_mode"], row)
+            require(row["approval_id"] not in approvals or approvals[row["approval_id"]] == bound,
+                    "conflicting_public_approval")
+            approvals[row["approval_id"]] = bound
+    for data in values.values():
+        local = set()
+        for row in data["executions"]:
+            evolution.exact(row, EXECUTION_PUBLIC_FIELDS)
+            require(matches(ID, row["execution_id"]) and row["execution_id"] not in local
+                    and row["project_id"] == data["project_id"] and matches(RUN, row["run_id"])
+                    and matches(evolution.SKILL_KEY, row["skill_key"]) and matches(ID, row["approval_id"])
+                    and matches(evolution.DIGEST, row["evidence_sha256"])
+                    and matches(evolution.DIGEST, row["work_input_sha256"])
+                    and matches(evolution.VERSION_ID, row["approved_version_id"])
+                    and (row["loaded_version_id"] is None or matches(evolution.VERSION_ID, row["loaded_version_id"]))
+                    and type(row["skill_version_verified"]) is bool
+                    and row["status"] in ("verified", "failed", "blocked")
+                    and (row["reason_code"] is None or matches(r"[a-z0-9_]{1,128}", row["reason_code"])),
+                    "invalid_public_execution")
+            local.add(row["execution_id"])
+            require(row["observed_at"] is not None, "invalid_public_execution")
+            evolution.timestamp(row["observed_at"])
+            require(row["approval_id"] in approvals, "missing_public_approval")
+            mode, approval = approvals[row["approval_id"]]
+            require(mode == data["execution_mode"] and all(row[field] == approval[field]
+                    for field in ("project_id", "skill_key", "evidence_sha256"))
+                    and row["approved_version_id"] == approval["candidate_version_id"],
+                    "adoption_binding_mismatch")
+            require(datetime.fromisoformat(row["observed_at"].replace("Z", "+00:00"))
+                    >= datetime.fromisoformat(approval["approved_at"].replace("Z", "+00:00")),
+                    "adoption_time_mismatch")
+            run_key = (row["project_id"], row["run_id"])
+            require(run_key in reports and row["run_id"] != approval["cycle_id"], "missing_execution_report")
+            require(run_key not in cycles and run_key not in evaluations, "execution_run_reused")
+            require(run_key not in runs or runs[run_key] == row["execution_id"], "execution_run_reused")
+            runs[run_key] = row["execution_id"]
+            source = reports[(row["project_id"], approval["cycle_id"])]
+            publication = reports[(data["project_id"], data["run_id"])]
+            require(all(reports[run_key][field] == publication[field] == source[field]
+                        for field in ("source_commit", "project_tree_sha256", "evaluator_sha256"))
+                    and (mode == "sample") == (reports[run_key]["origin"] == "sample")
+                    and reports[run_key]["origin"] != "historical_import", "adoption_source_mismatch")
+            if row["status"] == "verified":
+                require(row["skill_version_verified"] and row["loaded_version_id"] == row["approved_version_id"]
+                        and row["reason_code"] is None, "unverified_public_execution")
+            else:
+                require(not row["skill_version_verified"] and row["reason_code"] is not None,
+                        "invalid_public_execution")
+            bound = (mode, row)
+            require(row["execution_id"] not in executions or executions[row["execution_id"]] == bound,
+                    "conflicting_public_execution")
+            executions[row["execution_id"]] = bound
+    return values
+
+
+def validate_adoption(data, *, report, reports, cycles, adoptions=None, evaluations=()):
+    """Validate a public observation graph; validated cycles confer no local execution authority."""
+    validate(report)
+    key = (report["project_id"], report["run_id"])
+    values = dict(adoptions or {})
+    values[key] = data
+    _validate_adoption_graph(values, reports={**reports, key: report}, cycles=cycles, evaluations=evaluations)
+    return data
+
+
+def load_adoptions(results, rows=None):
+    results = safe_path(results)
+    rows = load_reports(results) if rows is None else rows
+    reports = {(row["project_id"], row["run_id"]): row for row in rows}
+    values = {}
+    for path in sorted(results.glob("*/*/adoption.json")):
+        data = read_json(path)
+        require(read_bytes(path) == encoded(data), "noncanonical_adoption")
+        values[(path.parent.parent.name, path.parent.name)] = data
+    return _validate_adoption_graph(values, reports=reports, cycles=load_cycles(results, rows),
+                                    evaluations=load_replays(results, rows))
+
+
+def store_adoption(results, data):
+    require(isinstance(data, dict) and matches(ID, data.get("project_id")) and matches(RUN, data.get("run_id")),
+            "invalid_adoption")
+    reports = {(row["project_id"], row["run_id"]): row for row in load_reports(results)}
+    key = (data["project_id"], data["run_id"])
+    require(key in reports, "orphan_adoption")
+    validate_adoption(data, report=reports[key], reports=reports, cycles=load_cycles(results),
+                      adoptions=load_adoptions(results), evaluations=load_replays(results))
+    path = safe_path(results) / key[0] / key[1] / "adoption.json"
+    atomic_json(path, data, immutable=True)
+    return path
+
+
 def validate_evolution(data, report, snapshots=None):
     validate(report)
     evolution.exact(data, "schema_version project_id run_id report_sha256 records bindings file_contents")
@@ -904,7 +1050,6 @@ def reindex(root, results):
     import skill_guide
     from skill_pipeline import skill_key
 
-    _require_supported_publication(results)
     current = {row["id"]: row for row in catalog(root)}
     fingerprint = evaluator_hash(root)
     grouped = {}
@@ -915,8 +1060,11 @@ def reindex(root, results):
     load_telemetry(results, all_rows, skill_assessments)
     replays = load_replays(results, all_rows)
     cycles = load_cycles(results, all_rows)
-    non_live = {key for group in (replays, cycles) for key, data in group.items()
+    adoptions = load_adoptions(results, all_rows)
+    non_live = {key for group in (replays, cycles, adoptions) for key, data in group.items()
                 if data["execution_mode"] != "live"}
+    non_live.update((data["project_id"], row["run_id"]) for data in adoptions.values()
+                    if data["execution_mode"] != "live" for row in data["executions"])
     for row in all_rows:
         grouped.setdefault(row["project_id"], []).append(row)
     entries = []
@@ -968,6 +1116,7 @@ def reindex(root, results):
                 summary["skill_assessments"] = f"{summary['run_id']}/skill-assessments.json"
             for mapping, key, filename in (
                 (replays, "replay_evaluation", "replay-evaluation.json"), (cycles, "cycle", "cycle.json"),
+                (adoptions, "adoption", "adoption.json"),
             ):
                 if (identifier, summary["run_id"]) in mapping:
                     summary[key] = f"{summary['run_id']}/{filename}"
@@ -1038,7 +1187,6 @@ def import_history(source, target, project):
 def build(root, results, output):
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
-    _require_supported_publication(results)
     rows = load_reports(results)
     snapshots = load_snapshots(results, rows)
     lifecycles = load_evolution(results, rows, snapshots)
@@ -1046,6 +1194,7 @@ def build(root, results, output):
     measurements = load_telemetry(results, rows, skill_assessments)
     replays = load_replays(results, rows)
     cycles = load_cycles(results, rows)
+    adoptions = load_adoptions(results, rows)
     output.mkdir(parents=True)
     modules = {}
 
@@ -1083,6 +1232,9 @@ def build(root, results, output):
         store_replay(output / "results", data)
     for data in cycles.values():
         store_cycle(output / "results", data)
+    for data in adoptions.values():
+        atomic_json(output / "results" / data["project_id"] / data["run_id"] / "adoption.json",
+                    data, immutable=True)
     return reindex(root, output / "results")
 
 
@@ -1135,6 +1287,7 @@ def main():
             load_assessments(args.results)
             load_telemetry(args.results)
             load_cycles(args.results)
+            load_adoptions(args.results)
         elif args.command == "import-history":
             value = {"imported": import_history(args.source, args.results, args.project)}
             reindex(args.root, args.results)

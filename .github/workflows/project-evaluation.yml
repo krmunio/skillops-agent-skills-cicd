@@ -189,7 +189,17 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: public-project-results
-          path: ci-results/
+          path: |
+            ci-results/index.json
+            ci-results/*/index.json
+            ci-results/*/*/report.json
+            ci-results/*/*/skill-snapshots.json
+            ci-results/*/*/skill-evolution.json
+            ci-results/*/*/skill-assessments.json
+            ci-results/*/*/stage-metrics.json
+            ci-results/*/*/replay-evaluation.json
+            ci-results/*/*/cycle.json
+            ci-results/*/*/adoption.json
           if-no-files-found: error
           retention-days: 7
 

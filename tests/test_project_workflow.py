@@ -3,6 +3,14 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_public_result_artifact_uses_explicit_filenames_not_private_trees(self):
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/project-evaluation.yml").read_text()
+        artifact = text.split("name: public-project-results", 1)[1].split("\n  persist:", 1)[0]
+        self.assertNotIn("path: ci-results/", artifact)
+        for name in ("report.json", "skill-evolution.json", "replay-evaluation.json", "cycle.json", "adoption.json"):
+            self.assertIn("ci-results/*/*/" + name, artifact)
+        self.assertNotIn(".skillops", artifact)
+
     def test_manual_project_limits_are_not_replicated_per_skill(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / ".github/workflows/project-evaluation.yml").read_text()
