@@ -104,7 +104,7 @@ async function wrapper(parsed, bundle, fields) {
   exact(data, `schema_version project_id run_id report_sha256 execution_mode ${fields}`);
   check(data.schema_version === 1 && data.project_id === report.project_id && data.run_id === report.run_id &&
     modes.includes(data.execution_mode) && data.report_sha256 === await digest(encoder.encode(bundle.rawReport)));
-  check(report.origin !== 'sample' || data.execution_mode === 'sample');
+  check((report.origin === 'sample') === (data.execution_mode === 'sample'));
 }
 export async function loadTraceSkills(project, run, report, read) {
   const skills = new Map();
@@ -189,13 +189,18 @@ function decisionStatus(row) {
 }
 async function validateReplay(parsed, bundle) {
   await wrapper(parsed, bundle, 'reference generation evaluation');
+  check(bundle.report.purpose === 'project_assessment');
   const { reference: ref, evaluation: row, generation } = parsed.value;
+  const sample = parsed.value.execution_mode === 'sample';
   exact(ref, 'schema_version project_id skill_key source_path source_commit project_tree_sha256 input_sha256 original_version_id ' +
     'rubric_sha256 quality_context_sha256 evaluator_sha256 policy_sha256 plan_sha256 environment_sha256 protected_sha256 ' +
     'original_checks base_quality reference_sha256');
   identity(ref);
-  check(ref.schema_version === 1 && matches(/^[a-f0-9]{40}$/, ref.source_commit) && matches(version, ref.original_version_id));
-  for (const [key, value] of Object.entries(ref)) if (key.endsWith('_sha256')) check(matches(hash, value));
+  check(ref.schema_version === 1 && (sample ? ref.source_commit === null : matches(/^[a-f0-9]{40}$/, ref.source_commit)) &&
+    matches(version, ref.original_version_id));
+  for (const [key, value] of Object.entries(ref)) if (key.endsWith('_sha256')) {
+    check(sample && ['project_tree_sha256', 'evaluator_sha256'].includes(key) ? value === null : matches(hash, value));
+  }
   check(ref.policy_sha256 === replayPolicyHash);
   check(ref.reference_sha256 === await parsed.hashObject(ref, 'reference_sha256'));
   for (const key of ['project_id', 'source_commit', 'project_tree_sha256', 'evaluator_sha256']) same(ref[key], bundle.report[key]);
