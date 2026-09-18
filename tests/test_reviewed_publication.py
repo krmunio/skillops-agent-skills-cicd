@@ -15,6 +15,7 @@ from unittest.mock import patch
 import project_results as results
 from copilot_runtime import RuntimeFailure
 import test_project_results
+from publication_fixtures import dashboard_fixture
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +29,7 @@ class ReviewedPublicationTests(unittest.TestCase):
         self.base = Path(self.temp.name)
         self.root = self.base / "code"
         self.root.mkdir()
-        shutil.copytree(ROOT / "dashboard", self.root / "dashboard")
+        dashboard_fixture(self.root)
         shutil.copytree(ROOT / "eval", self.root / "eval")
         for path in ROOT.glob("*.py"):
             shutil.copyfile(path, self.root / path.name)
