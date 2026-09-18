@@ -990,8 +990,8 @@ class ProducedCycleApprovalTests(unittest.TestCase):
         self.assertEqual(cycle["execution_mode"], "offline_test")
         self.assertEqual([row["decision"]["status"] for row in cycle["rounds"]], ["not_improved", "improved"])
         self.assertEqual(cycle["confirmation_status"], "unverified")
-        self.assertIsNone(cycle["confirmation_ref"])
-        self.assertEqual(producer.budget["calls"], 9)
+        self.assertIsNotNone(cycle["confirmation_ref"])
+        self.assertEqual(producer.budget["calls"], 11)
         path = producer.output / "sample_repo" / cycle["cycle_id"] / "cycle.json"
         artifacts = {path: path.read_bytes() for path in producer.output.rglob("*.json")}
         with patch.dict(os.environ, {"CI": "", "GITHUB_ACTIONS": ""}), self.assertRaises(RuntimeFailure) as caught:
