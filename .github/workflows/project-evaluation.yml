@@ -70,7 +70,9 @@ jobs:
         with:
           node-version: '22'
       - name: Install locked native CLI for non-model isolation probes
-        run: npm ci --no-audit --no-fund
+        run: |
+          npm ci --no-audit --no-fund
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Prepare pinned Python image for actual container controls
         run: |
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
