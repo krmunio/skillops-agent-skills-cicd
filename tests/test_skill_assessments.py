@@ -3,6 +3,7 @@ from copy import deepcopy
 from hashlib import sha256
 import json
 from pathlib import Path
+from publication_fixtures import dashboard_fixture
 import shutil
 import subprocess
 import tempfile
@@ -265,7 +266,7 @@ class SkillAssessmentTests(unittest.TestCase):
             path = results.store_assessments(incoming, data)
             original_bytes = path.read_bytes()
             results.merge_results(source, incoming, target)
-            results.build(source, target, site)
+            results.build(dashboard_fixture(Path(folder) / "publisher"), target, site)
             self.assertEqual((site / "results/sample_repo/123-1/skill-assessments.json").read_bytes(), original_bytes)
 
     @unittest.skipUnless(shutil.which("node"), "Node is required for the Python/JavaScript decision parity check")
@@ -371,7 +372,7 @@ class SkillAssessmentTests(unittest.TestCase):
             self.assertEqual(results.store_assessments(incoming, data), saved)
             results.merge_results(source, incoming, target)
             output = root / "site"
-            results.build(source, target, output)
+            results.build(dashboard_fixture(root / "publisher"), target, output)
             self.assertEqual(results.load_assessments(output / "results")[(report["project_id"], report["run_id"])], data)
             history = json.loads((output / "results/sample_repo/index.json").read_text())["history"]
             self.assertEqual(history[0]["skill_assessments"], "123-1/skill-assessments.json")

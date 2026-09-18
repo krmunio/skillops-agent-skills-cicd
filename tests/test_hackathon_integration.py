@@ -5,6 +5,7 @@ from copy import deepcopy
 import io
 import json
 from pathlib import Path
+from publication_fixtures import dashboard_fixture
 import shutil
 import subprocess
 import tempfile
@@ -864,7 +865,7 @@ class ReplayIntegrationTests(unittest.TestCase):
         results.merge_results(code_root, code_root / "results", merged)
         legacy = {p.relative_to(merged): p.read_bytes() for p in merged.glob("*/*/*.json")}
         results.merge_results(code_root, self.output, merged)
-        results.build(code_root, merged, site)
+        results.build(dashboard_fixture(self.root / "publisher"), merged, site)
         for relative, raw in legacy.items():
             self.assertEqual((site / "results" / relative).read_bytes(), raw)
         for path in self.output.glob("*/*/*.json"):

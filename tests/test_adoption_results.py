@@ -9,6 +9,7 @@ import unittest
 from copilot_runtime import RuntimeFailure
 from hackathon_fixtures import fixture, write_results
 import project_results as results
+from publication_fixtures import dashboard_fixture
 
 
 class AdoptionResultsTests(unittest.TestCase):
@@ -43,7 +44,7 @@ class AdoptionResultsTests(unittest.TestCase):
         path = self.writer()(self.output, self.wrapper)
         before = {p.relative_to(self.output): p.read_bytes() for p in self.output.glob("*/*/*.json")}
         self.assertEqual(results.load_adoptions(self.output)[("sample_repo", "104-1")], self.wrapper)
-        root = Path(results.__file__).parent
+        root = dashboard_fixture(self.root / "publisher")
         merged, site = self.root / "merged", self.root / "site"
         results.merge_results(root, self.output, merged)
         results.build(root, merged, site)
