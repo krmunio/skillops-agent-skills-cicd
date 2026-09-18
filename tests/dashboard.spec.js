@@ -1037,14 +1037,26 @@ for (const bad of ['missing', 'oversize', 'duplicate']) {
   });
 }
 
-test('completed confirmation without a published approval is pending, not a claim of no approvals', async ({ page }) => {
-  const fixture = traceFixture();
-  fixture.items = fixture.items.filter(item => item !== fixture.adopted);
-  await tracePage(page, fixture);
-  await expect(page.locator('#evidence-trace')).toContainText('승인 대기');
-  await expect(page.locator('#evidence-trace')).toContainText('승인·사용: 미기록');
-  await expect(page.locator('#evidence-trace')).not.toContainText('승인 없음');
-});
+for (const mode of ['offline_test', 'sample', 'live']) {
+  test(`passed ${mode} confirmation gates approval readiness by execution mode`, async ({ page }) => {
+    // The live case is a rendering-only control, never operational approval evidence.
+    const fixture = traceFixture({ mode });
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted);
+    await tracePage(page, fixture);
+    for (const reload of [false, true]) {
+      if (reload) await page.reload();
+      const panel = page.locator('#evidence-trace');
+      await expect(panel).toContainText('confirmation: passed');
+      await expect(panel).toContainText(mode === 'live' ? '승인 대기' : '테스트/샘플 · 승인 불가');
+      if (mode !== 'live') await expect(panel).not.toContainText('승인 대기');
+      await expect(panel).toContainText('승인·사용: 미기록');
+      await expect(panel).not.toContainText('승인 없음');
+      await expect(page.locator('#trace-error')).toHaveCount(0);
+      await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+      await expect(page).toHaveURL(/run=104-1/);
+    }
+  });
+}
 
 test('alternate replay policy is rejected even when all reference digests and lineage match', async ({ page }) => {
   await tracePage(page, traceFixture({ policyHash: hash('different policy') }));
@@ -1085,7 +1097,8 @@ for (const [decision, confirmation] of [['not_improved', 'passed'], ['rejected',
     await tracePage(page, fixture);
     const panel = page.locator('#evidence-trace');
     await expect(panel).toContainText(`confirmation: ${confirmation}`);
-    await expect(panel).toContainText(confirmation === 'passed' ? '승인 대기' : '최종 확인 미완료');
+    await expect(panel).toContainText(confirmation === 'passed' ? '테스트/샘플 · 승인 불가' : '최종 확인 미완료');
+    await expect(panel).not.toContainText('승인 대기');
     await expect(panel).toContainText('승인·사용: 미기록');
     await panel.getByRole('link', { name: '별도 최종 확인 근거' }).click();
     await expect(page).toHaveURL(/run=103-1/);
@@ -1093,6 +1106,7 @@ for (const [decision, confirmation] of [['not_improved', 'passed'], ['rejected',
     await expect(page.locator('#improvement-evidence')).toContainText('추가 생성 없음');
     await page.reload();
     await expect(panel).toContainText(`confirmation: ${confirmation}`);
+    await expect(panel).not.toContainText('승인 대기');
     await expect(page.locator('#trace-error')).toHaveCount(0);
     await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
   });
