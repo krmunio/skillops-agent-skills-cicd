@@ -1,6 +1,7 @@
 # Hackathon contracts: replay, bounded improvement, explicit adoption
 
-Contract revision: **1.3** (nullable unsaved attempts; fail-closed persistence).
+Contract revision: **1.4** (reviewed confirmation admission and runtime boundary;
+public schema version 1 and revision 1.3 persistence semantics retained).
 Original code baseline: `3a6a2a3`.
 The operator confirmed **explicit local CLI approval** on September 17, 2026.
 Interface declarations do not authorize model calls; delivered APIs are identified
@@ -18,6 +19,11 @@ Revision 1.3 retains those interfaces and distinguishes an admitted attempt
 ending before durable evaluation storage from a persistence callback failure.
 Only the former can become a terminal round with a null `run_id`. This is a
 validation clarification within schema version 1, not a rewrite of prior evidence.
+Revision 1.4 accepts the preregistration/disclosure/frozen-selection mechanism
+reviewed in issue #36, with the runtime owner explicitly assigned by the operator
+to session 1 on September 18, 2026. Section 10 defines the callable changes and
+fail-closed implementation gate. This declaration does not establish that runtime
+isolation, confirmation, local approval or next-use integration is implemented.
 Dependent PRs must name the accepted contract commit; changes go through the
 integration owner, not independent reinterpretations by each session.
 No presentation file was available in this checkout or conversation attachments;
@@ -104,8 +110,10 @@ that provenance nor historical decisions may be relabeled for the new replay pat
 Phase 1 adds a separately selected replay path, a bounded loop and local approval.
 It does not add a queue, service, database, generic approval framework, automatic
 source rewrite, canary rollout, rollback, or GitHub-based operational approval.
-No changes to `candidates.py`, `copilot_runtime.py`, evaluation rubrics or protected
-tests are delegated; request any necessary changes from the integration owner.
+No changes to `candidates.py`, evaluation rubrics or protected project tests are
+delegated. Session 1 additionally owns `copilot_runtime.py` and its runtime tests
+for the explicitly authorized section 10 isolation implementation; other sessions
+request changes to that boundary rather than introducing another runtime.
 
 ## 2. Shared identities, encoding and errors
 
@@ -971,6 +979,11 @@ only the new cycle/persistence path requires the added cap.
 `confirmation_context` is a callable prepared by session
 1/2, invoked once only after candidate selection; it returns a replay context for
 the precommitted confirmation task without exposing it to generation.
+Revision 1.4 changes this private callback from `confirmation_context()` to
+`confirmation_context(selected)`, with an independent copy of the frozen selected
+Capture. Session 3 changes the sole loop caller; session 1 changes the adapter
+closure; session 2 supplies `prepare_confirmation` as specified in section 10.
+The enclosing `run_cycle` signature and persisted cycle format do not change.
 `persist_round(evaluation, captures, generation, reference)` is supplied by the
 integration adapter; it writes one run's report/captures/replay evidence and
 returns its artifact reference. Confirmation calls it with `generation=None`.
@@ -1123,3 +1136,210 @@ Each completion report must name PR, commit, changed files, provided interfaces,
 commands actually executed with outcomes/skips, and unresolved integration links.
 Do not merge main, force-push, modify another session's worktree or clean unknown
 files as part of this handoff.
+
+## 10. Reviewed confirmation admission and isolation (revision 1.4)
+
+This section supersedes the phase-1 blanket prohibition only when all its
+production gates are implemented and verified together. Until then
+`confirmation_isolation_unverified` remains mandatory. Schema/fixture success
+or an adapter flag is not permission to remove either provider guard.
+Development-only calls without registration retain their existing behavior.
+
+### 10.1 Private reviewed disclosure and registration
+
+Session 1 provides the pure common API:
+
+```python
+skill_assessments.validate_confirmation_disclosure(
+    data, *, project, development_work_item, confirmation_work_item,
+    original, source_path,
+)  # -> validated data; not a capability or isolation certificate
+```
+
+The private disclosure object has exactly:
+
+```text
+schema_version development_input_sha256 confirmation_input_sha256
+model_visible_files checker_only_files disclosure_sha256
+```
+
+Schema version is 1. Both file maps contain project-relative paths and actual
+original byte SHA-256 values. Their disjoint union must equal the complete pinned
+project inventory under the existing `tree_hash` safety/size bounds.
+`model_visible_files` is exactly the union of the two WorkItems' permitted source
+paths and all files in the original complete Skill bundle. All other files are
+checker-only, including complete mixed test modules and imported fixtures.
+The disclosure digest is `H(data without disclosure_sha256)`.
+Unknown fields, wrong hashes, incomplete inventories, widened visible scopes,
+symlinks, changed bundles and invalid WorkItems fail before model invocation.
+
+The operator supplies the reviewed disclosure as a separate private input.
+The CLI adapter adds `--confirmation-disclosure <private-json>` and requires it
+together with `--confirmation-work-item`; neither is inferred from public reports.
+The operator must review that the requests are distinct and the visible sources
+and complete Skill companions do not contain held-out task/test answers.
+Identical requests or literal confirmation request text in development-visible
+input are rejected. This negative check does not detect all paraphrases or prove
+semantic independence. Unsupported overlapping disclosure remains blocked, never
+"fixed" by redacting bytes and claiming the same captured version.
+
+Session 1 persists validated private WorkItems at the section 7 canonical paths.
+It retains disclosure and invocation artifacts only below the runtime-private
+root, never in result packets, public inputs, summaries or uploaded diagnostics.
+
+Session 2 owns:
+
+```python
+skill_pipeline.register_confirmation(
+    runtime, model, project, bundle, skill_key, rubric, images, artifact,
+    *, development_work_item, confirmation_work_item, disclosure, deadline,
+)  # -> opaque runtime-local registration ID
+skill_pipeline.prepare_confirmation(
+    runtime, model, context, selected, artifact,
+    *, registration_id, deadline,
+)  # -> unchanged exact replay context; feedback is None
+```
+
+The session 1 `_replay_session` caller enters the verified runtime boundary,
+then registers the pair before development preparation or any model exposure.
+Registration validates disclosure and binds the actual same BudgetRuntime,
+original full Capture, project/source tree, Skill identity/path, model/CLI,
+rubric/policy/evaluator, prepared images, mode and original authorized budget.
+It retains immutable private bytes and original observations in the existing
+provider-owned runtime-local state. A new runtime, late registration, changed
+input or registration ID reconstructed from public data is not accepted.
+Registration performs no generation or confirmation application.
+
+Session 1 supplies a closure accepting the selected Capture and calling
+`prepare_confirmation` with the registration ID and a fresh private artifact
+path. Session 3 passes a copy only after verified development selection.
+Existing `prepare_replay`, `evaluate_candidate`, `generate_candidate` and
+`development_feedback` signatures remain unchanged. No registration fields are
+added to WorkItem, the exact replay context, replay, cycle or adoption formats.
+
+### 10.2 Enforced model-process boundary, owned by session 1
+
+The runtime exposes:
+
+```python
+with runtime.confirmation_isolation(deadline=deadline):
+    # Registration, development, final preparation/evaluation share this scope.
+    ...
+runtime.require_confirmation_isolation()  # checks live internal capability; no flag argument
+```
+
+Use the existing Docker prerequisite rather than a second model provider.
+Run the pinned native Copilot executable read-only on the pinned Node runtime
+image. Validate the installed native package against the repository lock,
+retain its exact byte digest and image ID, and fail on drift. No automatic image
+pull, package installation, daemon-policy modification or privileged fallback is
+part of this API. Missing prerequisites fail before paid invocation.
+
+Each invocation uses a fresh role workspace, HOME/config and bounded output
+location. Generator/judge workspaces are empty: even a guide artifact directory
+passed as `workdir` must not be mounted. The developer receives only the exact
+validated complete Skill bundle. Source contents and the correct task request
+reach it through the existing explicitly bounded prompt, not a project mount.
+The host writes private model/checker artifacts after collecting the process
+result; prior artifacts and usage history are never input mounts.
+
+The process runs non-root, with read-only root, dropped capabilities,
+no-new-privileges and bounded temporary storage/process/memory. Do not mount
+the source project, frozen checker copy, confirmation/private store, whole host
+HOME, ancestor/sibling workspace, host socket/device or Docker socket; do not use
+host PID or host networking. Credentials are passed through the existing minimal
+token environment only, never command text or public records. Existing disabled
+hooks/memory/custom instructions/plugins/MCP and observed tool/activation checks
+still apply inside the isolated filesystem, not merely in a host-side inventory.
+
+Before issuing its private capability, the actual runtime must run non-model
+subprocess probes with network disabled. Probes verify the allowed workspace
+is readable, the denied host/project/private/history/sibling sentinels are not,
+the root is read-only, capabilities are dropped and process isolation is active.
+Provider-supplied booleans or successful test doubles cannot issue the real
+runtime capability. Check the live capability and pinned inputs at registration,
+confirmation admission, and before/after model applications.
+
+Model execution can use normal container networking only behind the existing
+separately authorized live/authentication/budget gates; offline access probes do
+not invoke the model or require its token. This boundary promises local file and
+process isolation, not a generic network-egress policy or defense against a
+malicious host administrator, compromised kernel/Docker daemon or trusted CLI
+distribution. A new egress policy/service is not introduced here.
+
+Timeout/cancellation must clean up only the exact owned container, retaining an
+explicit failure. A missing/failed sandbox never retries on the host. Exiting the
+scope invalidates its capability. Unsupported runtime/platform configurations
+keep confirmation blocked. No paid execution is authorized by these declarations.
+
+### 10.3 Frozen selection, one-use exposure and failures
+
+`prepare_confirmation` accepts only the exact retained improved development
+candidate and unchanged registration/reference. It closes generation and
+development-feedback issuance for that experiment before any final request is
+exposed, including reuse of previously issued packets. Confirmation rows are
+never registered as generation evidence.
+
+Under the existing runtime lock, admission exclusively creates an immutable
+private marker at
+`.skillops-private/confirmation-exposures/<confirmation_input_sha256>.json`.
+It records the registered input/disclosure/selected-version bindings and mode.
+The provider owns this marker; it is never public approval or evidence of task
+success. Exclusive creation, rather than identical-value idempotence, enforces
+one use. A prior marker blocks a new runtime/process too. Consume before model
+exposure and keep it on failure; no automatic recovery, retry or marker removal.
+An unused registration does not consume the task. Renaming a task to reuse
+exposed final material violates the operator-reviewed new-task requirement.
+
+Confirmation retains original Capture and base guide quality without rejudging
+the baseline. Only its distinct WorkItem input/reference hashes and fresh
+original-check observations differ; all existing loop/reference bindings remain.
+Evaluate the frozen selected bytes once with fresh base/candidate applications,
+the same check policy and the same shared invocation/time/Credit budget.
+No confirmation failure can trigger another generation or silently become a
+development-only approval. Persist through the existing callback with
+`generation=None`; callback failure still propagates under revision 1.3.
+
+| Condition | Required failure |
+| --- | --- |
+| Missing/late registration | `confirmation_not_registered` |
+| Registered inputs/runtime/image/CLI changed | `confirmation_inputs_changed` |
+| Wrong, unretained or non-improved selected Capture | `confirmation_candidate_mismatch` |
+| Previously consumed confirmation input/admission | `confirmation_already_used` |
+| Generation or development feedback after admission | `development_closed` |
+| Unsupported disclosure or unavailable/unverified runtime boundary | `confirmation_isolation_unverified` |
+
+Preserve more specific existing validation/budget/IO errors where applicable.
+Operational failures are unverified, observed task/regression failures rejected;
+neither becomes success through fallback. Status and approval eligibility still
+require the actual persisted evidence, not a returned registration ID.
+
+### 10.4 Next-use execution handoff and acceptance
+
+Session 2 also provides the narrow application primitive for session 1:
+
+```python
+skill_pipeline.execute_work(
+    runtime, model, project, captured, images, artifact, *, work_item, deadline,
+)  # -> (application receipt, checker observation)
+```
+
+Reuse the application implementation, not a second paired evaluator.
+Validate the fresh private development WorkItem and project/check commitments,
+stage the exact complete captured bundle, enforce runtime activation and inventory
+before/after invocation, apply only permitted replacements to a pristine copy,
+then run the protected checker. No candidate generation, guide baseline,
+approval/receipt-store or Active-pointer write occurs in this primitive.
+Session 1 calls it only after `resolve_approved`, fresh-run/work checks and a
+separately authorized budget. Its observed application/check output feeds the
+host-derived section 6 receipt and task report; model text is never use evidence.
+
+Before integrating confirmation, tests must cover registration/drift/wrong
+runtime, mixed hidden fixtures and Skill companions, actual denied filesystem
+reads, unexpected tools/instructions, retained-candidate mismatch, consumed
+admission, old development-packet reuse, shared limits and no post-final round.
+Use actual provider/loop/validators/persistence in integration tests; only external
+model/container transport may be doubled with explicit offline labels.
+Real no-model container access probes are a separate required check. Neither
+those probes nor synthetic confirmation/adoption data prove paid model results,
+human approval, verified operational use or public deployment.
