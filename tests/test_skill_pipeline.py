@@ -17,6 +17,7 @@ import project_evaluation
 import skill_assessments
 import skill_guide
 import skill_pipeline
+import copilot_runtime
 from copilot_runtime import RuntimeFailure, capture as real_capture
 from project_checks import execute as real_execute_checks
 from skill_guide import evaluate_bundle as real_evaluate_bundle
@@ -578,6 +579,462 @@ class ReplayTests(unittest.TestCase):
         self.assertEqual(rows[0]["reference_sha256"], rows[1]["reference_sha256"])
         self.assertEqual(rows[0]["base_version_id"], rows[1]["base_version_id"])
         self.assertEqual((self.project / "api.py").read_text(), "VALUE = 0\n")
+
+
+class ConfirmationTests(unittest.TestCase):
+    """Real provider/validators with explicitly simulated external isolation/model/check transport."""
+
+    hash = staticmethod(ReplayTests.hash)
+    candidate = ReplayTests.candidate
+    invoke = ReplayTests.invoke
+
+    def setUp(self):
+        ReplayTests.setUp(self)
+        self.deadline = time.monotonic() + 120
+        self.transport = self.runtime
+        self.capability_active = True
+        self.transport.require_confirmation_isolation.side_effect = self.require_simulated_capability
+        self.runtime = project_evaluation.BudgetRuntime(self.transport, {
+            "calls": 0, "max_calls": 20, "max_seconds": 120, "deadline": self.deadline,
+            "max_ai_credits": 100,
+        })
+        self.runtime.execution_mode = "offline_test"
+        self.final = deepcopy(self.work)
+        self.final.update(task_id="final-task", split="confirmation", request="FINAL_REQUEST_SENTINEL: verify VALUE.")
+        self.final["checks"]["required_case_ids"] = ["confirmation-secret-case"]
+        self.final["input_sha256"] = self.hash({k: v for k, v in self.final.items() if k != "input_sha256"})
+        self.disclosure = self.make_disclosure()
+        self.quality_calls = 0
+
+    def api(self, name):
+        function = getattr(skill_pipeline, name, None)
+        self.assertTrue(callable(function), "Missing accepted provider API: " + name)
+        return function
+
+    def require_simulated_capability(self):
+        if not self.capability_active:
+            raise RuntimeFailure("confirmation_isolation_unverified", "Offline simulated capability expired.")
+
+    def quality(self, *args):
+        self.quality_calls += 1
+        result = ReplayTests.quality(self, *args)
+        result["judge"]["dimensions"]["workflow_clarity"]["score"] = 2 if self.quality_calls == 1 else 3
+        return result
+
+    def check(self, project, plan, images, **kwargs):
+        self.assertEqual(kwargs["deadline"], self.deadline)
+        return ReplayTests.check(self, project, plan, images, deadline=9999999999)
+
+    def make_disclosure(self):
+        visible = set(self.work["sources"]) | set(self.final["sources"]) | {
+            self.bundle["path"] + "/" + item["path"] for item in self.bundle["files"]}
+        inventory = {p.relative_to(self.project).as_posix(): sha256(p.read_bytes()).hexdigest()
+                     for p in self.project.rglob("*") if p.is_file()}
+        disclosure = {
+            "schema_version": 1, "development_input_sha256": self.work["input_sha256"],
+            "confirmation_input_sha256": self.final["input_sha256"],
+            "model_visible_files": {p: raw for p, raw in inventory.items() if p in visible},
+            "checker_only_files": {p: raw for p, raw in inventory.items() if p not in visible},
+        }
+        return {**disclosure, "disclosure_sha256": self.hash(disclosure)}
+
+    def register(self, name="registration"):
+        return self.api("register_confirmation")(
+            self.runtime, "offline-model", self.project, self.bundle, "skillops:develop",
+            self.rubric, self.images, self.runtime.private / name,
+            development_work_item=self.work, confirmation_work_item=self.final,
+            disclosure=self.disclosure, deadline=self.deadline)
+
+    def prepare(self, name="prepare"):
+        return skill_pipeline.prepare_replay(
+            self.runtime, "offline-model", self.project, self.bundle, "skillops:develop",
+            self.rubric, self.images, self.runtime.private / name, work_item=self.work, deadline=self.deadline)
+
+    def evaluate(self, context, candidate, name="development"):
+        return skill_pipeline.evaluate_candidate(
+            self.runtime, "offline-model", context, candidate, self.runtime.private / name, deadline=self.deadline)
+
+    def selected(self):
+        registration = self.register()
+        context = self.prepare()
+        candidate = self.candidate(context)
+        row, _ = self.evaluate(context, candidate)
+        self.assertEqual(row["decision"]["status"], "improved")
+        return registration, context, candidate, row
+
+    def confirm(self, registration, context, candidate, name="confirmation"):
+        return self.api("prepare_confirmation")(
+            self.runtime, "offline-model", context, candidate, self.runtime.private / name,
+            registration_id=registration, deadline=self.deadline)
+
+    def assert_code(self, code, function):
+        with self.assertRaises(RuntimeFailure) as error:
+            function()
+        self.assertEqual(error.exception.code, code)
+
+    def test_registration_is_pre_model_private_and_requires_capability(self):
+        self.api("register_confirmation")
+        self.capability_active = False
+        self.assert_code("confirmation_isolation_unverified", self.register)
+        self.assertEqual(self.quality_calls, 0)
+        self.assertEqual(self.prompts, [])
+        self.capability_active = True
+        registration = self.register()
+        self.assertIsInstance(registration, str)
+        self.assertEqual(self.runtime.budget["calls"], 0)
+        self.assertFalse((self.runtime.private / "confirmation-exposures").exists())
+        self.assertTrue(list((self.runtime.private / "registration").rglob("*.json")))
+
+    def test_late_registration_and_wrong_runtime_are_rejected(self):
+        self.api("register_confirmation")
+        context = self.prepare()
+        self.assert_code("confirmation_not_registered", self.register)
+        self.assert_code("confirmation_not_registered",
+                         lambda: self.confirm("unissued", context, self.candidate(context)))
+
+    def test_registration_binds_budget_images_mode_and_private_bytes(self):
+        self.api("register_confirmation")
+        self.register()
+        original = deepcopy(self.runtime.budget)
+        self.runtime.budget["max_calls"] += 1
+        self.assert_code("confirmation_inputs_changed", self.prepare)
+        self.runtime.budget.update(original)
+        self.images["python"] = "sha256:" + "b" * 64
+        self.assert_code("confirmation_inputs_changed", self.prepare)
+        self.images["python"] = "sha256:" + "a" * 64
+        self.runtime.execution_mode = "live"
+        self.assert_code("confirmation_inputs_changed", self.prepare)
+        self.runtime.execution_mode = "offline_test"
+        record = next((self.runtime.private / "registration").rglob("*.json"))
+        record.write_bytes(b"{}\n")
+        self.assert_code("confirmation_inputs_changed", self.prepare)
+        self.assertEqual(self.quality_calls, 0)
+
+    def test_capability_loss_during_original_checks_stops_before_baseline_judge(self):
+        self.register()
+        check = self.check
+
+        def revoke(*args, **kwargs):
+            result = check(*args, **kwargs)
+            self.capability_active = False
+            return result
+
+        with patch.object(project_checks, "execute", side_effect=revoke):
+            self.assert_code("confirmation_isolation_unverified", self.prepare)
+        self.assertEqual(self.quality_calls, 0)
+
+    def test_disclosure_rejects_hidden_request_in_a_complete_skill_companion(self):
+        self.api("register_confirmation")
+        resource = self.project / self.bundle["path"] / "reference.txt"
+        resource.write_text(self.final["request"])
+        self.bundle = skill_guide.discover(self.project)[0]
+        for work in (self.work, self.final):
+            work["project_tree_sha256"] = project_results.tree_hash(self.project)
+            work["input_sha256"] = self.hash({k: v for k, v in work.items() if k != "input_sha256"})
+        self.disclosure = self.make_disclosure()
+        self.assert_code("confirmation_isolation_unverified", self.register)
+        self.assertEqual(self.quality_calls, 0)
+
+    def test_hidden_companions_and_wrong_splits_cannot_be_declared_visible(self):
+        self.api("register_confirmation")
+        original_final, original_disclosure = deepcopy((self.final, self.disclosure))
+        for mutation in ("split", "overlapping-case", "companion", "test"):
+            self.final, self.disclosure = deepcopy((original_final, original_disclosure))
+            if mutation == "split":
+                self.final["split"] = "development"
+            elif mutation == "overlapping-case":
+                self.final["checks"]["required_case_ids"] = self.work["checks"]["required_case_ids"]
+            else:
+                source, target, path = (
+                    ("model_visible_files", "checker_only_files", "skills/develop/reference.txt")
+                    if mutation == "companion" else
+                    ("checker_only_files", "model_visible_files", "tests/test_api.py"))
+                self.disclosure[target][path] = self.disclosure[source].pop(path)
+            self.final["input_sha256"] = self.hash({k: v for k, v in self.final.items() if k != "input_sha256"})
+            self.disclosure["confirmation_input_sha256"] = self.final["input_sha256"]
+            self.disclosure["disclosure_sha256"] = self.hash({
+                k: v for k, v in self.disclosure.items() if k != "disclosure_sha256"})
+            with self.subTest(mutation=mutation):
+                self.assert_code("confirmation_isolation_unverified", self.register)
+        self.assertEqual(self.quality_calls, 0)
+
+    def test_final_selection_and_development_reference_cannot_drift(self):
+        registration, context, candidate, _ = self.selected()
+        budget, raw = self.runtime.budget, self.runtime.runtime
+        self.runtime.budget = deepcopy(budget)
+        self.assert_code("confirmation_inputs_changed", lambda: self.confirm(registration, context, candidate))
+        self.runtime.budget = budget
+        self.runtime.runtime = Mock(wraps=raw, private=raw.private)
+        self.assert_code("confirmation_inputs_changed", lambda: self.confirm(registration, context, candidate))
+        self.runtime.runtime = raw
+        final = self.confirm(registration, context, candidate)
+        files = skill_pipeline.candidate_files(candidate[1], {
+            "instructions": "A different final candidate.", "addressed_findings": [], "hypothesis": "Not selected."})
+        wrong = evolution.capture_version(files, capture_scope="complete_bundle", complete_inventory=list(files))
+        self.assert_code("confirmation_candidate_mismatch", lambda: self.evaluate(final, wrong, "wrong-selection"))
+        self.assertIsNone(final["feedback"])
+
+    def test_unretained_and_mutated_selections_never_consume_exposure(self):
+        self.api("register_confirmation")
+        registration = self.register()
+        context = self.prepare()
+        candidate = self.candidate(context)
+        self.assert_code("confirmation_candidate_mismatch",
+                         lambda: self.confirm(registration, context, candidate))
+        row, _ = self.evaluate(context, candidate)
+        row["errors"].append({"stage": "candidate", "code": "forged"})
+        self.assert_code("confirmation_candidate_mismatch",
+                         lambda: self.confirm(registration, context, candidate))
+        self.assertFalse((self.runtime.private / "confirmation-exposures").exists())
+
+    def test_final_context_keeps_reference_and_closes_feedback_before_exposure(self):
+        registration, context, candidate, row = self.selected()
+        packet = skill_pipeline.development_feedback(
+            self.runtime, context, row, source_round_id="local-20260918T060000Z-aaaaaaaaaaaa-r1")
+        before = deepcopy(context)
+        final = self.confirm(registration, context, candidate)
+        self.assertEqual(set(final), set(context))
+        self.assertIsNone(final["feedback"])
+        self.assertEqual(context, before)
+        allowed = {"input_sha256", "reference_sha256", "original_checks"}
+        self.assertEqual({k: v for k, v in final["reference"].items() if k not in allowed},
+                         {k: v for k, v in context["reference"].items() if k not in allowed})
+        self.assertEqual(self.quality_calls, 2, "Confirmation must not rejudge baseline quality")
+        for ctx, evaluation in ((context, row), (final, None)):
+            self.assert_code("development_closed", lambda: skill_pipeline.development_feedback(
+                self.runtime, ctx, evaluation, source_round_id=None))
+        for parent, feedback in ((context["original"], context["feedback"]), (candidate, packet)):
+            self.assert_code("development_closed", lambda: skill_pipeline.generate_candidate(
+                self.runtime, "offline-model", parent, feedback, self.runtime.private / "closed",
+                deadline=self.deadline))
+        self.assertTrue(all("FINAL_REQUEST_SENTINEL" not in prompt for _, prompt in self.prompts))
+        marker = self.runtime.private / "confirmation-exposures" / (self.final["input_sha256"] + ".json")
+        self.assertTrue(marker.is_file())
+        confirmed, captures = self.evaluate(final, candidate, "final-evaluation")
+        self.assertEqual(confirmed["work"]["split"], "confirmation")
+        self.assertEqual(captures, [context["original"], candidate])
+        self.assertEqual(confirmed["decision"]["status"], "improved")
+        for prompt in [p for role, p in self.prompts if role == "developer"][-2:]:
+            self.assertIn(self.final["request"], prompt)
+        self.assertEqual(self.check_inputs, ["VALUE = 0\n", "VALUE = 1\n", "VALUE = 1\n",
+                                             "VALUE = 0\n", "VALUE = 1\n", "VALUE = 1\n"])
+        self.assert_code("confirmation_already_used",
+                         lambda: self.evaluate(final, candidate, "repeat-evaluation"))
+        self.assert_code("confirmation_already_used",
+                         lambda: self.confirm(registration, context, candidate, "repeat-prepare"))
+        stored = project_evaluation.persist_replay(
+            self.root / "output", confirmed, captures, None, final["reference"],
+            execution_mode="offline_test", run_id="local-20260918T060000Z-bbbbbbbbbbbb")
+        self.assertEqual(project_results.load_replays(self.root / "output")[
+            ("project", stored["run_id"])]["evaluation"], confirmed)
+
+    def test_capability_loss_before_and_during_confirmation_stays_unverified(self):
+        registration, context, candidate, _ = self.selected()
+        self.capability_active = False
+        self.assert_code("confirmation_isolation_unverified",
+                         lambda: self.confirm(registration, context, candidate))
+        self.capability_active = True
+        final = self.confirm(registration, context, candidate)
+        original = self.transport.invoke.side_effect
+
+        def revoke(*args, **kwargs):
+            result = original(*args, **kwargs)
+            self.capability_active = False
+            return result
+
+        self.transport.invoke.side_effect = revoke
+        self.assert_code("confirmation_isolation_unverified",
+                         lambda: self.evaluate(final, candidate, "expired-boundary"))
+        self.capability_active = True
+        self.assert_code("confirmation_already_used",
+                         lambda: self.evaluate(final, candidate, "retry-boundary"))
+
+    def test_admission_failure_keeps_marker_and_closes_old_feedback(self):
+        registration, context, candidate, _ = self.selected()
+        with patch.object(project_checks, "execute", side_effect=RuntimeFailure("check_runtime_error", "offline")):
+            self.assert_code("check_runtime_error", lambda: self.confirm(registration, context, candidate))
+        self.assert_code("confirmation_already_used",
+                         lambda: self.confirm(registration, context, candidate, "retry"))
+        self.assert_code("development_closed", lambda: skill_pipeline.generate_candidate(
+            self.runtime, "offline-model", context["original"], context["feedback"],
+            self.runtime.private / "late-generator", deadline=self.deadline))
+
+    def test_marker_bytes_are_rechecked_before_final_models(self):
+        registration, context, candidate, _ = self.selected()
+        final = self.confirm(registration, context, candidate)
+        marker = self.runtime.private / "confirmation-exposures" / (self.final["input_sha256"] + ".json")
+        marker.write_text("{}\n")
+        calls = len(self.prompts)
+        self.assert_code("confirmation_inputs_changed",
+                         lambda: self.evaluate(final, candidate, "tampered-marker"))
+        self.assertEqual(len(self.prompts), calls)
+
+    def test_consumed_task_blocks_a_new_runtime_before_development(self):
+        registration, context, candidate, _ = self.selected()
+        self.confirm(registration, context, candidate)
+        self.runtime = project_evaluation.BudgetRuntime(self.transport, {
+            "calls": 0, "max_calls": 20, "max_seconds": 120, "deadline": self.deadline,
+            "max_ai_credits": 100,
+        })
+        self.runtime.execution_mode = "offline_test"
+        self.quality_calls = 0
+        self.assert_code("confirmation_not_registered",
+                         lambda: self.confirm(registration, context, candidate, "foreign-runtime"))
+        self.assert_code("confirmation_already_used", lambda: self.register("other-registration"))
+        self.assertEqual(self.quality_calls, 0)
+
+    def test_final_operational_failure_is_unverified_and_not_retryable(self):
+        registration, context, candidate, _ = self.selected()
+        final = self.confirm(registration, context, candidate)
+        self.transport.invoke.side_effect = RuntimeFailure("timeout", "Offline model transport failure.")
+        row, _ = self.evaluate(final, candidate, "failed-final")
+        self.assertEqual(row["decision"]["status"], "unverified")
+        self.assertEqual(row["errors"], [{"stage": "base_application", "code": "timeout"}])
+        self.assert_code("confirmation_already_used",
+                         lambda: self.evaluate(final, candidate, "failed-final-retry"))
+
+    def test_observed_final_task_failure_is_rejected_not_hidden(self):
+        registration, context, candidate, _ = self.selected()
+        final = self.confirm(registration, context, candidate)
+        calls, check = [], self.check
+
+        def failed_candidate(*args, **kwargs):
+            result = check(*args, **kwargs)
+            calls.append(result)
+            if len(calls) == 2:
+                result["cases"][1]["status"] = "failed"
+                result["status"] = "failed"
+            return result
+
+        with patch.object(project_checks, "execute", side_effect=failed_candidate):
+            row, _ = self.evaluate(final, candidate, "rejected-final")
+        self.assertEqual(row["decision"]["status"], "rejected")
+        self.assertEqual(row["applications"]["candidate"]["task_outcome"], "not_satisfied")
+        self.assertEqual(row["errors"], [])
+        self.assertEqual(row["checks"]["candidate"]["cases"][1]["status"], "failed")
+
+    def test_next_use_executes_once_without_generation_quality_or_approval(self):
+        execute = self.api("execute_work")
+        captured = skill_pipeline.captured_files(self.project, self.bundle)
+        for number in (1, 2):
+            receipt, checks = execute(
+                self.runtime, "offline-model", self.project, captured, self.images,
+                self.runtime.private / f"use-{number}", work_item=self.work, deadline=self.deadline)
+            self.assertEqual(receipt["version_id"], captured[0]["version_id"])
+            self.assertEqual(receipt["staged_version_id"], captured[0]["version_id"])
+            self.assertEqual(receipt["task_outcome"], "satisfied")
+            self.assertEqual(checks["status"], "completed")
+        self.assertEqual(self.quality_calls, 0)
+        self.assertEqual(self.runtime.budget["calls"], 2)
+        self.assertEqual((self.project / "api.py").read_text(), "VALUE = 0\n")
+        self.assertFalse((self.runtime.private / "confirmation-exposures").exists())
+        self.assert_code("confirmation_isolation_unverified", lambda: execute(
+            self.runtime, "offline-model", self.project, captured, self.images,
+            self.runtime.private / "bad-use", work_item=self.final, deadline=self.deadline))
+
+    def test_next_use_protected_output_and_activation_fail_closed(self):
+        execute = self.api("execute_work")
+        captured = skill_pipeline.captured_files(self.project, self.bundle)
+        original = self.transport.invoke.side_effect
+
+        def forbidden(*args, **kwargs):
+            result = original(*args, **kwargs)
+            result["content"] = json.dumps({"files": {"tests/test_api.py": "pass\n"}})
+            return result
+
+        self.transport.invoke.side_effect = forbidden
+        with self.assertRaises(RuntimeFailure):
+            execute(self.runtime, "offline-model", self.project, captured, self.images,
+                    self.runtime.private / "protected", work_item=self.work, deadline=self.deadline)
+        self.assertEqual(self.check_inputs, [])
+        self.assertIn("HIDDEN_CONFIRMATION_SENTINEL", (self.project / "tests/test_api.py").read_text())
+        self.transport.invoke.side_effect = lambda *args, **kwargs: {
+            **original(*args, **kwargs), "skill_activated": False}
+        self.assert_code("skill_version_mismatch", lambda: execute(
+            self.runtime, "offline-model", self.project, captured, self.images,
+            self.runtime.private / "inactive", work_item=self.work, deadline=self.deadline))
+        self.assertEqual(self.check_inputs, [])
+
+    @unittest.skipUnless(os.environ.get("SKILLOPS_ISOLATION_TESTS") == "1",
+                         "Requires real non-model Docker/native CLI isolation probes.")
+    def test_real_capability_confines_all_registered_provider_roles(self):
+        """Actual runtime/guide/issuance; only billable model and checker transport are simulated."""
+        raw = copilot_runtime.CopilotRuntime(self.root, inherited={"PATH": os.environ["PATH"]})
+        budget = {"calls": 0, "max_calls": 5, "max_seconds": 120,
+                  "deadline": self.deadline, "max_ai_credits": 100}
+        self.runtime = project_evaluation.BudgetRuntime(raw, budget)
+        self.runtime.execution_mode = "offline_test"
+        fixture = json.loads((Path(__file__).parent / "fixtures/cli-contract.json").read_text())
+        external_capture = copilot_runtime.capture
+        roles = []
+
+        def model_transport(argv, **kwargs):
+            if len(argv) < 2 or argv[1] != "run" or "-p" not in argv:
+                return external_capture(argv, **kwargs)
+            prompt = argv[argv.index("-p") + 1]
+            role = ("generator" if prompt.startswith("Improve only") else
+                    "developer" if prompt.startswith("Invoke /") else "judge")
+            roles.append(role)
+            for sentinel in ("FINAL_REQUEST_SENTINEL", "HIDDEN_CONFIRMATION_SENTINEL", "confirmation-secret-case"):
+                self.assertNotIn(sentinel, prompt)
+            sandbox = copilot_runtime._SANDBOX_CALLS[raw]
+            forbidden = [str(self.project), str(raw.private), str(raw.home),
+                         str(self.root / "confirmation-request.json")]
+            for path in sandbox["work"].rglob("*"):
+                if path.is_file():
+                    self.assertNotIn(b"HIDDEN_CONFIRMATION_SENTINEL", path.read_bytes())
+                    self.assertNotIn(b"FINAL_REQUEST_SENTINEL", path.read_bytes())
+            if role != "developer":
+                self.assertEqual(list(sandbox["work"].iterdir()), [])
+            probe = raw._container_capture(
+                ["/usr/local/bin/node", "-e",
+                 f"const fs=require('fs');for(const p of {json.dumps(forbidden)})"
+                 "{if(fs.existsSync(p))process.exit(3);}"],
+                state=sandbox["state"], workspace=sandbox["work"], home=sandbox["home"],
+                output=sandbox["output"], timeout=10)
+            self.assertEqual(probe.returncode, 0, probe.stderr)
+            if role == "developer":
+                content = {"files": {"api.py": "VALUE = 1\n"}}
+            elif role == "generator":
+                content = {"instructions": "Apply the visible request carefully.", "addressed_findings": [],
+                           "hypothesis": "Synthetic offline response."}
+            else:
+                content = {"workflow_clarity": {"status": "pass", "score": 3, "rationale": "Offline fixture."}}
+            events = deepcopy(fixture["developer" if role == "developer" else "judge"])
+            for event in events:
+                if event["type"] == "assistant.message":
+                    event["data"]["content"] = json.dumps(content)
+            (sandbox["output"] / "usage.json").write_text(json.dumps({
+                "currentModel": "gpt-6-astra", "totalNanoAiu": 100}))
+            return CompletedProcess(argv, 0, "\n".join(map(json.dumps, events)), "")
+
+        (self.root / "confirmation-request.json").write_text(self.final["request"])
+        with raw.locked(), raw.confirmation_isolation(deadline=self.deadline), \
+                patch.object(copilot_runtime, "capture", side_effect=model_transport), \
+                patch.object(skill_guide, "evaluate_bundle", side_effect=real_evaluate_bundle):
+            registration = self.api("register_confirmation")(
+                self.runtime, "gpt-6-astra", self.project, self.bundle, "skillops:develop",
+                self.rubric, self.images, raw.private / "register",
+                development_work_item=self.work, confirmation_work_item=self.final,
+                disclosure=self.disclosure, deadline=self.deadline)
+            context = skill_pipeline.prepare_replay(
+                self.runtime, "gpt-6-astra", self.project, self.bundle, "skillops:develop",
+                self.rubric, self.images, raw.private / "prepare", work_item=self.work, deadline=self.deadline)
+            generation, candidate = skill_pipeline.generate_candidate(
+                self.runtime, "gpt-6-astra", context["original"], context["feedback"],
+                raw.private / "generation", deadline=self.deadline)
+            row, captures = skill_pipeline.evaluate_candidate(
+                self.runtime, "gpt-6-astra", context, candidate, raw.private / "evaluation", deadline=self.deadline)
+            self.assertTrue(registration)
+            self.assertEqual(row["errors"], [])
+            self.assertEqual(captures, [context["original"], candidate])
+            self.assertEqual(generation["parent_version_id"], context["original"][0]["version_id"])
+            for arm in ("base", "candidate"):
+                self.assertTrue(row["applications"][arm]["activated"])
+                self.assertEqual(row["applications"][arm]["task_outcome"], "satisfied")
+        self.assertEqual(roles, ["judge", "generator", "judge", "developer", "developer"])
+        self.assertEqual(budget["calls"], 5)
+        self.assertFalse((raw.private / "confirmation-exposures").exists())
 
 
 class SkillPipelineTests(unittest.TestCase):
