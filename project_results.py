@@ -51,7 +51,8 @@ DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_pa
 CORE = (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
-    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "evaluation_telemetry.py",
+    "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "skill_approvals.py",
+    "evaluation_telemetry.py",
 )
 
 

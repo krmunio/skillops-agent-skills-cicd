@@ -145,6 +145,28 @@ Confirmation 입력은 선택 사항이며 생성 전에 고정하지만 격리 
 종료 코드 0은 정상적인 개발 반복 종료일 뿐 최종 확인·승인이 아닙니다.
 예산·runtime·미검증 종료는 코드 2를 반환합니다.
 
+### 별도의 로컬 승인
+
+구현된 `approve` 명령은 사람이 별도로 조작하는 대화형 터미널과 최종 확인을 통과한 live cycle,
+정확한 전체 번들·평가 근거 해시를 요구합니다. CI/Actions·파이프 입력·이전 Active 필드 누락은
+거부합니다. 두 `none`은 이전 Active가 없다는 명시적 null이며 wildcard가 아닙니다.
+
+```bash
+python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+  --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
+  --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
+  --expected-active-execution-sha256 none --results <results-directory>
+```
+
+표시된 전체 바인딩을 확인하고 `approve <전체 후보 버전>`을 별도로 입력합니다.
+승인은 모델을 호출하거나 Active를 바꾸지 않습니다. 원본 Skill·기존 평가 근거는 유지하며,
+replay 실행 전에 정규 private WorkItem을 보존합니다. 비공개 요청·운영자 식별자는 공개하지 않습니다.
+현재 development-only·offline 결과는 **승인할 수 없습니다**. 런타임 격리 검사는 구현됐지만
+confirmation provider·다음 실행·adoption 게시 연결은 별도 단계입니다.
+합성 승인 계약 테스트를 실제 운영 성공으로 해석하면 안 됩니다.
+
+### 오프라인 발표 백업
+
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.
 
 ```bash

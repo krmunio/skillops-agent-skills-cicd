@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -479,6 +480,50 @@ def baseline(runtime, model, judge_work, repository=None):
             **report["aggregate"]}, 0 if report["status"] == "completed" else 2
 
 
+def approve_local(root, args):
+    """Human-only boundary; the owner module revalidates evidence and Active under its lock."""
+    import evolution_records as evolution
+    import project_results
+    import skill_approvals
+
+    project_results.require(not any(os.environ.get(key) for key in ("CI", "GITHUB_ACTIONS")), "local_approval_only")
+    project_results.require(sys.stdin.isatty() and sys.stderr.isatty(), "interactive_approval_required")
+    version = None if args.expected_active_version == "none" else args.expected_active_version
+    receipt_hash = None if args.expected_active_execution_sha256 == "none" else args.expected_active_execution_sha256
+    project_results.require(
+        (version is None and receipt_hash is None)
+        or (evolution.matches(evolution.VERSION_ID, version) and evolution.matches(evolution.DIGEST, receipt_hash)),
+        "invalid_active_pair")
+    project_results.require(evolution.matches(evolution.VERSION_ID, args.candidate_version)
+                            and evolution.matches(evolution.DIGEST, args.evidence_sha256)
+                            and project_results.matches(project_results.RUN, args.cycle), "invalid_approval")
+    observed = repositories.active_snapshot(root, project_id=args.project, skill_key=args.skill_key)
+    project_results.require(observed == {"version_id": version, "execution_sha256": receipt_hash}, "active_conflict")
+    binding = {
+        "project_id": args.project, "skill_key": args.skill_key, "candidate_version_id": args.candidate_version,
+        "cycle_id": args.cycle, "evidence_sha256": args.evidence_sha256,
+        "previous_active_version_id": version, "previous_active_execution_sha256": receipt_hash,
+    }
+    print("Review this exact local approval. Approval does not change Active or authorize model execution.",
+          file=sys.stderr)
+    print(json.dumps(binding, indent=2), file=sys.stderr)
+    expected = "approve " + args.candidate_version
+    print(f"Type exactly '{expected}' to approve, or anything else to cancel:", file=sys.stderr)
+    try:
+        answer = input()
+    except (EOFError, KeyboardInterrupt) as error:
+        raise RuntimeFailure("approval_cancelled", "No approval was recorded.") from error
+    project_results.require(answer == expected, "approval_cancelled")
+    approved = skill_approvals.approve(
+        root, project_id=args.project, skill_key=args.skill_key, candidate_version_id=args.candidate_version,
+        cycle_id=args.cycle, evidence_sha256=args.evidence_sha256, expected_active_version_id=version,
+        expected_active_execution_sha256=receipt_hash, results=args.results)
+    return {"status": "approved", "approval_id": approved["approval_id"],
+            "project_id": approved["project_id"], "skill_key": approved["skill_key"],
+            "candidate_version_id": approved["candidate_version_id"], "evidence_sha256": approved["evidence_sha256"],
+            "approved_at": approved["approved_at"], "active_changed": False, "model_calls": 0}
+
+
 def main():
     parser = argparse.ArgumentParser(description="SkillOps skill generation and coding-task evaluation.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -505,6 +550,10 @@ def main():
     gate_parser = commands.add_parser("eligibility", help="Check recorded comparison eligibility; never deploy.")
     gate_parser.add_argument("--repository", required=True)
     gate_parser.add_argument("--comparison", required=True)
+    approval_parser = commands.add_parser("approve", help="Separately confirm one exact local candidate; never execute it.")
+    for option in ("project", "skill-key", "candidate-version", "cycle", "evidence-sha256",
+                   "expected-active-version", "expected-active-execution-sha256", "results"):
+        approval_parser.add_argument("--" + option, required=True)
     for name in ("replay", "iterate"):
         replay_parser = commands.add_parser(name, help="Run explicitly authorized recorded development work; never approve.")
         replay_parser.add_argument("--project", required=True)
@@ -520,6 +569,9 @@ def main():
     args = parser.parse_args()
     try:
         root = Path(__file__).resolve().parent
+        if args.command == "approve":
+            print(json.dumps(approve_local(root, args), indent=2))
+            return 0
         if args.command in ("replay", "iterate"):
             from project_evaluation import policy_from_environment, run_iterations, run_replay
             policy = policy_from_environment()

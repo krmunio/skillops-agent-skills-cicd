@@ -159,6 +159,31 @@ receipt, while earlier stored rounds remain unchanged. There is no automatic
 retry or recovery. Exit 0 denotes normal development termination, not final
 confirmation or adoption; budget/runtime/unverified outcomes return 2.
 
+### Separate local approval
+
+The implemented `approve` command requires a separately operated interactive
+terminal, a live cycle with passed confirmation, and the exact complete bundle
+and evidence hashes. CI/Actions, piped input and missing predecessor fields are
+rejected. Both `none` values mean explicitly no prior Active, never a wildcard.
+
+```bash
+python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+  --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
+  --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
+  --expected-active-execution-sha256 none --results <results-directory>
+```
+
+Review the displayed binding and type `approve <full-candidate-version>` separately.
+Approval calls no model and does not change Active. The original Skill and evidence
+stay immutable. Canonical private WorkItems are retained before replay execution;
+no private requests/operator identities are copied to public results.
+The current development-only/offline outputs are **not approvable**. Runtime
+isolation probes are implemented, but confirmation provider, next-use and adoption
+publication integration remain separate checkpoints; no operational success is
+implied by the synthetic authorization-contract tests.
+
+### Offline presentation backup
+
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration
 checkout and a new output directory:
 
