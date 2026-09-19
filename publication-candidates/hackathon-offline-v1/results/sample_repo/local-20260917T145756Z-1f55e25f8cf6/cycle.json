@@ -1,0 +1,81 @@
+{
+  "budget": {
+    "max_ai_credits_per_session": 30,
+    "max_invocations": 30,
+    "max_seconds": 120
+  },
+  "confirmation_ref": null,
+  "confirmation_status": "unverified",
+  "cycle_id": "local-20260917T145756Z-1f55e25f8cf6",
+  "execution_mode": "offline_test",
+  "input_sha256": "ffa1b98b511f0e51203f501e411344fb65ae758ad56bb9b0ad638c132f1ba9f3",
+  "max_rounds": 2,
+  "original_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+  "project_id": "sample_repo",
+  "reference_sha256": "02b135bb6db835998a21d637ed2d498e5033fcf0acb47b9a146ffe66ce63d44e",
+  "report_sha256": "b0899bb8f5a6f2468efa6fe60c3ebdf153700850951b3488e3b404a03762ede3",
+  "rounds": [
+    {
+      "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "sample_repo",
+        "run_id": "local-20260917T145756Z-5a17f0210563",
+        "sha256": "101acbbbf22494eb09702e129279c324bb532ca7ce4eaabdfe33a6e97564c5f2"
+      },
+      "feedback_sha256": "88d170bdd7e614bdc4a085f46e97f47fc73cd3dc15d4a0ad6a11cf7559fb7013",
+      "feedback_source_round_id": null,
+      "input_sha256": "ffa1b98b511f0e51203f501e411344fb65ae758ad56bb9b0ad638c132f1ba9f3",
+      "parent_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+      "reference_sha256": "02b135bb6db835998a21d637ed2d498e5033fcf0acb47b9a146ffe66ce63d44e",
+      "round_id": "local-20260917T145756Z-1f55e25f8cf6-r1",
+      "round_number": 1,
+      "run_id": "local-20260917T145756Z-5a17f0210563",
+      "stop_reason": null
+    },
+    {
+      "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "improved"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "sample_repo",
+        "run_id": "local-20260917T145756Z-399bf04adcc9",
+        "sha256": "cdfa25410cc338f0499d080cbbaea8dbd461b2359f5923cc74c0c85825faae67"
+      },
+      "feedback_sha256": "c3a40cae5d753b6d9456c6fb109762a5fa7b82feb63616574a640ac1245a3a15",
+      "feedback_source_round_id": "local-20260917T145756Z-1f55e25f8cf6-r1",
+      "input_sha256": "ffa1b98b511f0e51203f501e411344fb65ae758ad56bb9b0ad638c132f1ba9f3",
+      "parent_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+      "reference_sha256": "02b135bb6db835998a21d637ed2d498e5033fcf0acb47b9a146ffe66ce63d44e",
+      "round_id": "local-20260917T145756Z-1f55e25f8cf6-r2",
+      "round_number": 2,
+      "run_id": "local-20260917T145756Z-399bf04adcc9",
+      "stop_reason": "improved"
+    }
+  ],
+  "run_id": "local-20260917T145756Z-1f55e25f8cf6",
+  "schema_version": 1,
+  "selected_candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+  "skill_key": "path:90ae807bd3d394fc140a6df8",
+  "source_path": "skills/develop",
+  "stop_reason": "improved"
+}

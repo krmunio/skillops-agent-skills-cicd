@@ -210,6 +210,18 @@ Active 버전/영수증 해시 쌍을 저장합니다. 검증된 사용과 작�
 존재하지 않는 Skill은 다른 ID로 대체하지 않고 거부합니다.
 이번 구현 작업에서 secret 설정이나 live dispatch를 실행하지 않습니다.
 
+### 평가 없이 기존 검토 결과만 게시
+
+`reviewed_publication.py`와 별도 수동 `publish-reviewed-results.yml`은 평가·승인·승인 버전
+실행 없이 기존 immutable merge/index/build와 정적 배포를 재사용합니다. 기본 동작은
+**검증 전용**입니다. 신뢰된 코드 commit·같은 저장소의 데이터 commit·공개 manifest 해시를
+각각 고정하며, 해시를 공개 적합성이나 사람의 검토 증명으로 취급하지 않습니다.
+로컬 저장·입력 검증·결과 브랜치 저장·배포·공개 URL의 실제 bytes 확인은 서로 다른 상태입니다.
+`--publish-reviewed`는 계속 로컬 공개용 기록 저장일 뿐 배포가 아닙니다.
+
+[게시 절차와 정확한 offline 후보](docs/REVIEWED-PUBLICATION.md)에 명령·권한·제한·세션5
+인계를 정리했습니다. 기능 브랜치 공개는 결과 브랜치 저장·운영 배포·새 모델 호출의 허가가 아닙니다.
+
 ### 오프라인 발표 백업
 
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.

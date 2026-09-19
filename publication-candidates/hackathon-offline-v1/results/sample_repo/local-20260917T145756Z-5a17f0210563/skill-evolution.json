@@ -1,0 +1,108 @@
+{
+  "bindings": [
+    {
+      "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+      "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+      "legacy_skill_id": null,
+      "skill_key": "path:90ae807bd3d394fc140a6df8"
+    }
+  ],
+  "file_contents": [
+    {
+      "data": "LS0tCm5hbWU6IGRldmVsb3AKZGVzY3JpcHRpb246IEltcGxlbWVudCBzb3VyY2UgY2hhbmdlcyBzYWZlbHkgd2hlbiBkZXZlbG9wbWVudCBpcyByZXF1ZXN0ZWQuCi0tLQoKIyBEZXZlbG9wClJlYWQgdGhlIHJlcXVlc3QgYW5kIHNvdXJjZS4gUHJlc2VydmUgdGVzdHMgYW5kIHNhZmV0eSBydWxlcy4KQ29uc3VsdCBbbm90ZXNdKG5vdGVzLnR4dCkgd2hlbiBuZWVkZWQuIFZlcmlmeSBvdXRwdXRzLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf"
+    },
+    {
+      "data": "S2VlcCBjb21wYW5pb24gZmlsZXMuCg==",
+      "encoding": "base64",
+      "path": "notes.txt",
+      "version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf"
+    },
+    {
+      "data": "LS0tCm5hbWU6IGRldmVsb3AKZGVzY3JpcHRpb246IEltcGxlbWVudCBzb3VyY2UgY2hhbmdlcyBzYWZlbHkgd2hlbiBkZXZlbG9wbWVudCBpcyByZXF1ZXN0ZWQuCi0tLQoKIyBEZXZlbG9wClJlYWQgdGhlIHJlcXVlc3QgYW5kIHNvdXJjZS4gUHJlc2VydmUgdGVzdHMgYW5kIHNhZmV0eSBydWxlcy4KQ29uc3VsdCBbbm90ZXNdKG5vdGVzLnR4dCkgd2hlbiBuZWVkZWQuIFZlcmlmeSBvdXRwdXRzLgoKQXR0ZW1wdCAxLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe"
+    },
+    {
+      "data": "S2VlcCBjb21wYW5pb24gZmlsZXMuCg==",
+      "encoding": "base64",
+      "path": "notes.txt",
+      "version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe"
+    }
+  ],
+  "project_id": "sample_repo",
+  "records": {
+    "adoptions": [],
+    "comparisons": [],
+    "generations": [],
+    "identities": [
+      {
+        "display_name": "develop",
+        "skill_key": "path:90ae807bd3d394fc140a6df8"
+      }
+    ],
+    "skill_versions": [
+      {
+        "skill_key": "path:90ae807bd3d394fc140a6df8",
+        "version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf"
+      },
+      {
+        "skill_key": "path:90ae807bd3d394fc140a6df8",
+        "version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe"
+      }
+    ],
+    "sources": [
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T14:57:56.310713+00:00",
+        "path": "skills/develop",
+        "project_id": "sample_repo",
+        "scope": "project",
+        "skill_key": "path:90ae807bd3d394fc140a6df8"
+      }
+    ],
+    "versions": [
+      {
+        "capture_scope": "complete_bundle",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 227,
+            "path": "SKILL.md",
+            "sha256": "d5271909c7269d9e8ad79bf01443b9bfab385b8bec390142e7953c582dc2b38b"
+          },
+          {
+            "bytes": 22,
+            "path": "notes.txt",
+            "sha256": "d9f7b9f7faf18ae40bbd6d7d2355820da189d58b7ff15929e8ff8122d4355ed7"
+          }
+        ],
+        "version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf"
+      },
+      {
+        "capture_scope": "complete_bundle",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 239,
+            "path": "SKILL.md",
+            "sha256": "1b474002f9446e8559b39d648cd41a078093b292a6f06e0ff03444bfd04c8a5b"
+          },
+          {
+            "bytes": 22,
+            "path": "notes.txt",
+            "sha256": "d9f7b9f7faf18ae40bbd6d7d2355820da189d58b7ff15929e8ff8122d4355ed7"
+          }
+        ],
+        "version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe"
+      }
+    ]
+  },
+  "report_sha256": "c672eaac33f390d6b42bb78dfd32b51a37ffcbe7b4b27ba63d9c6b518f8554e2",
+  "run_id": "local-20260917T145756Z-5a17f0210563",
+  "schema_version": 1
+}

@@ -1,0 +1,286 @@
+{
+  "evaluation": {
+    "applications": {
+      "base": {
+        "activated": true,
+        "changed": true,
+        "measurement": {
+          "cost_nano_aiu": 10,
+          "elapsed_seconds": 1
+        },
+        "output_sha256": "543426e451c95c815a8b8db448b9526f0ef4a4e330100ba07191a2d3ee3def26",
+        "staged_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+        "task_outcome": "satisfied",
+        "version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+        "work_sha256": "834b28f742580f93d99bdae1cf396a4f3151f16b4c2e4fbc7b031268b2209200"
+      },
+      "candidate": {
+        "activated": true,
+        "changed": true,
+        "measurement": {
+          "cost_nano_aiu": 10,
+          "elapsed_seconds": 1
+        },
+        "output_sha256": "543426e451c95c815a8b8db448b9526f0ef4a4e330100ba07191a2d3ee3def26",
+        "staged_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+        "task_outcome": "satisfied",
+        "version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+        "work_sha256": "834b28f742580f93d99bdae1cf396a4f3151f16b4c2e4fbc7b031268b2209200"
+      }
+    },
+    "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+    "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+    "checks": {
+      "base": {
+        "cases": [
+          {
+            "id": "python-tests:development",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:stable",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:hidden-confirmation",
+            "status": "passed"
+          }
+        ],
+        "elapsed_seconds": 0.00509739900007844,
+        "environment_sha256": "ee54daba974aacd0f2b33a37af5bc8c143cf5e2140ac7aa0567e85c435bc8226",
+        "gates": [],
+        "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+        "protected_sha256": "a236dc36f7ae2412c5770109d8ede0f240457f2126021adb63febbe98a825be1",
+        "status": "completed"
+      },
+      "candidate": {
+        "cases": [
+          {
+            "id": "python-tests:development",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:stable",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:hidden-confirmation",
+            "status": "passed"
+          }
+        ],
+        "elapsed_seconds": 0.004693332999522681,
+        "environment_sha256": "ee54daba974aacd0f2b33a37af5bc8c143cf5e2140ac7aa0567e85c435bc8226",
+        "gates": [],
+        "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+        "protected_sha256": "a236dc36f7ae2412c5770109d8ede0f240457f2126021adb63febbe98a825be1",
+        "status": "completed"
+      },
+      "original": {
+        "cases": [
+          {
+            "id": "python-tests:development",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:stable",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:hidden-confirmation",
+            "status": "passed"
+          }
+        ],
+        "elapsed_seconds": 0.003913891001502634,
+        "environment_sha256": "ee54daba974aacd0f2b33a37af5bc8c143cf5e2140ac7aa0567e85c435bc8226",
+        "gates": [],
+        "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+        "protected_sha256": "a236dc36f7ae2412c5770109d8ede0f240457f2126021adb63febbe98a825be1",
+        "status": "failed"
+      }
+    },
+    "decision": {
+      "policy_id": "replay-v1",
+      "reasons": [],
+      "regression": {
+        "reasons": [],
+        "regressions": [],
+        "status": "passed"
+      },
+      "status": "improved"
+    },
+    "errors": [],
+    "quality": {
+      "base": {
+        "context_sha256": "611881204572deb82cb81edb4f2f88100f2c0d58ed6028a34065a0ac80ba39a9",
+        "dimensions": [
+          {
+            "id": "generalization",
+            "score": 2
+          },
+          {
+            "id": "instruction_quality",
+            "score": 2
+          },
+          {
+            "id": "principle_of_lack_of_surprise",
+            "score": 2
+          },
+          {
+            "id": "progressive_disclosure",
+            "score": 2
+          },
+          {
+            "id": "resource_organization",
+            "score": 2
+          },
+          {
+            "id": "trigger_description",
+            "score": 2
+          },
+          {
+            "id": "workflow_clarity",
+            "score": 2
+          }
+        ],
+        "findings": [],
+        "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+        "status": "completed"
+      },
+      "candidate": {
+        "context_sha256": "611881204572deb82cb81edb4f2f88100f2c0d58ed6028a34065a0ac80ba39a9",
+        "dimensions": [
+          {
+            "id": "generalization",
+            "score": 3
+          },
+          {
+            "id": "instruction_quality",
+            "score": 3
+          },
+          {
+            "id": "principle_of_lack_of_surprise",
+            "score": 3
+          },
+          {
+            "id": "progressive_disclosure",
+            "score": 3
+          },
+          {
+            "id": "resource_organization",
+            "score": 3
+          },
+          {
+            "id": "trigger_description",
+            "score": 3
+          },
+          {
+            "id": "workflow_clarity",
+            "score": 3
+          }
+        ],
+        "findings": [],
+        "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+        "status": "completed"
+      }
+    },
+    "reference_sha256": "0d2f00efe46f9934b74ae0c8abbde9729f30e4fb6b8b9e65d9c78162a6aebf3f",
+    "skill_key": "path:90ae807bd3d394fc140a6df8",
+    "source_path": "skills/develop",
+    "work": {
+      "checks": {
+        "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+        "protected_sha256": "a236dc36f7ae2412c5770109d8ede0f240457f2126021adb63febbe98a825be1",
+        "required_case_ids": [
+          "python-tests:hidden-confirmation"
+        ],
+        "required_gate_ids": []
+      },
+      "input_sha256": "834b28f742580f93d99bdae1cf396a4f3151f16b4c2e4fbc7b031268b2209200",
+      "provenance": "recorded",
+      "split": "confirmation",
+      "task_id": "final-task"
+    }
+  },
+  "execution_mode": "offline_test",
+  "generation": null,
+  "project_id": "sample_repo",
+  "reference": {
+    "base_quality": {
+      "context_sha256": "611881204572deb82cb81edb4f2f88100f2c0d58ed6028a34065a0ac80ba39a9",
+      "dimensions": [
+        {
+          "id": "generalization",
+          "score": 2
+        },
+        {
+          "id": "instruction_quality",
+          "score": 2
+        },
+        {
+          "id": "principle_of_lack_of_surprise",
+          "score": 2
+        },
+        {
+          "id": "progressive_disclosure",
+          "score": 2
+        },
+        {
+          "id": "resource_organization",
+          "score": 2
+        },
+        {
+          "id": "trigger_description",
+          "score": 2
+        },
+        {
+          "id": "workflow_clarity",
+          "score": 2
+        }
+      ],
+      "findings": [],
+      "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+      "status": "completed"
+    },
+    "environment_sha256": "ee54daba974aacd0f2b33a37af5bc8c143cf5e2140ac7aa0567e85c435bc8226",
+    "evaluator_sha256": "248ce117eac1f3c790570fe26967fc7c2836d5b17b3b72fdecad9b03f787b87b",
+    "input_sha256": "834b28f742580f93d99bdae1cf396a4f3151f16b4c2e4fbc7b031268b2209200",
+    "original_checks": {
+      "cases": [
+        {
+          "id": "python-tests:development",
+          "status": "failed"
+        },
+        {
+          "id": "python-tests:stable",
+          "status": "passed"
+        },
+        {
+          "id": "python-tests:hidden-confirmation",
+          "status": "passed"
+        }
+      ],
+      "elapsed_seconds": 0.003913891001502634,
+      "environment_sha256": "ee54daba974aacd0f2b33a37af5bc8c143cf5e2140ac7aa0567e85c435bc8226",
+      "gates": [],
+      "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+      "protected_sha256": "a236dc36f7ae2412c5770109d8ede0f240457f2126021adb63febbe98a825be1",
+      "status": "failed"
+    },
+    "original_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+    "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+    "policy_sha256": "d6efd14169aab7830b99a03d28f85282aeb04644d54df4d876fb02a3a1d7b212",
+    "project_id": "sample_repo",
+    "project_tree_sha256": "7afd2ea5d76613f63f605bd5a7c6d3e671413bd700131dcc803dafea2f57e89f",
+    "protected_sha256": "a236dc36f7ae2412c5770109d8ede0f240457f2126021adb63febbe98a825be1",
+    "quality_context_sha256": "611881204572deb82cb81edb4f2f88100f2c0d58ed6028a34065a0ac80ba39a9",
+    "reference_sha256": "0d2f00efe46f9934b74ae0c8abbde9729f30e4fb6b8b9e65d9c78162a6aebf3f",
+    "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+    "schema_version": 1,
+    "skill_key": "path:90ae807bd3d394fc140a6df8",
+    "source_commit": "9b045737c4e958dc7576c94e99f2a12cdaae1841",
+    "source_path": "skills/develop"
+  },
+  "report_sha256": "3855d366b8ee8f1b9d8987fd6a422022a7da659535210166c4259918a9dd727f",
+  "run_id": "local-20260918T094534Z-e7aa58c52cfd",
+  "schema_version": 1
+}
