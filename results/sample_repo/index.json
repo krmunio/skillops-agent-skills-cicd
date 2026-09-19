@@ -19,6 +19,207 @@
       "run_id": "35336118306-1"
     },
     {
+      "created_at": "2026-09-18T09:45:36.470951+00:00",
+      "cycle": "local-20260918T094535Z-b9a681f6cfb2/cycle.json",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "report": "local-20260918T094535Z-b9a681f6cfb2/report.json",
+      "run_id": "local-20260918T094535Z-b9a681f6cfb2"
+    },
+    {
+      "created_at": "2026-09-18T09:45:36.460167+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094536Z-9682e9279e50/replay-evaluation.json",
+      "report": "local-20260918T094536Z-9682e9279e50/report.json",
+      "run_id": "local-20260918T094536Z-9682e9279e50",
+      "skill_evolution": "local-20260918T094536Z-9682e9279e50/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:36.301326+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094536Z-98e47884cb71/replay-evaluation.json",
+      "report": "local-20260918T094536Z-98e47884cb71/report.json",
+      "run_id": "local-20260918T094536Z-98e47884cb71",
+      "skill_evolution": "local-20260918T094536Z-98e47884cb71/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:36.040610+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094536Z-7edf6eeea659/replay-evaluation.json",
+      "report": "local-20260918T094536Z-7edf6eeea659/report.json",
+      "run_id": "local-20260918T094536Z-7edf6eeea659",
+      "skill_evolution": "local-20260918T094536Z-7edf6eeea659/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:35.610119+00:00",
+      "cycle": "local-20260918T094534Z-bcba9c0a589e/cycle.json",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "report": "local-20260918T094534Z-bcba9c0a589e/report.json",
+      "run_id": "local-20260918T094534Z-bcba9c0a589e"
+    },
+    {
+      "created_at": "2026-09-18T09:45:35.603673+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094535Z-680cdb205120/replay-evaluation.json",
+      "report": "local-20260918T094535Z-680cdb205120/report.json",
+      "run_id": "local-20260918T094535Z-680cdb205120",
+      "skill_evolution": "local-20260918T094535Z-680cdb205120/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:35.364551+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094535Z-429c7302e2ba/replay-evaluation.json",
+      "report": "local-20260918T094535Z-429c7302e2ba/report.json",
+      "run_id": "local-20260918T094535Z-429c7302e2ba",
+      "skill_evolution": "local-20260918T094535Z-429c7302e2ba/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:35.099550+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094535Z-71b841ff96e7/replay-evaluation.json",
+      "report": "local-20260918T094535Z-71b841ff96e7/report.json",
+      "run_id": "local-20260918T094535Z-71b841ff96e7",
+      "skill_evolution": "local-20260918T094535Z-71b841ff96e7/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:34.665168+00:00",
+      "cycle": "local-20260918T094533Z-f6297a587afc/cycle.json",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "report": "local-20260918T094533Z-f6297a587afc/report.json",
+      "run_id": "local-20260918T094533Z-f6297a587afc"
+    },
+    {
+      "created_at": "2026-09-18T09:45:34.657508+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094534Z-e7aa58c52cfd/replay-evaluation.json",
+      "report": "local-20260918T094534Z-e7aa58c52cfd/report.json",
+      "run_id": "local-20260918T094534Z-e7aa58c52cfd",
+      "skill_evolution": "local-20260918T094534Z-e7aa58c52cfd/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:34.421072+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094534Z-4cd2e938ffe0/replay-evaluation.json",
+      "report": "local-20260918T094534Z-4cd2e938ffe0/report.json",
+      "run_id": "local-20260918T094534Z-4cd2e938ffe0",
+      "skill_evolution": "local-20260918T094534Z-4cd2e938ffe0/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-18T09:45:34.169058+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260918T094534Z-1a8c24aa07a2/replay-evaluation.json",
+      "report": "local-20260918T094534Z-1a8c24aa07a2/report.json",
+      "run_id": "local-20260918T094534Z-1a8c24aa07a2",
+      "skill_evolution": "local-20260918T094534Z-1a8c24aa07a2/skill-evolution.json"
+    },
+    {
       "created_at": "2026-09-17T16:03:58.273287+00:00",
       "execution_status": "blocked",
       "guide_status": "blocked",
@@ -26,6 +227,54 @@
       "purpose": "project_assessment",
       "report": "35244058909-1/report.json",
       "run_id": "35244058909-1"
+    },
+    {
+      "created_at": "2026-09-17T14:57:56.480020+00:00",
+      "cycle": "local-20260917T145756Z-1f55e25f8cf6/cycle.json",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "report": "local-20260917T145756Z-1f55e25f8cf6/report.json",
+      "run_id": "local-20260917T145756Z-1f55e25f8cf6"
+    },
+    {
+      "created_at": "2026-09-17T14:57:56.469071+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260917T145756Z-399bf04adcc9/replay-evaluation.json",
+      "report": "local-20260917T145756Z-399bf04adcc9/report.json",
+      "run_id": "local-20260917T145756Z-399bf04adcc9",
+      "skill_evolution": "local-20260917T145756Z-399bf04adcc9/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-09-17T14:57:56.310713+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+          "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+          "display_name": "develop",
+          "skill_key": "path:90ae807bd3d394fc140a6df8"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20260917T145756Z-5a17f0210563/replay-evaluation.json",
+      "report": "local-20260917T145756Z-5a17f0210563/report.json",
+      "run_id": "local-20260917T145756Z-5a17f0210563",
+      "skill_evolution": "local-20260917T145756Z-5a17f0210563/skill-evolution.json"
     },
     {
       "created_at": "2026-09-17T12:16:16.381785+00:00",
@@ -347,7 +596,7 @@
         "source_path": ".github/skills/develop"
       }
     ],
-    "history_count": 28,
+    "history_count": 43,
     "id": "sample_repo",
     "index": "sample_repo/index.json",
     "skill_discovery_error": null,
