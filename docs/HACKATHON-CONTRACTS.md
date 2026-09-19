@@ -619,6 +619,22 @@ is replaced by this complete validation path, not simply removed. Non-live
 observations and their task runs are excluded from current-run selection.
 This publication support does not establish live confirmation or observed use.
 
+**Independent reviewed-publication supplement:** `reviewed_publication.py`
+consumes existing public evidence only. The separate main-only manual
+`publish-reviewed-results.yml` defaults to validation, not evaluation or remote
+publication. Trusted code SHA, same-repository data SHA and canonical per-file
+manifest SHA are independent pins. Data code/configuration is never executed.
+Public allowlists, size bounds, canonical bytes, complete transitive schemas and
+immutable conflicts must pass before exporting or committing results. Hashes
+bind inputs but do not establish disclosure review or approval authority.
+`local_storage`, `input_validation`, `result_branch_storage`, `deployment` and
+`public_url` are distinct states; public observation requires actual matching
+bytes, not just successful deployment or HTTP status. A local prepared Git object
+is not result-branch storage. Existing `--publish-reviewed` flags remain local
+projection writes only. See `docs/REVIEWED-PUBLICATION.md` for exact API/CLI,
+limits, permissions and unchanged offline candidates. No public record schema,
+approval policy, evaluator behavior or historical result bytes change.
+
 The existing project history index gains optional keys
 `replay_evaluation`, `cycle`, `adoption`, each equal to
 `<run_id>/<matching-allowlisted-filename>`. Reports remain reachable by their

@@ -5,6 +5,7 @@ import base64
 import binascii
 from datetime import datetime
 from hashlib import sha256
+from html.parser import HTMLParser
 import json
 import math
 import os
@@ -12,6 +13,7 @@ from pathlib import Path
 import re
 import sys
 import tempfile
+from urllib.parse import parse_qs, urlsplit
 
 from copilot_runtime import RuntimeFailure, strict_json
 import evolution_records as evolution
@@ -1184,6 +1186,37 @@ def import_history(source, target, project):
     return count
 
 
+def validate_public_examples(index, rows, lifecycles, cycles):
+    class Links(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.hrefs = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "a":
+                self.hrefs.extend(value for name, value in attrs if name == "href" and value is not None)
+
+    links = Links()
+    links.feed(index)
+    known = {(row["project_id"], row["run_id"]) for row in rows}
+    for href in links.hrefs:
+        url = urlsplit(href)
+        if url.scheme or url.netloc or url.path not in ("", "/"):
+            continue
+        query = parse_qs(url.query, keep_blank_values=True)
+        if "run" not in query:
+            continue
+        require(len(query.get("project", [])) == 1 and len(query["run"]) == 1
+                and ("skill" not in query or len(query["skill"]) == 1), "invalid_public_example")
+        key = (query["project"][0], query["run"][0])
+        require(key in known, "public_example_missing")
+        if "skill" in query:
+            keys = {row["skill_key"] for row in lifecycles.get(key, {}).get("bindings", [])}
+            if key in cycles:
+                keys.add(cycles[key]["skill_key"])
+            require(query["skill"][0] in keys, "public_example_skill_missing")
+
+
 def build(root, results, output):
     root, output = Path(root), safe_path(output)
     require(not output.exists(), "output_exists")
@@ -1195,6 +1228,8 @@ def build(root, results, output):
     replays = load_replays(results, rows)
     cycles = load_cycles(results, rows)
     adoptions = load_adoptions(results, rows)
+    index = read_bytes(root / "dashboard/index.html").decode("utf-8")
+    validate_public_examples(index, rows, lifecycles, cycles)
     output.mkdir(parents=True)
     modules = {}
 
@@ -1208,7 +1243,6 @@ def build(root, results, output):
                      rewrite_import, source).encode("utf-8")
         modules[name] = f"{Path(name).stem}.{sha256(raw).hexdigest()[:12]}.js"
         (output / modules[name]).write_bytes(raw)
-    index = read_bytes(root / "dashboard/index.html").decode("utf-8")
     require(index.count('src="/app.js"') == 1, "invalid_dashboard_entrypoint")
     (output / "index.html").write_bytes(index.replace('src="/app.js"', f'src="/{modules["app.js"]}"').encode("utf-8"))
     config = read_json(root / "dashboard/staticwebapp.config.json")

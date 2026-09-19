@@ -9,9 +9,16 @@ import re
 import tempfile
 import unittest
 from unittest import mock
+from publication_fixtures import dashboard_fixture
 
 
 class ProjectResultsTests(unittest.TestCase):
+    def build_root(self):
+        root = dashboard_fixture(self.enterContext(tempfile.TemporaryDirectory()))
+        (root / "projects/sample_repo").mkdir(parents=True)
+        self.module().store(root / "results", self.fixture())
+        return root
+
     def module(self):
         self.assertIsNotNone(importlib.util.find_spec("project_results"), "results module is not implemented")
         return importlib.import_module("project_results")
@@ -205,7 +212,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_build_includes_sample_assets_without_importing_synthetic_history(self):
         m = self.module()
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "site"
             real = m.load_reports(root / "results")
@@ -221,7 +228,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_build_hashes_final_modules_and_resolves_entrypoint_and_imports(self):
         module = self.module()
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         names = ("app", "views", "evolution", "assessments", "trace")
         originals = {name: (root / "dashboard" / f"{name}.js").read_bytes() for name in names}
         with tempfile.TemporaryDirectory() as temp:
@@ -255,7 +262,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_build_dependency_changes_invalidate_importers_without_changing_source_files(self):
         module = self.module()
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         read_bytes = module.read_bytes
 
         def changed_dependency(path, *args):
@@ -335,7 +342,7 @@ class ProjectResultsTests(unittest.TestCase):
     def test_evolution_store_merge_index_build_and_dual_conflicts(self):
         m = self.module()
         self.assertTrue(hasattr(m, "store_evolution"), "evolution persistence is not implemented")
-        source = Path(__file__).resolve().parents[1]
+        source = self.build_root()
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             incoming, target = root / "incoming", root / "target"
@@ -371,7 +378,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_large_evolution_roundtrips_without_raising_other_result_limits(self):
         m = self.module()
-        source = Path(__file__).resolve().parents[1]
+        source = self.build_root()
         report = self.fixture()
         data = self.evolution(report, files={"SKILL.md": b"x" * m.LIMIT})
         self.assertGreater(len(m.encoded(data)), m.LIMIT)
@@ -570,7 +577,7 @@ class ProjectResultsTests(unittest.TestCase):
     def test_snapshot_index_build_and_merge_preserve_optional_skill_evidence(self):
         m = self.module()
         self.assertTrue(hasattr(m, "store_snapshots"), "public Skill snapshots are not implemented")
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         with tempfile.TemporaryDirectory() as temp:
             incoming, durable, output = (Path(temp) / name for name in ("incoming", "durable", "site"))
             report = self.fixture()

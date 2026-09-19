@@ -1,0 +1,130 @@
+{
+  "project_id": "project-a",
+  "report_sha256": "dfb0ef764ef07fbaf7c2be3d4a3c3a512f205476328a5d2eefc6751eb0b29556",
+  "run_id": "35203851697-1",
+  "schema_version": 1,
+  "skills": [
+    {
+      "applications": {
+        "base": null,
+        "candidate": null
+      },
+      "base_version_id": "sha256:984ea5638db62ae5029c1a1cec74be94e9a29f229459c8301463ba14e2663454",
+      "candidate_version_id": "sha256:1347b2f3bb5b33a16c5f7bbfaf43511f57d918900b5a023b809aa3699d1e10fc",
+      "checks": {
+        "base": null,
+        "candidate": null,
+        "original": null
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [
+          "activation_unverified",
+          "efficiency_unverified",
+          "incomplete_stage",
+          "regression_unverified",
+          "task_unverified"
+        ],
+        "regression": {
+          "reasons": [
+            "missing_checks"
+          ],
+          "regressions": [],
+          "status": "unverified"
+        },
+        "status": "unverified"
+      },
+      "errors": [
+        {
+          "code": "unsupported_dependencies",
+          "stage": "preparation"
+        }
+      ],
+      "generation": {
+        "addressed_findings": [
+          "trigger_description",
+          "workflow_clarity"
+        ],
+        "hypothesis": "The measured trigger_description and workflow_clarity scores were both 3; no specific failures were reported. Restating the existing task scope in the body and organizing the existing guidance into an ordered inspect, change, validate, and report workflow may make applicability and execution clearer without changing the API, safety, or reporting contracts. This improvement is unverified.",
+        "status": "generated"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "de964188f302222e5b73ac6dc0dba588fbabca855bba77c261b10d321dd24ace",
+          "dimensions": [
+            {
+              "id": "generalization",
+              "score": 4
+            },
+            {
+              "id": "instruction_quality",
+              "score": 4
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 4
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            },
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+          "status": "completed"
+        },
+        "candidate": {
+          "context_sha256": "de964188f302222e5b73ac6dc0dba588fbabca855bba77c261b10d321dd24ace",
+          "dimensions": [
+            {
+              "id": "generalization",
+              "score": 4
+            },
+            {
+              "id": "instruction_quality",
+              "score": 4
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 4
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": null
+            },
+            {
+              "id": "resource_organization",
+              "score": null
+            },
+            {
+              "id": "trigger_description",
+              "score": 4
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            }
+          ],
+          "findings": [],
+          "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+          "status": "completed"
+        }
+      },
+      "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+      "source_path": ".github/skills/schedule-development",
+      "work": null
+    }
+  ]
+}
