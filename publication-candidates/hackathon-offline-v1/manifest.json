@@ -1,0 +1,241 @@
+{
+  "files": [
+    {
+      "path": "results/project-a/35203851697-1/report.json",
+      "sha256": "dfb0ef764ef07fbaf7c2be3d4a3c3a512f205476328a5d2eefc6751eb0b29556",
+      "size": 845
+    },
+    {
+      "path": "results/project-a/35203851697-1/skill-assessments.json",
+      "sha256": "ad3ce6a0a6be73ec230e5a8bc6bd600a17ffda481bdce80ea94231078d983beb",
+      "size": 3922
+    },
+    {
+      "path": "results/project-a/35203851697-1/skill-evolution.json",
+      "sha256": "3df0bdee168818e11b39a402647370b15541f139d08e240de84320d96b707d33",
+      "size": 7487
+    },
+    {
+      "path": "results/sample_repo/35184191312-1/report.json",
+      "sha256": "21032fb99891c3c41462932e55049ec33004e982b4c579cb5018bc568b8f9a34",
+      "size": 848
+    },
+    {
+      "path": "results/sample_repo/35184191312-1/skill-assessments.json",
+      "sha256": "4ecc44e5a002e2863c056af41b4843f25e9beeda6232ec3f697c5861668a0519",
+      "size": 9509
+    },
+    {
+      "path": "results/sample_repo/35184191312-1/skill-evolution.json",
+      "sha256": "f0c9b15ff5e6b4902db47cb6de9b70a207acbc97c96ad6e6f0ade5b07dab11f4",
+      "size": 7613
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-1f55e25f8cf6/cycle.json",
+      "sha256": "d1985e76bc69928552e20ee6505b8a762903bdeaf825431aa2a1432cbebe50ea",
+      "size": 3423
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-1f55e25f8cf6/report.json",
+      "sha256": "b0899bb8f5a6f2468efa6fe60c3ebdf153700850951b3488e3b404a03762ede3",
+      "size": 789
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-399bf04adcc9/replay-evaluation.json",
+      "sha256": "cdfa25410cc338f0499d080cbbaea8dbd461b2359f5923cc74c0c85825faae67",
+      "size": 9964
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-399bf04adcc9/report.json",
+      "sha256": "6d847eb29bfeaebd79e71bb40984d8afacb60e3d3e54967fbf3c011c392e9834",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-399bf04adcc9/skill-evolution.json",
+      "sha256": "63138e458adc101b0a04844823bc4bc22537e6aab7d43b8435efce74991cc933",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-5a17f0210563/replay-evaluation.json",
+      "sha256": "101acbbbf22494eb09702e129279c324bb532ca7ce4eaabdfe33a6e97564c5f2",
+      "size": 9968
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-5a17f0210563/report.json",
+      "sha256": "c672eaac33f390d6b42bb78dfd32b51a37ffcbe7b4b27ba63d9c6b518f8554e2",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260917T145756Z-5a17f0210563/skill-evolution.json",
+      "sha256": "8c179aa9c1689934b7275eb2d24bf68593632c8e9037c0a4f02106a596b2af25",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094533Z-f6297a587afc/cycle.json",
+      "sha256": "9972df4574c795a87dafb179ae2677a8d1e3ce05f72771b6a75e2c0f66ee8360",
+      "size": 3625
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094533Z-f6297a587afc/report.json",
+      "sha256": "bd88a19d02f93165b94f056dc0c042309cea7e74d38e254568c147f64e2df7cf",
+      "size": 789
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-1a8c24aa07a2/replay-evaluation.json",
+      "sha256": "0d738fb372f54de73f5f994292995c159d4c38481790c3eb73ca3a5a10450f01",
+      "size": 9966
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-1a8c24aa07a2/report.json",
+      "sha256": "1d6681b724bbf4102748417a98311a55a29ad8d8a5b474ac405d899be8bfd922",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-1a8c24aa07a2/skill-evolution.json",
+      "sha256": "7605a07e59d850efef19717d3f15fb2bc6a595628093f56f8ed02e6b05d970c6",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-4cd2e938ffe0/replay-evaluation.json",
+      "sha256": "d02976f0a09a05b39c442a280e6392f1e27d3237c929ab56f261a5da15fa53d8",
+      "size": 9961
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-4cd2e938ffe0/report.json",
+      "sha256": "3630317363606537e9de7f122a3b44d9fc103ab624460a7ac12f5ffdb6851ffe",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-4cd2e938ffe0/skill-evolution.json",
+      "sha256": "4b1a00cf642acec54969c3165b0951770e5248bfd0e2f7b9e4b7c56369e8693e",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-bcba9c0a589e/cycle.json",
+      "sha256": "0d6dababc14f99e67501fd8d8690757bd77ee1f348a8abe5185b35e7fc7ef015",
+      "size": 3625
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-bcba9c0a589e/report.json",
+      "sha256": "5882f43fe9d66b7c209956e013d3ecc125f2c5f353defc90f58a5a26a76defad",
+      "size": 789
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-e7aa58c52cfd/replay-evaluation.json",
+      "sha256": "c8dd6d4d12c4b8700de0931fd70995fe727e39ad8c9ae4076b589c2ac5cf47b8",
+      "size": 9634
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-e7aa58c52cfd/report.json",
+      "sha256": "3855d366b8ee8f1b9d8987fd6a422022a7da659535210166c4259918a9dd727f",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094534Z-e7aa58c52cfd/skill-evolution.json",
+      "sha256": "c6f749b2349f7482ce19a1311ab0c6923071171b2ca30722d49c18863403e0f3",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-429c7302e2ba/replay-evaluation.json",
+      "sha256": "1070c5d1bd944fd7ec7687cd256e0e4b2e814dbeedd02a291688f2daccc3362b",
+      "size": 9963
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-429c7302e2ba/report.json",
+      "sha256": "a2cf352284fb1e2c35d15c56308c05aa839eb89ee434d1efe39227976fed74f5",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-429c7302e2ba/skill-evolution.json",
+      "sha256": "67fbf0b41df503152c6af2fe8e0937d0dd109621af82a3fa06b181bee103d360",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-680cdb205120/replay-evaluation.json",
+      "sha256": "d921f91010dbed9c54cfebd1944ff07d00a6ca4175b5a85a5eeb3e8ee73bdd51",
+      "size": 9761
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-680cdb205120/report.json",
+      "sha256": "5c5e509f97c807f3b12b4b34f188f630fd79c03abebe19d5c301fac979ade8ba",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-680cdb205120/skill-evolution.json",
+      "sha256": "45b8dd2c591dc3c4b0d096c9b6503c3bd0dc88f2b81ee5424803e2892b98f106",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-71b841ff96e7/replay-evaluation.json",
+      "sha256": "edce6adb3d8e5239a78183762b1e9c7f0843a6add2ec1e92a045d67799c4501c",
+      "size": 9968
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-71b841ff96e7/report.json",
+      "sha256": "23338e802360af1b16f3ca18caeeb8095505631b13c7d0dd49ddf317ebb6444a",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-71b841ff96e7/skill-evolution.json",
+      "sha256": "92937d5e7342c7cb3bdc26f7b510d6e2f04d8ba37d524cdd2087b6bf94d46fda",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-b9a681f6cfb2/cycle.json",
+      "sha256": "b98bd3f1c110a169f8a24eaad8202a99f608c5276e2ae53ab0ed8c3b8c776234",
+      "size": 3629
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094535Z-b9a681f6cfb2/report.json",
+      "sha256": "ed2859107ecb462c744bb78f496c6d78a95753aa964c91d05cb46392453b41e0",
+      "size": 789
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-7edf6eeea659/replay-evaluation.json",
+      "sha256": "704134fe7538b9459f798345681428e4af76f4d99ab7b6a5d700970342b79449",
+      "size": 9967
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-7edf6eeea659/report.json",
+      "sha256": "5166a4dafb38ee9411ffb68ae0d88104bffb458eb94b0a0eb0cdddf9a9aa68d4",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-7edf6eeea659/skill-evolution.json",
+      "sha256": "be50c8f98b88709e092f354912871bc926dc730a26d2d44c483d7bb5aa1da28e",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-9682e9279e50/replay-evaluation.json",
+      "sha256": "9e1574d0fe0d1982cfba5b505c669d19858e21a552a6279095e569d417c0118f",
+      "size": 7319
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-9682e9279e50/report.json",
+      "sha256": "0bfb86c7a65bfef26a6d8b569461da9ce53058f3a331d93f6c380574910aceed",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-9682e9279e50/skill-evolution.json",
+      "sha256": "22470e4c81c41674996ee2a13d671ffe105ccca148d29024f9426841be74d5a1",
+      "size": 3989
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-98e47884cb71/replay-evaluation.json",
+      "sha256": "95fa571329d8a9063d8d1bc381056ec2a674b6a0225e7ccc071ac18d947b22fa",
+      "size": 9962
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-98e47884cb71/report.json",
+      "sha256": "76fc5f5ee7ecaed8d247c529e728a148454c469f048f50dcc4f8ba2983b1baa0",
+      "size": 790
+    },
+    {
+      "path": "results/sample_repo/local-20260918T094536Z-98e47884cb71/skill-evolution.json",
+      "sha256": "13a3cb52545c895bcf1c6772ff9f40641693101b86b4f4d4e77d5afd6951f80d",
+      "size": 3989
+    }
+  ],
+  "producer_commit": "b8dade4c832d1353d67f2a49de7b9202e2bd9e4b",
+  "schema_version": 1
+}

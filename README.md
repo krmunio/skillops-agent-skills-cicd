@@ -234,6 +234,21 @@ History is neither rewritten nor copied as new results; invalid history or an
 unknown Skill is rejected rather than replaced with another ID.
 No secret configuration or live dispatch is performed by the implementation.
 
+### Publish existing reviewed results without evaluation
+
+`reviewed_publication.py` and the separate manual `publish-reviewed-results.yml`
+reuse the existing immutable merge/index/build and static deployment path without
+calling evaluation, approval or approved execution. Default behavior is
+**validation only**. Trusted code commit, same-repository data commit and public
+manifest hash are pinned separately; hashes do not attest public-content review.
+Local storage, input validation, result-branch storage, deployment and public-URL
+byte verification are separate states. `--publish-reviewed` still means only
+local projection storage, never deployment.
+
+See [reviewed publication and exact offline candidates](docs/REVIEWED-PUBLICATION.md)
+for commands, permissions, bounds and session 5 handoff. Feature-branch disclosure
+does not authorize result-branch writes, production deployment or new model calls.
+
 ### Offline presentation backup
 
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration
