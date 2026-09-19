@@ -108,12 +108,16 @@ async function wrapper(parsed, bundle, fields) {
 }
 export async function loadTraceSkills(project, run, report, read) {
   const skills = new Map();
-  for (const type of ['cycle', 'adoption']) {
+  let mode = null;
+  for (const type of ['replay_evaluation', 'cycle', 'adoption']) {
     if (!run[type]) continue;
-    if (type === 'cycle' && run.skill_evolution) continue;
     const parsed = parsePublic((await read(`/results/${project.id}/${run[type]}`, true)).raw);
-    await wrapper(parsed, { report: report.value, rawReport: report.raw }, type === 'cycle' ? cycleFields : 'approvals executions');
+    await wrapper(parsed, { report: report.value, rawReport: report.raw },
+      type === 'cycle' ? cycleFields : type === 'adoption' ? 'approvals executions' : 'reference generation evaluation');
     const data = parsed.value;
+    check(mode === null || mode === data.execution_mode);
+    mode = data.execution_mode;
+    if (type === 'replay_evaluation') continue;
     if (type === 'adoption') check(Array.isArray(data.approvals) && Array.isArray(data.executions));
     for (const row of type === 'cycle' ? [data] : [...data.approvals, ...data.executions]) {
       check(matches(skillId, row.skill_key) && row.project_id === project.id);
@@ -121,6 +125,7 @@ export async function loadTraceSkills(project, run, report, read) {
         base_version_id: null, candidate_version_id: null });
     }
   }
+  run.trace_mode = mode;
   return [...skills.values()];
 }
 function validateDecision(value, checks) {
@@ -455,16 +460,67 @@ function link(project, run, skill, label) {
   return anchor;
 }
 function paragraph(panel, label, value) { panel.append(node('p', `${label}: ${value ?? '미기록'}`)); }
-export function clearTrace() {
-  $('evidence-trace').replaceChildren(node('h2', '개발 작업에서 다음 Skill 사용까지'));
+export function clearTrace(status = '공개 기록 없음') {
+  const panel = $('evidence-trace'), steps = node('ol');
+  steps.id = 'skill-progress';
+  for (const [id, label, next] of [
+    ['development', '개발 평가', '다음 행동: 기록된 개발 작업과 선택 Skill의 평가 근거를 확인하세요. 새 평가는 별도 실행 허가가 필요합니다.'],
+    ['iteration', '최대 N회 개선', '다음 행동: 승인된 반복 한도와 라운드별 부모·후보·피드백·종료 사유를 확인하세요.'],
+    ['confirmation', '별도 최종 확인', '다음 행동: 개발 평가와 분리된 최종 작업의 확인 결과를 확인하세요. 개발 개선만으로 통과하지 않습니다.'],
+    ['approval', '사람 승인', '다음 행동: live 최종 확인 근거가 있어도 로컬 CLI에서 대상·버전·근거·승인 자격을 재검증하세요.'],
+    ['use', '다음 작업 사용', '다음 행동: 별도 실행 허가 후 다음 작업의 실제 버전 사용 관측과 작업 결과를 각각 확인하세요.'],
+  ]) {
+    const item = node('li'); item.dataset.stage = id;
+    item.append(node('strong', label), node('p', status, 'stage-status'), node('p', next, 'stage-next'));
+    steps.append(item);
+  }
+  const guide = node('div'); guide.id = 'approval-guidance';
+  const help = node('a', '로컬 CLI 사용 안내');
+  help.href = 'https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.ko.md#별도의-로컬-승인';
+  guide.append(node('p', '승인은 로컬 CLI에서 수행합니다. 공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다. 웹에서는 승인하거나 실행 권한을 부여하지 않습니다.'),
+    help, node('p', '공개 기록만으로 실제 승인 여부를 단정하지 않습니다. 현재 private Active와 이전 영수증 hash는 웹에서 추정하지 않습니다.'));
+  panel.replaceChildren(node('h2', '개발 작업에서 다음 Skill 사용까지'), steps, guide);
+}
+function renderProgress(trace) {
+  const mode = value => value === 'live' ? '공개 live 근거' : `${value} · 실측·승인 근거 아님`;
+  const set = (stage, values) => {
+    if (values.length) $('skill-progress').querySelector(`[data-stage="${stage}"] .stage-status`).textContent =
+      [...new Set(values)].join(' / ');
+  };
+  const decision = status => status === 'rejected' ? '실패 · 후보 거절' :
+    status === 'unverified' ? '미검증' : states[status];
+  const development = trace.replay?.evaluation.work.split === 'development' ? trace.replay : null;
+  set('development', development ? [`${mode(development.execution_mode)} · 진행 근거 있음 · ${decision(development.evaluation.decision.status)}`] :
+    trace.cycles.filter(cycle => cycle.rounds.some(round => round.decision)).map(cycle =>
+      `${mode(cycle.execution_mode)} · 진행 근거 있음 · 라운드별 판정 확인`));
+  set('iteration', trace.cycles.map(cycle => {
+    const last = cycle.rounds.at(-1)?.decision?.status;
+    const outcome = last === 'rejected' ? '실패 · 후보 거절' :
+      cycle.stop_reason === 'evaluation_unverified' ? '미검증' :
+      ['runtime_error', 'input_changed', 'cancelled'].includes(cycle.stop_reason) ? '실패·중단' : '진행 근거 있음';
+    return `${mode(cycle.execution_mode)} · ${outcome} · ${cycle.rounds.length}/${cycle.max_rounds}회 · ${cycle.stop_reason}`;
+  }));
+  set('confirmation', trace.cycles.map(cycle => `${mode(cycle.execution_mode)} · ${
+    { passed: '통과', failed: '실패', unverified: '미검증', not_run: '미실행' }[cycle.confirmation_status]}`));
+  if (!trace.cycles.length && trace.replay?.evaluation.work.split === 'confirmation') {
+    set('confirmation', [`${mode(trace.replay.execution_mode)} · 진행 근거 있음 · cycle 최종 판정 미기록`]);
+  }
+  set('approval', trace.approvals.length ? trace.approvals.map(item => `${mode(item.mode)} · 승인 관측 · ${
+    trace.executions.some(use => use.row.approval_id === item.row.approval_id) ? '사용 관측은 다음 단계에서 확인' : '승인됐지만 사용 미기록'}`) :
+    trace.cycles.filter(cycle => cycle.confirmation_status === 'passed').map(cycle =>
+      `${mode(cycle.execution_mode)} · 공개 승인 기록 없음 · ${
+        cycle.execution_mode === 'live' ? '로컬 승인 자격 재검증 필요' : '테스트/샘플 · 승인 불가'}`));
+  set('use', trace.executions.map(item => `${mode(item.mode)} · 사용 관측 · ${
+    { verified: '검증된 사용 · 작업 성공과 별개', failed: '실패', blocked: '차단' }[item.row.status]}`));
 }
 export function traceError() {
-  clearTrace();
+  clearTrace('근거 확인 실패 · 미검증');
   const error = node('p', '근거 누락 또는 검증 실패 · 다른 실행으로 대체하지 않습니다.', 'summary-warning');
   error.id = 'trace-error'; error.setAttribute('role', 'alert'); $('evidence-trace').append(error);
 }
 export function renderTrace(trace) {
   clearTrace();
+  renderProgress(trace);
   const panel = $('evidence-trace');
   const badge = node('p', trace.mode === 'live' ? 'live · 공개 실행 근거' :
     trace.mode ? `${trace.mode} · 실측 성과·실제 채택 근거 아님` : '새 실행 방식: 미기록', 'reason');
@@ -502,7 +558,7 @@ export function renderTrace(trace) {
     paragraph(section, '선택 후보', cycle.selected_candidate_version_id);
     if (!trace.approvals.some(item => item.row.cycle_id === cycle.cycle_id)) {
       paragraph(section, '채택 단계', cycle.confirmation_status === 'passed' ?
-        (cycle.execution_mode === 'live' ? '승인 대기 · 이 공개 연결에 승인 기록 미기록' :
+        (cycle.execution_mode === 'live' ? '승인 대기 · 로컬 승인 자격 재검증 필요 · 이 공개 연결에 승인 기록 미기록' :
           '테스트/샘플 · 승인 불가 · 실제 승인에는 live 최종 확인 근거 필요') :
         '최종 확인 미완료 · 승인 가능으로 간주하지 않음');
     }

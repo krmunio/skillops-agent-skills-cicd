@@ -70,6 +70,12 @@ h1 { margin: 0; font-size: 28px; letter-spacing: -1px; overflow-wrap: anywhere; 
 #evidence-trace h2 { margin: 0 0 12px; font-size: 19px; }
 #evidence-trace section { border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
 #evidence-trace p { font-size: 12px; }
+#skill-progress { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 18px; padding-left: 20px; }
+#skill-progress li { min-width: 0; }
+#skill-progress .stage-status { font-weight: 600; }
+#skill-progress .stage-next { color: var(--muted); }
+#approval-guidance { border-top: 1px solid var(--line); padding-top: 10px; }
+#offline-examples { margin-bottom: 18px; }
 .trace-round { border-left: 3px solid var(--line); padding-left: 14px; margin: 16px 0; }
 #improvement-evidence, #task-results { overflow-wrap: anywhere; }
 h3 { margin: 0 0 12px; font-size: 15px; }
