@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-09-19T16:15:11.131861+00:00",
+  "evaluator_sha256": "5bacb2998c3126c0580c09be6776b0478a49371a39d579052d44f02318fd352e",
+  "execution": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "live_disabled",
+    "status": "blocked"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "guide_integration_pending",
+    "status": "blocked"
+  },
+  "origin": "github_actions",
+  "project_id": "sample_repo",
+  "project_tree_sha256": "32b6c98ef3bebfb7e121e51fba19f454abb87c55cf4ce93669f65372db813411",
+  "purpose": "project_assessment",
+  "run_id": "35454079450-1",
+  "schema_version": 1,
+  "source_commit": "14be2f8ac8c72d7fb9ce33724831c016abad44d0",
+  "source_report_sha256": null,
+  "source_schema_version": null
+}
