@@ -191,6 +191,116 @@ class RepositoryTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, "registry_busy")
         self.assertEqual(self.r.resolve(self.root, "a")["skill"], self.base)
 
+    def readonly(self):
+        self.assertTrue(callable(getattr(self.r, "_readonly_state", None)), "Read-only registry context is missing.")
+        return self.r._readonly_state(self.root)
+
+    def test_readonly_first_use_never_creates_a_store_or_lock(self):
+        with patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                patch.object(self.r.os, "open", side_effect=AssertionError("open")):
+            with self.readonly() as folder:
+                self.assertIsNone(folder)
+        self.assertFalse((self.root / ".skillops").exists())
+        folder = self.root / ".skillops"
+        folder.mkdir(mode=0o700)
+        with patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                patch.object(self.r.os, "open", side_effect=AssertionError("open")):
+            with self.readonly() as observed:
+                self.assertEqual(observed, folder)
+        self.assertEqual(list(folder.iterdir()), [])
+
+    def test_readonly_existing_registry_uses_only_existing_readonly_lock(self):
+        self.register()
+        path = self.root / ".skillops/registry.json"
+        before = path.read_bytes()
+        open_file = os.open
+        def guarded_open(path, flags, *args, **kwargs):
+            self.assertFalse(flags & (os.O_CREAT | os.O_WRONLY | os.O_RDWR | os.O_TRUNC))
+            return open_file(path, flags, *args, **kwargs)
+        with patch.object(self.r.os, "open", side_effect=guarded_open), \
+                patch.object(self.r.os, "fsync", side_effect=AssertionError("fsync")), \
+                patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                patch.object(self.r, "_write", side_effect=AssertionError("write")):
+            with self.readonly() as folder:
+                self.assertEqual(folder, self.root / ".skillops")
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_readonly_missing_lock_is_not_initial_absence_with_existing_state(self):
+        folder = self.root / ".skillops"
+        folder.mkdir(mode=0o700)
+        for name in ("registry.json", "environment.json", "active.json", "approvals", "executions"):
+            path = folder / name
+            path.write_text("{}")
+            with self.subTest(name=name):
+                with self.assertRaises(RuntimeFailure) as caught:
+                    with self.readonly():
+                        self.fail("Partial state was accepted without a lock.")
+                self.assertEqual(caught.exception.code, "missing_registry_lock")
+            path.unlink()
+        self.assertFalse((folder / "lock").exists())
+
+    def test_readonly_rejects_store_and_lock_changes_during_observation(self):
+        with self.assertRaises(RuntimeFailure) as caught:
+            with self.readonly():
+                (self.root / ".skillops").mkdir(mode=0o700)
+        self.assertEqual(caught.exception.code, "registry_changed")
+        self.register()
+        lock = self.root / ".skillops/lock"
+        with self.assertRaises(RuntimeFailure) as caught:
+            with self.readonly():
+                lock.rename(lock.with_name("old-lock"))
+                lock.touch(mode=0o600)
+        self.assertEqual(caught.exception.code, "registry_changed")
+        with self.assertRaises(RuntimeFailure):
+            with self.readonly():
+                (self.root / ".skillops/registry.json").write_text("{}")
+
+    def test_readonly_busy_invalid_and_unsafe_registry_fail_explicitly(self):
+        import fcntl
+        self.register()
+        folder = self.root / ".skillops"
+        with (folder / "lock").open("r") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with self.assertRaises(RuntimeFailure) as caught:
+                with self.readonly():
+                    self.fail("Busy lock was accepted.")
+            self.assertEqual(caught.exception.code, "registry_busy")
+        folder.chmod(0o755)
+        with self.assertRaises(RuntimeFailure):
+            with self.readonly():
+                self.fail("Unsafe directory accepted.")
+        folder.chmod(0o700)
+        for name in ("lock", "registry.json"):
+            path = folder / name
+            saved = path.with_suffix(".saved")
+            path.rename(saved)
+            path.symlink_to(saved)
+            with self.subTest(name=name), self.assertRaises(RuntimeFailure):
+                with self.readonly():
+                    self.fail("Symlink accepted.")
+            path.unlink()
+            saved.rename(path)
+        (folder / "registry.json").write_text("{}")
+        with self.assertRaises(RuntimeFailure):
+            with self.readonly():
+                self.fail("Malformed registry accepted.")
+
+    def test_readonly_access_error_and_symlink_are_not_absence(self):
+        folder = self.root / ".skillops"
+        original = Path.lstat
+        def inaccessible(path, *args, **kwargs):
+            if path == folder:
+                raise PermissionError("Synthetic permission denial")
+            return original(path, *args, **kwargs)
+        with patch.object(Path, "lstat", inaccessible), self.assertRaises(RuntimeFailure) as caught:
+            with self.readonly():
+                self.fail("Access error became absence.")
+        self.assertEqual(caught.exception.code, "registry_io")
+        folder.symlink_to(self.root / "missing")
+        with self.assertRaises(RuntimeFailure):
+            with self.readonly():
+                self.fail("Dangling store symlink became absence.")
+
     def test_offline_commands_never_construct_copilot(self):
         for args, expected in (
             (["register", "--repository", "a", "--path", str(self.target)], 0),
