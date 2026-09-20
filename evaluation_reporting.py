@@ -69,6 +69,11 @@ def report_lines(report, assessment):
     ]
     target = (report["guide"]["metrics"] or {}).get("skills")
     if target is not None:
+        selected = (report["guide"]["metrics"] or {}).get("requested")
+        if selected is not None:
+            results.require(selected <= target, "skill_count_mismatch")
+            lines.append(f"Assessment scope: {selected}/{target} current Skills selected; "
+                         "selected-cycle completion is not full-project coverage.")
         complete = sum(
             row["generation"]["status"] == "generated"
             and all(row["quality"][arm] is not None and row["quality"][arm]["status"] == "completed"

@@ -2,6 +2,7 @@ import copy
 import base64
 import importlib
 import importlib.util
+import inspect
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -150,6 +151,34 @@ class ProjectResultsTests(unittest.TestCase):
             entry = m.reindex(root, root / "results")["projects"][0]
             self.assertEqual(entry.get("detected_skills", [{}])[0].get("skill_key"),
                              assessment["skills"][0]["skill_key"])
+
+    def test_inventory_external_identity_history_does_not_publish_old_evidence(self):
+        from test_skill_assessments import fixture
+        m = self.module()
+        self.assertIn("identity_history", inspect.signature(m.reindex).parameters)
+        report, lifecycle, assessment = fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "projects/sample_repo" / assessment["skills"][0]["source_path"]
+            path.mkdir(parents=True)
+            (path / "SKILL.md").write_text("---\nname: example\n---\nInstructions\n")
+            history, output = root / "history", root / "output"
+            m.store(history, report)
+            m.store_evolution(history, lifecycle)
+            m.store_assessments(history, assessment)
+            original = {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")}
+            validated = m.load_assessments(history, m.load_reports(history))
+            identities = {"sample_repo": list(validated.values())}
+            before = copy.deepcopy(identities)
+            entry = m.reindex(root, output, identity_history=identities)["projects"][0]
+            self.assertEqual(entry["detected_skills"][0]["skill_key"], assessment["skills"][0]["skill_key"])
+            self.assertEqual(entry["history_count"], 0)
+            self.assertIsNone(entry["current_run"])
+            self.assertEqual(m.read_json(output / "sample_repo/index.json")["history"], [])
+            self.assertEqual(m.load_reports(output), [])
+            self.assertEqual(m.load_assessments(output), {})
+            self.assertEqual(identities, before)
+            self.assertEqual(original, {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")})
 
     def test_inventory_discovery_failure_is_explicit(self):
         import skill_guide

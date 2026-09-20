@@ -786,12 +786,12 @@ def stage_skill(project, source_path, files):
 
 def candidate_files(original, response):
     exact(response, "instructions addressed_findings hypothesis")
-    skill_assessments.text(response["instructions"], 16000)
-    skill_assessments.text(response["hypothesis"])
+    skill_assessments.text(response["instructions"], 16000, candidate_field="instructions")
+    skill_assessments.text(response["hypothesis"], candidate_field="hypothesis")
     require(isinstance(response["addressed_findings"], list) and len(response["addressed_findings"]) <= 128,
             "invalid_candidate")
     for identifier in response["addressed_findings"]:
-        skill_assessments.text(identifier, 160)
+        skill_assessments.text(identifier, 160, candidate_field="addressed_finding")
     require(len(response["addressed_findings"]) == len(set(response["addressed_findings"])), "invalid_candidate")
     body = response["instructions"].strip()
     require(not body.startswith("---") and "\0" not in body, "invalid_candidate")

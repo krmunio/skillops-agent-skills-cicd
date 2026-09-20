@@ -1045,6 +1045,87 @@ class ConfirmationTests(unittest.TestCase):
         self.assertFalse((raw.private / "confirmation-exposures").exists())
 
 
+class CandidateDiagnosticTests(unittest.TestCase):
+    original = {"SKILL.md": b"---\nname: develop\ndescription: Develop safely.\n---\nOriginal.\n"}
+
+    def response(self, field, value):
+        response = {"instructions": "Changed body.", "hypothesis": "Synthetic hypothesis.",
+                    "addressed_findings": ["workflow_clarity"]}
+        if field == "addressed_finding":
+            response["addressed_findings"] = [value]
+        else:
+            response[field] = value
+        return response
+
+    def test_fixed_field_and_condition_codes_never_echo_rejected_content(self):
+        for field, limit in (("instructions", 16000), ("hypothesis", 4096), ("addressed_finding", 160)):
+            for condition, value in (
+                ("type", {"PRIVATE_SENTINEL": "never log this"}),
+                ("empty", ""),
+                ("byte_limit", "\u00e9" * (limit // 2) + "x"),
+                ("control_character", "PRIVATE_SENTINEL\r"),
+            ):
+                with self.subTest(field=field, condition=condition):
+                    with self.assertRaises(RuntimeFailure) as caught:
+                        skill_pipeline.candidate_files(self.original, self.response(field, value))
+                    self.assertEqual(caught.exception.code, f"candidate_{field}_{condition}")
+                    self.assertNotIn("PRIVATE_SENTINEL", str(caught.exception))
+                    self.assertNotIn("never log this", str(caught.exception))
+
+    def test_existing_utf8_boundaries_lf_tab_and_del_acceptance_are_unchanged(self):
+        for field, limit in (("instructions", 16000), ("hypothesis", 4096), ("addressed_finding", 160)):
+            for value in ("x" * limit, "\u00e9" * (limit // 2), "text\n\t\x7f"):
+                with self.subTest(field=field, bytes=len(value.encode())):
+                    files = skill_pipeline.candidate_files(self.original, self.response(field, value))
+                    self.assertIn("SKILL.md", files)
+
+    def test_historical_generic_text_error_remains_supported(self):
+        with self.assertRaises(RuntimeFailure) as caught:
+            skill_assessments.text(None)
+        self.assertEqual(caught.exception.code, "invalid_skill_assessment")
+        from test_skill_assessments import fixture
+        _, _, assessment = fixture()
+        row = assessment["skills"][0]
+        row["errors"] = [{"stage": "generation", "code": "invalid_skill_assessment"}]
+        skill_assessments.validate_skill(row)
+
+    def test_completed_invocation_can_block_generation_without_candidate_or_content_leak(self):
+        import evaluation_telemetry
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            project = root / "project"
+            entry = project / "skills/develop/SKILL.md"
+            entry.parent.mkdir(parents=True)
+            entry.write_bytes(self.original["SKILL.md"])
+            raw = Mock(project=root, cli="/test-only/copilot", env={})
+            raw.private = root / "private"
+            raw.private.mkdir()
+            raw.invoke.return_value = {"content": json.dumps(
+                self.response("instructions", "PRIVATE_SENTINEL\r"))}
+            runtime = project_evaluation.BudgetRuntime(raw, {
+                "calls": 0, "max_calls": 5, "deadline": time.monotonic() + 60})
+            recorder = evaluation_telemetry.Recorder()
+            runtime.recorder = recorder
+            quality = {"status": "pass", "static": {"findings": []},
+                       "judge": {"dimensions": {"workflow_clarity": {"score": 3}}}}
+            with patch.object(skill_guide, "evaluate_bundle", return_value=quality) as judged:
+                row, captures = skill_pipeline.evaluate_skill(
+                    runtime, "offline-model", project, skill_guide.discover(project)[0],
+                    "skillops:develop", {"dimensions": ["workflow_clarity"]}, {},
+                    root / "assessment", check_error="unsupported_dependencies", progress=recorder)
+            stage = recorder.stages["generation"]
+            self.assertEqual(stage["invocations"][0]["status"], "completed")
+            self.assertEqual(stage["status"], "blocked")
+            self.assertEqual(stage["code"], "candidate_instructions_control_character")
+            self.assertIn({"stage": "generation", "code": stage["code"]}, row["errors"])
+            self.assertEqual(judged.call_count, 1)
+            self.assertEqual(len(captures), 1)
+            self.assertIsNone(row["candidate_version_id"])
+            self.assertIsNone(row["quality"]["candidate"])
+            self.assertEqual(recorder.stages["candidate_quality"]["status"], "not_started")
+            self.assertNotIn("PRIVATE_SENTINEL", json.dumps([row, recorder.stages]))
+
+
 class SkillPipelineTests(unittest.TestCase):
     def test_all_project_b_bundles_fit_with_maximum_synthetic_candidate_bodies(self):
         """Capacity check only: fixture scores are not model evaluation evidence."""
