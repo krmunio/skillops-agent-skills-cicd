@@ -125,6 +125,74 @@ def _state(root):
             os.close(descriptor)
 
 
+def _present(path):
+    """Only a missing entry is absence; permission errors and symlinks are not."""
+    try:
+        Path(path).lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+@contextmanager
+def _readonly_state(root):
+    """Observe first use or lock an existing store without initializing anything."""
+    root = Path(os.path.abspath(root))
+    folder = root / ".skillops"
+    descriptor = None
+
+    def stamp(info):
+        return (info.st_dev, info.st_ino, info.st_mode, info.st_uid, info.st_nlink,
+                info.st_mtime_ns, info.st_ctime_ns)
+
+    def observe():
+        for path in (*root.parents, root):
+            require(stat.S_ISDIR(path.lstat().st_mode), "unsafe_registry", "Registry ancestors must be directories.")
+        snapshot = {"root": stamp(root.lstat()), "folder": None, "lock": None, "registry": None}
+        if not _present(folder):
+            return snapshot
+        info = folder.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                "unsafe_registry", "Registry directory must be owner-only.")
+        snapshot["folder"] = stamp(info)
+        lock = folder / "lock"
+        if not _present(lock):
+            require(not any(folder.iterdir()), "missing_registry_lock", "Existing state requires its registry lock.")
+            return snapshot
+        info = lock.lstat()
+        require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                "unsafe_registry", "Registry lock must be owner-only.")
+        snapshot["lock"] = stamp(info)
+        path = folder / "registry.json"
+        if _present(path):
+            info = path.lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                    "unsafe_registry", "Registry file must be owner-only.")
+            raw = read_file(path)
+            _validate(strict_json(text(raw)))
+            snapshot["registry"] = (stamp(info), raw)
+        return snapshot
+
+    try:
+        before = observe()
+        if before["lock"] is not None:
+            descriptor = os.open(folder / "lock", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            require(stamp(os.fstat(descriptor)) == before["lock"],
+                    "registry_changed", "Registry changed during observation.")
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise RuntimeFailure("registry_busy", "Another registry operation holds the lock.") from error
+        require(observe() == before, "registry_changed", "Registry changed during observation.")
+        yield folder if before["folder"] is not None else None
+        require(observe() == before, "registry_changed", "Registry changed during observation.")
+    except OSError as error:
+        raise RuntimeFailure("registry_io", "Registry observation failed.") from error
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+
+
 def _write(folder, data):
     _validate(data)
     content = (json.dumps(data, indent=2, allow_nan=False) + "\n").encode()

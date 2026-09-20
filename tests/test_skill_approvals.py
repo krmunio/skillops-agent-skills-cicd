@@ -201,6 +201,298 @@ class ApprovalTests(unittest.TestCase):
         self.assertTrue(callable(getattr(repositories, "active_snapshot", None)), "Atomic Active snapshot is missing.")
         return repositories.active_snapshot(self.root, project_id="sample_repo", skill_key=self.key)
 
+    def preflight(self, **changes):
+        self.assertTrue(callable(getattr(self.a, "preflight", None)), "Read-only approval preflight is missing.")
+        args = dict(project_id="sample_repo", skill_key=self.key,
+                    candidate_version_id=self.candidate[0]["version_id"], cycle_id=self.cycle_id,
+                    evidence_sha256=self.evidence, results=self.output)
+        return self.a.preflight(self.root, **{**args, **changes})
+
+    def test_preflight_first_use_shares_evidence_without_writes_or_fsync(self):
+        before = {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        open_file = os.open
+        def guarded_open(path, flags, *args, **kwargs):
+            if path != os.devnull:
+                self.assertFalse(flags & (os.O_CREAT | os.O_WRONLY | os.O_RDWR | os.O_TRUNC))
+            return open_file(path, flags, *args, **kwargs)
+        with patch.object(self.a, "_evidence", wraps=self.a._evidence) as evidence, \
+                patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                patch.object(os, "open", side_effect=guarded_open), \
+                patch.object(os, "fsync", side_effect=AssertionError("fsync")), \
+                patch.object(self.a, "_write", side_effect=AssertionError("write")), \
+                patch.object(results, "atomic_json", side_effect=AssertionError("atomic_json")), \
+                patch.object(self.a, "approve", side_effect=AssertionError("approve")):
+            report = self.preflight()
+        self.assertEqual(report["status"], "eligible", report)
+        evidence.assert_called_once()
+        self.assertEqual(report["active"], {"state": "absent", "version_id": None, "execution_sha256": None})
+        self.assertEqual(report["store_state"], "absent")
+        self.assertEqual(report["environment_state"], "uninitialized")
+        self.assertEqual(report["binding"]["source_commit"], self.commit)
+        self.assertFalse((self.root / ".skillops").exists())
+        self.assertEqual(before, {p: p.read_bytes() for p in self.root.rglob("*") if p.is_file()})
+
+    def test_preflight_distinguishes_store_environment_and_target_absence(self):
+        folder = self.root / ".skillops"
+        folder.mkdir(mode=0o700)
+        self.assertEqual(self.preflight()["status"], "eligible")
+        self.assertEqual(list(folder.iterdir()), [])
+        repositories.list_repositories(self.root)
+        report = self.preflight()
+        self.assertEqual(report["status"], "eligible", report)
+        self.assertEqual(report["store_state"], "present")
+        self.assertEqual(report["environment_state"], "uninitialized")
+        self.assertFalse((folder / "environment.json").exists())
+        self.approve()
+        report = self.preflight()
+        self.assertEqual(report["status"], "eligible", report)
+        self.assertEqual(report["environment_state"], "initialized")
+        self.assertEqual(report["active"]["state"], "absent")
+        self.assertFalse((folder / "active.json").exists())
+
+    def test_preflight_present_active_returns_verified_pair_without_durability_calls(self):
+        approved = self.approve()
+        receipt = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        before = {p: p.read_bytes() for p in (self.root / ".skillops").rglob("*") if p.is_file()}
+        with patch.object(os, "fsync", side_effect=AssertionError("fsync")), \
+                patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                patch.object(self.a, "_write", side_effect=AssertionError("write")):
+            report = self.preflight()
+        self.assertEqual(report["status"], "eligible", report)
+        self.assertEqual(report["active"], {"state": "present", "version_id": approved["candidate_version_id"],
+                                           "execution_sha256": digest(receipt)})
+        self.assertEqual(before, {p: p.read_bytes() for p in (self.root / ".skillops").rglob("*") if p.is_file()})
+        (self.root / ".skillops/executions" / (receipt["execution_id"] + ".json")).unlink()
+        report = self.preflight()
+        self.assertEqual(report["status"], "blocked")
+        self.assertEqual(report["active"], {"state": "unknown"})
+
+    def test_preflight_partial_environment_state_and_symlinks_are_not_absence(self):
+        repositories.list_repositories(self.root)
+        folder = self.root / ".skillops"
+        for name in ("approvals", "executions", "active.json"):
+            path = folder / name
+            path.symlink_to(folder / "missing")
+            with self.subTest(name=name):
+                report = self.preflight()
+                self.assertEqual(report["status"], "blocked")
+                self.assertIn("missing_local_environment", report["blockers"])
+                self.assertEqual(report["active"], {"state": "unknown"})
+            path.unlink()
+        environment = folder / "environment.json"
+        environment.symlink_to(folder / "missing")
+        self.assertEqual(self.preflight()["status"], "blocked")
+
+    def test_preflight_inaccessible_environment_is_not_first_use(self):
+        repositories.list_repositories(self.root)
+        environment = self.root / ".skillops/environment.json"
+        original = Path.lstat
+        def inaccessible(path, *args, **kwargs):
+            if path == environment:
+                raise PermissionError("Synthetic permission denial")
+            return original(path, *args, **kwargs)
+        with patch.object(Path, "lstat", inaccessible):
+            report = self.preflight()
+        self.assertEqual(report["status"], "blocked")
+        self.assertEqual(report["active"], {"state": "unknown"})
+        self.assertTrue(report["blockers"])
+        self.assertFalse(environment.exists())
+
+    def test_preflight_checks_existing_adoption_directory_owner_and_access_without_records(self):
+        with repositories._state(self.root) as (folder, _):
+            self.a._environment(folder, create=True)
+        for name in ("approvals", "executions"):
+            path = folder / name
+            path.mkdir(mode=0o700)
+            original_stat = Path.stat
+            def wrong_owner(entry, *args, **kwargs):
+                info = original_stat(entry, *args, **kwargs)
+                if entry == path:
+                    fields = list(info)
+                    fields[4] = info.st_uid + 1
+                    return os.stat_result(fields)
+                return info
+            for kind in ("owner", "access"):
+                with self.subTest(name=name, kind=kind):
+                    guard = patch.object(Path, "stat", wrong_owner) if kind == "owner" else patch.object(
+                        os, "access", return_value=False)
+                    with guard, patch.object(os, "fsync", side_effect=AssertionError("fsync")), \
+                            patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                            patch.object(self.a, "_write", side_effect=AssertionError("write")):
+                        report = self.preflight()
+                    self.assertEqual(report["status"], "blocked", report)
+                    self.assertEqual(report["blockers"], ["unsafe_approval_store"])
+                    self.assertNotIn("approval_argv", report)
+            self.assertEqual(self.preflight()["status"], "eligible")
+            self.assertEqual(list(path.iterdir()), [])
+            path.rmdir()
+        self.assertEqual(self.preflight()["status"], "eligible")
+        self.assertFalse((folder / "active.json").exists())
+
+    def test_existing_adoption_directory_rejections_preserve_mutating_defaults(self):
+        with repositories._state(self.root) as (folder, _):
+            self.a._environment(folder, create=True)
+        target = self.root / "directory-target"
+        target.mkdir(mode=0o700)
+        for name in ("approvals", "executions"):
+            approved = self.approve() if name == "executions" else None
+            path = folder / name
+            for kind in ("file", "symlink", "dangling"):
+                with self.subTest(name=name, kind=kind):
+                    if kind == "file":
+                        path.write_text("not a directory")
+                    else:
+                        path.symlink_to(target if kind == "symlink" else self.root / "missing-target")
+                    try:
+                        if name == "executions":
+                            self.assertEqual(self.approve(), approved)
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            if name == "approvals":
+                                self.approve()
+                            else:
+                                self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+                        self.assertEqual(caught.exception.code,
+                                         "unsafe_approval_store" if kind == "file" else "unsafe_path")
+                        self.assertFalse((folder / "active.json").exists())
+                    finally:
+                        path.unlink()
+
+    def test_preflight_denies_bad_offline_and_sample_passed_evidence_without_initialization(self):
+        for mode in ("offline_test", "sample"):
+            self.cycle["execution_mode"] = mode
+            self.save_cycle()
+            with self.subTest(mode=mode):
+                report = self.preflight()
+                self.assertEqual(report["status"], "blocked")
+                self.assertIn("cycle_not_approvable", report["blockers"])
+                self.assertNotIn("approval_argv", report)
+        self.cycle["execution_mode"] = "live"
+        self.save_cycle()
+        for changes in ({"evidence_sha256": "0" * 64},
+                        {"candidate_version_id": self.base[0]["version_id"]}):
+            self.assertEqual(self.preflight(**changes)["status"], "blocked")
+        with patch.object(results, "load_cycles", None):
+            report = self.preflight()
+        self.assertIn("approval_validation_unavailable", report["blockers"])
+        self.assertFalse((self.root / ".skillops").exists())
+
+    def test_preflight_unknown_identity_and_ci_fail_closed_without_identity_disclosure(self):
+        with patch.object(self.a, "_operator", side_effect=KeyError("private-operator-value")):
+            report = self.preflight()
+        self.assertEqual(report["blockers"], ["local_identity_unavailable"])
+        self.assertNotIn("private-operator-value", json.dumps(report))
+        with patch.dict(os.environ, {"CI": "true"}):
+            report = self.preflight()
+        self.assertEqual(report["blockers"], ["local_approval_only"])
+        self.assertFalse((self.root / ".skillops").exists())
+
+    def test_preflight_blocks_observed_store_and_active_changes(self):
+        validate = self.a._evidence
+        def initialize_during_evidence(*args, **kwargs):
+            result = validate(*args, **kwargs)
+            repositories.list_repositories(self.root)
+            return result
+        with patch.object(self.a, "_evidence", side_effect=initialize_during_evidence):
+            report = self.preflight()
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("registry_changed", report["blockers"])
+        approved = self.approve()
+        receipt = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        def remove_pointer(*args, **kwargs):
+            result = validate(*args, **kwargs)
+            (self.root / ".skillops/active.json").unlink()
+            return result
+        with patch.object(self.a, "_evidence", side_effect=remove_pointer):
+            report = self.preflight()
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("active_conflict", report["blockers"])
+        self.assertEqual(report["active"], {"state": "unknown"})
+
+    def test_preflight_is_not_reservation_and_approve_revalidates_evidence_and_pair(self):
+        observation = self.preflight()
+        self.assertEqual(observation["status"], "eligible")
+        original = self.cycle_path.read_bytes()
+        self.cycle_path.write_bytes(original + b"\n")
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.approve()
+        self.assertEqual(caught.exception.code, "approval_evidence_changed")
+        self.cycle_path.write_bytes(original)
+        approved = self.approve()
+        receipt = self.receipt(approved)
+        self.a.record_execution(self.root, approval=approved, receipt=receipt)
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.approve()
+        self.assertEqual(caught.exception.code, "active_conflict")
+        observation = self.preflight()
+        prior = observation["active"]
+        second = self.approve(expected_active_version_id=prior["version_id"],
+                              expected_active_execution_sha256=prior["execution_sha256"])
+        second_receipt = self.receipt(second, execution_id="execution-second",
+                                     run_id="local-20260917T140000Z-555555555555")
+        self.a.record_execution(self.root, approval=second, receipt=second_receipt)
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.approve(expected_active_version_id=prior["version_id"],
+                         expected_active_execution_sha256=prior["execution_sha256"])
+        self.assertEqual(caught.exception.code, "active_conflict")
+
+    def test_preflight_rejects_source_evaluator_private_work_and_malformed_evidence(self):
+        work = self.work_items[0]
+        paths = (self.project / "app.py", self.root / "eval/skill-guide-rubric.json",
+                 self.root / ".skillops-private/work-items" / work["task_id"] / (work["input_sha256"] + ".json"))
+        for path in paths:
+            original = path.read_bytes()
+            path.write_bytes(original + b"\n")
+            with self.subTest(path=path.name):
+                report = self.preflight()
+                self.assertEqual(report["status"], "blocked")
+                self.assertTrue(report["blockers"])
+                self.assertEqual(report["active"], {"state": "unknown"})
+            path.write_bytes(original)
+        self.cycle_path.write_bytes(b"not json")
+        self.assertEqual(self.preflight()["status"], "blocked")
+        self.assertFalse((self.root / ".skillops").exists())
+
+    def test_preflight_busy_lock_and_unsafe_environment_are_blocked_without_changes(self):
+        import fcntl
+        self.approve()
+        folder = self.root / ".skillops"
+        with (folder / "lock").open("r") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            report = self.preflight()
+        self.assertEqual(report["blockers"], ["registry_busy"])
+        environment = folder / "environment.json"
+        environment.chmod(0o644)
+        report = self.preflight()
+        self.assertEqual(report["status"], "blocked")
+        self.assertIn("unsafe_approval_store", report["blockers"])
+        self.assertFalse((folder / "active.json").exists())
+
+    def test_preflight_detects_environment_and_operator_changes_during_evidence(self):
+        self.approve()
+        validate = self.a._evidence
+        path = self.root / ".skillops/environment.json"
+        def change_environment(*args, **kwargs):
+            result = validate(*args, **kwargs)
+            value = results.read_json(path)
+            value["environment_id"] = "env-changed"
+            path.write_bytes(results.encoded(value))
+            return result
+        with patch.object(self.a, "_evidence", side_effect=change_environment):
+            report = self.preflight()
+        self.assertEqual(report["blockers"], ["local_environment_mismatch"])
+        with patch.object(self.a, "_operator", side_effect=["first-private-value", "second-private-value"]):
+            report = self.preflight()
+        self.assertEqual(report["blockers"], ["local_identity_changed"])
+        self.assertNotIn("private-value", json.dumps(report))
+
+    def test_readonly_environment_cannot_opt_into_initialization(self):
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.a._environment(self.root / ".skillops", create=True, durable=False)
+        self.assertEqual(caught.exception.code, "readonly_approval_store")
+        self.assertFalse((self.root / ".skillops").exists())
+
     def test_atomic_active_snapshot_and_required_hash_signature(self):
         import inspect
         self.assertIn("expected_active_execution_sha256", inspect.signature(self.a.approve).parameters)
@@ -542,6 +834,7 @@ class ApprovalTests(unittest.TestCase):
         approved = self.approve()
         first = self.receipt(approved)
         self.a.record_execution(self.root, approval=approved, receipt=first)
+        observed = self.preflight()["active"]
         pending = self.approve(expected_active_version_id=approved["candidate_version_id"],
                                expected_active_execution_sha256=digest(first))
         other = self.synthetic_pending(approved, self.base[0]["version_id"])
@@ -552,7 +845,9 @@ class ApprovalTests(unittest.TestCase):
         self.a.record_execution(self.root, approval=back, receipt=last)
         self.assertEqual(self.active(), approved["candidate_version_id"])
         self.assertNotEqual(self.snapshot()["execution_sha256"], digest(first))
-        for action in (lambda: self.resolve(pending),
+        for action in (lambda: self.approve(expected_active_version_id=observed["version_id"],
+                                           expected_active_execution_sha256=observed["execution_sha256"]),
+                       lambda: self.resolve(pending),
                        lambda: self.a.record_execution(self.root, approval=pending, receipt=self.receipt(
                            pending, execution_id="stale-aba", run_id="local-20260917T180000Z-999999999999"))):
             with self.assertRaises(RuntimeFailure) as caught:

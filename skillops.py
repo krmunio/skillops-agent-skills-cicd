@@ -560,6 +560,10 @@ def main():
     gate_parser = commands.add_parser("eligibility", help="Check recorded comparison eligibility; never deploy.")
     gate_parser.add_argument("--repository", required=True)
     gate_parser.add_argument("--comparison", required=True)
+    preflight_parser = commands.add_parser(
+        "approval-preflight", help="Read exact local approval eligibility without initializing or authorizing anything.")
+    for option in ("project", "skill-key", "candidate-version", "cycle", "evidence-sha256", "results"):
+        preflight_parser.add_argument("--" + option, required=True)
     approval_parser = commands.add_parser("approve", help="Separately confirm one exact local candidate; never execute it.")
     for option in ("project", "skill-key", "candidate-version", "cycle", "evidence-sha256",
                    "expected-active-version", "expected-active-execution-sha256", "results"):
@@ -589,6 +593,24 @@ def main():
     args = parser.parse_args()
     try:
         root = Path(__file__).resolve().parent
+        if args.command == "approval-preflight":
+            import skill_approvals
+            report = skill_approvals.preflight(
+                root, project_id=args.project, skill_key=args.skill_key, candidate_version_id=args.candidate_version,
+                cycle_id=args.cycle, evidence_sha256=args.evidence_sha256, results=args.results)
+            if report["status"] == "eligible":
+                command = [sys.executable, "-B", str(root / "skillops.py"), "approve"]
+                for option, value in (
+                    ("project", args.project), ("skill-key", args.skill_key),
+                    ("candidate-version", args.candidate_version), ("cycle", args.cycle),
+                    ("evidence-sha256", args.evidence_sha256), ("results", report["results_path"]),
+                    ("expected-active-version", report["active"]["version_id"]),
+                    ("expected-active-execution-sha256", report["active"]["execution_sha256"]),
+                ):
+                    command.extend(["--" + option, "none" if value is None else value])
+                report["approval_argv"] = command
+            print(json.dumps(report, indent=2))
+            return 0 if report["status"] == "eligible" else 2
         if args.command == "approve":
             print(json.dumps(approve_local(root, args), indent=2))
             return 0

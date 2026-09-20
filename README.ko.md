@@ -153,6 +153,31 @@ python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill
 
 ### 별도의 로컬 승인
 
+먼저 로컬 승인 상태를 초기화하지 않고 정확한 바인딩을 조회합니다.
+아래 `<...>` 자리표시자는 실제 로컬 근거의 값으로 모두 바꿉니다.
+
+```bash
+python3 -B skillops.py approval-preflight \
+  --project '<project-id>' --skill-key '<skill-key>' \
+  --candidate-version 'sha256:<full-bundle-hash>' --cycle '<cycle-id>' \
+  --evidence-sha256 '<cycle-file-sha256>' --results '<local-results-directory>'
+```
+
+이 로컬 읽기 전용 명령은 `approve`와 같은 근거 검증을 사용하며 모델 호출·쓰기·fsync를
+하지 않습니다. 비대화형 조회는 허용하지만 CI/Actions는 거부합니다. 최초 사용에서 안전하게
+부재를 관측했다면 초기화 없이 전체 근거 검증 후 두 expected Active 값이 `none`인 정확한
+`approval_argv`를 제공합니다. 기존 Active가 있으면 검증된 버전과 **비공개 실행 영수증 해시**
+쌍을 제공합니다. 접근 불가·부분 상태·손상·잠금 경합·관측 중 변경을 부재로 간주하지 않습니다.
+
+종료 코드 0은 **관측 당시 적격**일 뿐 예약·승인이 아닙니다. 코드 2는 차단이며 승인 argv를
+제공하지 않습니다. 실제 승인은 별도의 사람 확인과 잠금 내부의 근거·Active 재검증을 그대로
+요구합니다. 출력은 `local_private`이며 경로·영수증 해시를 공개 artifact나 로그에 복사하면
+안 됩니다. `--results`는 읽기 전용 입력이고 공개 schema/UI/publisher에는 이 출력을 연결하지
+않습니다. `-B`는 bytecode 생성을 막지만 임의 shell 리다이렉션까지 막지는 않습니다.
+현재 HEAD·evaluator fingerprint 일치 요건도 유지되므로 코드 변경 후 과거 근거가 부적격해질 수
+있으며, 통과시키기 위해 과거 해시를 다시 쓰면 안 됩니다.
+상세 내용은 [preflight 계약](docs/HACKATHON-CONTRACTS.md#read-only-local-approval-preflight)을 참고하세요.
+
 구현된 `approve` 명령은 사람이 별도로 조작하는 대화형 터미널과 최종 확인을 통과한 live cycle,
 정확한 전체 번들·평가 근거 해시를 요구합니다. CI/Actions·파이프 입력·이전 Active 필드 누락은
 거부합니다. 두 `none`은 이전 Active가 없다는 명시적 null이며 wildcard가 아닙니다.
