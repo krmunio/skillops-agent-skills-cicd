@@ -1,7 +1,7 @@
 {
   "projects": [
     {
-      "current_run": "35454079450-1",
+      "current_run": null,
       "detected_skills": [
         {
           "display_name": "schedule-development",
@@ -16,7 +16,7 @@
       "state": "active"
     },
     {
-      "current_run": "35454079450-1",
+      "current_run": null,
       "detected_skills": [
         {
           "display_name": "brainstorming",
@@ -89,14 +89,14 @@
           "source_path": "skills/writing-skills"
         }
       ],
-      "history_count": 14,
+      "history_count": 15,
       "id": "project-b",
       "index": "project-b/index.json",
       "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": "35454079450-1",
+      "current_run": null,
       "detected_skills": [
         {
           "display_name": "develop",

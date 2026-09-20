@@ -1,0 +1,1534 @@
+{
+  "assessment_sha256": "980468d5b06cab6a1716bf4bd9447f5a1ad8811c07c2f0281381963d16c3670e",
+  "project_id": "project-b",
+  "report_sha256": "5c146377d95211765410552fdf76855c10707bd76f895098c9995cc9c5b48703",
+  "run_id": "35482474381-1",
+  "schema_version": 1,
+  "skills": [
+    {
+      "skill_key": "path:096d1d195c864df34280ab5e",
+      "source_path": "skills/brainstorming",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 60.96482678699999,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 36.89702010399999,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 30155,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 16856,
+                "input_tokens": 16859,
+                "nano_aiu": 26698000000,
+                "output_tokens": 1125,
+                "premium_request_cost": 1
+              }
+            },
+            {
+              "code": null,
+              "elapsed_seconds": 23.991182087,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18940,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 3989,
+                "input_tokens": 3992,
+                "nano_aiu": 9294250000,
+                "output_tokens": 861,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 31.044914025000026,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 31.024376923000005,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 26058,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 15315,
+                "input_tokens": 15318,
+                "nano_aiu": 24961750000,
+                "output_tokens": 1163,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.021108189000003108,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 46.265246807,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 46.26393071,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 41164,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 8809,
+                "input_tokens": 8812,
+                "nano_aiu": 22954250000,
+                "output_tokens": 2388,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4185796180000025,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009771520000185774,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.838300000007621e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:7664a7ade6f67077dc6dd315",
+      "source_path": "skills/dispatching-parallel-agents",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 23.19641910200002,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 23.132492082,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18238,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5327,
+                "input_tokens": 5330,
+                "nano_aiu": 10056750000,
+                "output_tokens": 679,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 18.195655925999972,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 18.185148198000036,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 13004,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5191,
+                "input_tokens": 5194,
+                "nano_aiu": 9626750000,
+                "output_tokens": 627,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.02099840200000358,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 40.138933407000025,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 40.13797861699999,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 35068,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6532,
+                "input_tokens": 6535,
+                "nano_aiu": 16383000000,
+                "output_tokens": 1643,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4313996509999924,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009691170000110105,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.1410000016430786e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:b4b343d655fc5fd7f179620f",
+      "source_path": "skills/executing-plans",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 22.005391996000014,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 21.942086244999985,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 16917,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 4338,
+                "input_tokens": 4341,
+                "nano_aiu": 9010500000,
+                "output_tokens": 717,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 20.537915929999997,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 20.52788750899998,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 15600,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 4584,
+                "input_tokens": 4587,
+                "nano_aiu": 9168000000,
+                "output_tokens": 687,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.02101435499997706,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 23.885489775999986,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 23.884814118999998,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18949,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5558,
+                "input_tokens": 5561,
+                "nano_aiu": 11800500000,
+                "output_tokens": 970,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4327350590000378,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009513129999731973,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.798200000597717e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:b88c5520c5dea4dcb3931b99",
+      "source_path": "skills/finishing-a-development-branch",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 23.922689102999982,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 23.858403257999953,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18937,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6017,
+                "input_tokens": 6020,
+                "nano_aiu": 11759250000,
+                "output_tokens": 847,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 25.00079348099996,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 24.989648445,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 20025,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6282,
+                "input_tokens": 6285,
+                "nano_aiu": 12415500000,
+                "output_tokens": 912,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020371199000010165,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 57.72547839500004,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 57.724267134,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 52748,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 7203,
+                "input_tokens": 7206,
+                "nano_aiu": 24261750000,
+                "output_tokens": 3051,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.428716976999965,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009925109999926462,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.228200003173697e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:52f3da32f769c50cbeff2e5c",
+      "source_path": "skills/receiving-code-review",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 27.472419307999985,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 27.40878347299997,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 22431,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5497,
+                "input_tokens": 5500,
+                "nano_aiu": 10609250000,
+                "output_tokens": 747,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 21.461715733999995,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 21.451446341000064,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 16461,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 4988,
+                "input_tokens": 4991,
+                "nano_aiu": 10053000000,
+                "output_tokens": 763,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020826675000023442,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 33.13907818000001,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 33.138136094000004,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 28131,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6677,
+                "input_tokens": 6680,
+                "nano_aiu": 15219250000,
+                "output_tokens": 1374,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4654318460000013,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009910679999620697,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.153000002635963e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:48c4c1bedab8d87af5af660d",
+      "source_path": "skills/requesting-code-review",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 24.495358268000018,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 24.43041563999998,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 19501,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6047,
+                "input_tokens": 6050,
+                "nano_aiu": 12116750000,
+                "output_tokens": 911,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 24.712178153999957,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 24.70047129200009,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 19566,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6279,
+                "input_tokens": 6282,
+                "nano_aiu": 12016750000,
+                "output_tokens": 833,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020831388000033257,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 33.09265363499992,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 33.09186219100002,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 28131,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5759,
+                "input_tokens": 5762,
+                "nano_aiu": 13706750000,
+                "output_tokens": 1301,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4391415540000025,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0010035509999397618,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.174999997350824e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:702a93960adf4d346056da6b",
+      "source_path": "skills/subagent-driven-development",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 56.74632193600007,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 29.52412927399996,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 24364,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 15997,
+                "input_tokens": 16000,
+                "nano_aiu": 25019250000,
+                "output_tokens": 1004,
+                "premium_request_cost": 1
+              }
+            },
+            {
+              "code": null,
+              "elapsed_seconds": 27.14546670900006,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 22095,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5359,
+                "input_tokens": 5362,
+                "nano_aiu": 11951750000,
+                "output_tokens": 1050,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020456957999954284,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": "invalid_skill_assessment",
+          "elapsed_seconds": 87.32229919899999,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 87.32166178400007,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 82353,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 13425,
+                "input_tokens": 13428,
+                "nano_aiu": 40279250000,
+                "output_tokens": 4699,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "blocked"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.444811116999972,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0008959390000882195,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.9355000037867285e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:b25940dc0fbf4bce0b96a693",
+      "source_path": "skills/systematic-debugging",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 33.160618881999994,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 33.0894914779999,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 28167,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 15375,
+                "input_tokens": 15378,
+                "nano_aiu": 25101750000,
+                "output_tokens": 1176,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 28.399235782999995,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 28.377784403999954,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 23332,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 14716,
+                "input_tokens": 14719,
+                "nano_aiu": 23878000000,
+                "output_tokens": 1096,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020294511999964016,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 45.52341034300002,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 45.52209820200005,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 40678,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 7449,
+                "input_tokens": 7452,
+                "nano_aiu": 19564250000,
+                "output_tokens": 2050,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.406144587999961,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009479670000018814,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.17719999682231e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:402b5216cbc697c3d1d4bbea",
+      "source_path": "skills/test-driven-development",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 23.435165862999952,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 23.3692479529999,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18434,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 8383,
+                "input_tokens": 8386,
+                "nano_aiu": 14806750000,
+                "output_tokens": 865,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 30.3019196460001,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 30.289469418999943,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 25064,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 7460,
+                "input_tokens": 7463,
+                "nano_aiu": 14158000000,
+                "output_tokens": 966,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020357047000061357,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 53.345099249999976,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 53.34414148500002,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 48472,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 7547,
+                "input_tokens": 7550,
+                "nano_aiu": 20501750000,
+                "output_tokens": 2213,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4077744799999437,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009224099999300961,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 3.0426999956034706e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:223a29e44d1dae6c9c2736da",
+      "source_path": "skills/using-git-worktrees",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 22.437722674000042,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 22.374429263000025,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 17427,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5623,
+                "input_tokens": 5626,
+                "nano_aiu": 11191750000,
+                "output_tokens": 832,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 25.7613674669999,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 25.75076299600005,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 20921,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5542,
+                "input_tokens": 5545,
+                "nano_aiu": 11400500000,
+                "output_tokens": 894,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020290046000013717,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 45.38665828300009,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 45.38563295100005,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 40364,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6797,
+                "input_tokens": 6800,
+                "nano_aiu": 19694250000,
+                "output_tokens": 2239,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4020409969999719,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009476560001075995,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.3134000002755783e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:fe4a07d9ba09b23fd2a1b95d",
+      "source_path": "skills/using-superpowers",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 23.047930164000036,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 22.981120983999972,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18083,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 8584,
+                "input_tokens": 8587,
+                "nano_aiu": 15303000000,
+                "output_tokens": 914,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 25.46175243799985,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 25.445843132000164,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 20584,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 8679,
+                "input_tokens": 8682,
+                "nano_aiu": 15381750000,
+                "output_tokens": 906,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020322368000051938,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 31.66247856899986,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 31.66161894700008,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 26829,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5800,
+                "input_tokens": 5803,
+                "nano_aiu": 14253000000,
+                "output_tokens": 1400,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4081205769998633,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0010557989999142592,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.216099983343156e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:96b20b25f537273c9033b2cc",
+      "source_path": "skills/verification-before-completion",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 20.908351725000102,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 20.844537042000184,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 15984,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 4831,
+                "input_tokens": 4834,
+                "nano_aiu": 9731750000,
+                "output_tokens": 738,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 21.172576231999983,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 21.162293997999996,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 16290,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 4970,
+                "input_tokens": 4973,
+                "nano_aiu": 10135500000,
+                "output_tokens": 784,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.02017972099997678,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 36.692298760000085,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 36.69145468800002,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 31786,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6012,
+                "input_tokens": 6015,
+                "nano_aiu": 14798000000,
+                "output_tokens": 1456,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4107163810001566,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0010553980000622687,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.2291000050245202e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:58410bf783a1dbb6a26ac858",
+      "source_path": "skills/writing-plans",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 29.72920617900013,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 29.66485390999992,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 24821,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6040,
+                "input_tokens": 6043,
+                "nano_aiu": 13228000000,
+                "output_tokens": 1135,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 31.747834803999922,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 31.7358210540001,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 26835,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6286,
+                "input_tokens": 6289,
+                "nano_aiu": 12785500000,
+                "output_tokens": 985,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.02030148500011819,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 55.834826755999984,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 55.83374578899998,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 50939,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6789,
+                "input_tokens": 6792,
+                "nano_aiu": 22024250000,
+                "output_tokens": 2707,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.408362870000019,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.000960931999998138,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.1000000060666935e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    },
+    {
+      "skill_key": "path:f0fb086390bc2ca4b5193054",
+      "source_path": "skills/writing-skills",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 79.54315701299993,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 29.184714772999996,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 24304,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 16321,
+                "input_tokens": 16324,
+                "nano_aiu": 25589250000,
+                "output_tokens": 1037,
+                "premium_request_cost": 1
+              }
+            },
+            {
+              "code": null,
+              "elapsed_seconds": 26.557430565000004,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 21617,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 16318,
+                "input_tokens": 16321,
+                "nano_aiu": 25240500000,
+                "output_tokens": 968,
+                "premium_request_cost": 1
+              }
+            },
+            {
+              "code": null,
+              "elapsed_seconds": 23.712909253000134,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 18681,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 6092,
+                "input_tokens": 6095,
+                "nano_aiu": 12028000000,
+                "output_tokens": 882,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": 51.874557374000005,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 25.95187415800001,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 20843,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 15556,
+                "input_tokens": 15559,
+                "nano_aiu": 24493000000,
+                "output_tokens": 1009,
+                "premium_request_cost": 1
+              }
+            },
+            {
+              "code": null,
+              "elapsed_seconds": 25.892559247999998,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 20991,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 15587,
+                "input_tokens": 15590,
+                "nano_aiu": 24436750000,
+                "output_tokens": 990,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.020633805999977994,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": null,
+          "elapsed_seconds": 71.5793015480001,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 71.57753022799989,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 66567,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 11785,
+                "input_tokens": 11788,
+                "nano_aiu": 33504250000,
+                "output_tokens": 3754,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4081415529999504,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.001002059000029476,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 2.061800000774383e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    }
+  ]
+}
