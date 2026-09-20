@@ -798,9 +798,10 @@ class RealProviderIntegrationTests(unittest.TestCase):
             "Read the request and existing source. Make the requested change, preserve existing behavior, "
             "and verify the result. Consult [rules](references/rules.md) before changing code."
         )
+        self.original_body = self.body + " Inspect the complete recorded source context before proposing edits."
         (bundle / "SKILL.md").write_text(
             "---\nname: develop\ndescription: Implement recorded development requests safely.\n---\n\n"
-            + self.body + "\n")
+            + self.original_body + "\n")
         (bundle / "references/rules.md").write_text("Do not change protected tests or evaluation policy.\n")
         (self.project / "api.py").write_text("VALUE = 0\n")
         (self.project / "tests").mkdir()
@@ -1075,7 +1076,7 @@ class RealProviderIntegrationTests(unittest.TestCase):
             receipt = invoke(prompt, model, role, *args, **kwargs)
             if role == "generator":
                 response = json.loads(receipt["content"])
-                response["instructions"] = self.body
+                response["instructions"] = self.original_body
                 receipt["content"] = json.dumps(response)
             return receipt
         self.raw.invoke.side_effect = unchanged

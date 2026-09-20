@@ -1192,7 +1192,7 @@ class ApprovalIntegrationTests(unittest.TestCase):
             self.assertNotIn("def test_confirmation", prompt)
             if role == "generator":
                 return {"content": json.dumps({
-                    "instructions": "Check changes and boundaries.", "addressed_findings": ["clarity"],
+                    "instructions": "Check safety.", "addressed_findings": ["clarity"],
                     "hypothesis": "Offline transport fixture, not measured improvement.",
                 })}
             from copilot_runtime import verify_staged_version
