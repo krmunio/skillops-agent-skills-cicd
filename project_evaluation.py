@@ -773,7 +773,7 @@ def main():
             failures += any(row[part]["status"] in ("blocked", "failed") for part in ("guide", "execution"))
             print(json.dumps({"project": project["id"], "guide": row["guide"]["status"],
                               "execution": row["execution"]["status"]}))
-        results.reindex(args.root, args.output)
+        results.reindex(args.root, args.output, identity_history=prior)
         return 2 if failures else 0
     except (RuntimeFailure, OSError) as error:
         code = error.code if isinstance(error, RuntimeFailure) else "io_error"

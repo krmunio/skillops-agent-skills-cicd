@@ -374,6 +374,95 @@ class TargetedQualityTests(unittest.TestCase):
         self.assertEqual(self.raw.invoke.call_count, 1)
         self.assertEqual(original, {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")})
 
+    def test_cli_inventory_preserves_unselected_identity_for_the_next_selector(self):
+        identities = [{"project_id": "sample_repo", "skills": [
+            {"source_path": f".github/skills/{name}", "skill_key": f"auto:{name}"}
+            for name in ("develop", "review")]}]
+        report, lifecycle, assessment, _ = self.evaluate(history=identities)
+        history = self.root / "history"
+        self.m.results.store(history, report)
+        self.m.results.store_evolution(history, lifecycle)
+        self.m.results.store_assessments(history, assessment)
+        original = {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")}
+        assess = self.m.assess_with_details
+
+        def run(output, run_id, selector):
+            self.quality.reset_mock()
+            self.raw.invoke.reset_mock()
+            args = ["project_evaluation.py", "--root", str(self.root), "--output", str(output),
+                    "--run-id", run_id, "--source-commit", "b" * 40, "--project", "sample_repo",
+                    "--history", str(history), "--assessment-skill-key", selector]
+            error = io.StringIO()
+            with patch.object(self.m.sys, "argv", args), patch.object(
+                    self.m, "policy_from_environment", return_value=self.policy), patch.object(
+                    self.m, "assess_with_details", side_effect=lambda *a, **k: assess(
+                        *a, **k, runtime_factory=self.factory)), redirect_stdout(io.StringIO()), redirect_stderr(error):
+                self.assertEqual(self.m.main(), 2)
+            self.assertEqual(error.getvalue(), "")
+            self.assertEqual(self.quality.call_count, 2)
+            self.assertEqual(self.raw.invoke.call_count, 1)
+
+        output = self.root / "first-results"
+        run(output, "999-1", "auto:develop")
+        index = json.loads((output / "index.json").read_text())["projects"][0]
+        inventory = {row["source_path"]: row["skill_key"] for row in index["detected_skills"]}
+        with self.subTest(stage="inventory"):
+            self.assertEqual(inventory, {f".github/skills/{name}": f"auto:{name}"
+                                         for name in ("develop", "review")})
+        self.assertEqual(index["history_count"], 1)
+        current = self.m.results.load_assessments(output)
+        self.assertEqual(set(current), {("sample_repo", "999-1")})
+        self.assertEqual([row["skill_key"] for row in current[("sample_repo", "999-1")]["skills"]],
+                         ["auto:develop"])
+        entries = json.loads((output / "sample_repo/index.json").read_text())["history"]
+        # Inventory-only Skills have no run bindings: the dashboard's not-assessed state.
+        self.assertEqual([row for row in entries if any(
+            skill["skill_key"] == inventory[".github/skills/review"]
+            for skill in row.get("evolution_skills", []))], [])
+        first_bytes = {p.relative_to(output): p.read_bytes() for p in output.rglob("*.json")}
+        with self.subTest(stage="subsequent-selector"):
+            next_output = self.root / "second-results"
+            run(next_output, "1000-1", inventory[".github/skills/review"])
+            next_details = self.m.results.load_assessments(next_output)
+            self.assertEqual(set(next_details), {("sample_repo", "1000-1")})
+            self.assertEqual([row["skill_key"] for row in next_details[("sample_repo", "1000-1")]["skills"]],
+                             ["auto:review"])
+            next_index = json.loads((next_output / "index.json").read_text())["projects"][0]
+            self.assertEqual({row["source_path"]: row["skill_key"] for row in next_index["detected_skills"]},
+                             {f".github/skills/{name}": f"auto:{name}" for name in ("develop", "review")})
+        self.assertEqual(first_bytes, {p.relative_to(output): p.read_bytes() for p in output.rglob("*.json")})
+        self.assertEqual(original, {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")})
+
+    def test_cli_rejects_invalid_identity_history_before_runtime_or_indexing(self):
+        report, lifecycle, assessment, _ = self.evaluate(self.key)
+        history = self.root / "history"
+        self.m.results.store(history, report)
+        self.m.results.store_evolution(history, lifecycle)
+        path = self.m.results.store_assessments(history, assessment)
+        assessment["unexpected"] = "UNTRUSTED_HISTORY_SENTINEL"
+        path.write_text(json.dumps(assessment))
+        self.factory.reset_mock()
+        self.quality.reset_mock()
+        self.raw.invoke.reset_mock()
+        output = self.root / "output"
+        args = ["project_evaluation.py", "--root", str(self.root), "--output", str(output),
+                "--run-id", "999-1", "--source-commit", "b" * 40, "--project", "sample_repo",
+                "--history", str(history), "--assessment-skill-key", self.key]
+        error = io.StringIO()
+        assess = self.m.assess_with_details
+        with patch.object(self.m.sys, "argv", args), patch.object(
+                self.m, "policy_from_environment", return_value=self.policy), patch.object(
+                self.m, "assess_with_details", side_effect=lambda *a, **k: assess(
+                    *a, **k, runtime_factory=self.factory)), patch.object(
+                self.m.results, "reindex") as reindex, redirect_stderr(error):
+            self.assertEqual(self.m.main(), 2)
+        self.assertEqual(json.loads(error.getvalue()), {"status": "blocked", "code": "invalid_evolution_record"})
+        self.factory.assert_not_called()
+        self.quality.assert_not_called()
+        self.raw.invoke.assert_not_called()
+        reindex.assert_not_called()
+        self.assertFalse(output.exists())
+
 
 class ChangedProjectTests(unittest.TestCase):
     def setUp(self):

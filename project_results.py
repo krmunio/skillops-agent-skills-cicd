@@ -1048,7 +1048,8 @@ def import_skill_snapshots(source, results, project, candidate_run, skill_id):
     return len(pending)
 
 
-def reindex(root, results):
+def reindex(root, results, *, identity_history=None):
+    """Optional identity histories must already be validated and ordered newest first."""
     import skill_guide
     from skill_pipeline import skill_key
 
@@ -1085,7 +1086,8 @@ def reindex(root, results):
             "detected_skills": [], "skill_discovery_error": None,
         }
         if active and not active["error"]:
-            prior = [skill_assessments[(identifier, row["run_id"])] for row in rows
+            prior = list((identity_history or {}).get(identifier, ()))
+            prior += [skill_assessments[(identifier, row["run_id"])] for row in rows
                      if row["origin"] != "sample" and (identifier, row["run_id"]) in skill_assessments]
             try:
                 bundles = skill_guide.discover(Path(root) / "projects" / identifier)
