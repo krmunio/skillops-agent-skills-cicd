@@ -6,7 +6,9 @@ from pathlib import Path
 import tempfile
 import unittest
 import io
-from contextlib import redirect_stdout
+from contextlib import nullcontext, redirect_stdout, redirect_stderr
+from copy import deepcopy
+import inspect
 from unittest.mock import Mock
 from unittest.mock import patch, MagicMock
 
@@ -202,6 +204,175 @@ class ProjectEvaluationTests(unittest.TestCase):
                 policy = m.policy_from_environment()
                 self.assertNotIn("budget", policy)
                 self.assertEqual(m.os.environ["SKILLOPS_MAX_AI_CREDITS_PER_SESSION"], value)
+
+
+class TargetedQualityTests(unittest.TestCase):
+    def setUp(self):
+        self.m = importlib.import_module("project_evaluation")
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.project = self.root / "projects/sample_repo"
+        for name in ("develop", "review"):
+            path = self.project / f".github/skills/{name}/SKILL.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(f"---\nname: {name}\ndescription: Check code safely.\n---\nOriginal {name}.\n")
+        (self.root / "eval").mkdir()
+        (self.root / "eval/skill-guide-rubric.json").write_text('{"dimensions":["workflow_clarity"]}')
+        self.raw = MagicMock(project=self.root, cli="/offline/copilot", env={})
+        self.raw.private = self.root / "private"
+        self.raw.private.mkdir()
+        self.raw.invoke.return_value = {"content": json.dumps({
+            "instructions": "Inspect the current code and validate the requested change.",
+            "hypothesis": "Synthetic test hypothesis.", "addressed_findings": ["workflow_clarity"]})}
+        self.factory = Mock(return_value=self.raw)
+        self.quality = self.enterContext(patch.object(self.m.skill_guide, "evaluate_bundle", return_value={
+            "status": "pass", "static": {"findings": []},
+            "judge": {"dimensions": {"workflow_clarity": {"score": 3}}}}))
+        images = {"python": "sha256:" + "a" * 64}
+        self.enterContext(patch.object(self.m, "resolve_images", return_value=images))
+        self.enterContext(patch.object(self.m.project_checks, "prepared_images",
+                                      side_effect=lambda *a, **k: nullcontext(images)))
+        self.enterContext(patch.object(self.m.project_checks, "execute", side_effect=lambda project, plan, *a, **k: {
+            "plan_sha256": plan["sha256"], "environment_sha256": "b" * 64, "protected_sha256": "c" * 64,
+            "elapsed_seconds": 1, "status": "completed",
+            "cases": [{"id": "existing-case", "status": "passed"}], "gates": []}))
+        self.project_row = {"id": "sample_repo", "adapter": None, "error": None,
+                            "tree_sha256": self.m.results.tree_hash(self.project)}
+        self.policy = {"enabled": True, "authenticated": True, "progress": False,
+                       "budget": {"calls": 0, "max_calls": 20, "deadline": self.m.time.monotonic() + 60}}
+        self.key = self.m.skill_pipeline.skill_key("sample_repo", ".github/skills/develop", [])
+
+    def evaluate(self, selector=None, history=()):
+        options = {}
+        if selector is not None:
+            self.assertIn("assessment_skill_key", inspect.signature(self.m.assess_with_details).parameters)
+            options["assessment_skill_key"] = selector
+        telemetry = []
+        value = self.m.assess_with_details(
+            self.root, self.project_row, "998-1", "a" * 40, self.policy,
+            history=history, telemetry=telemetry, runtime_factory=self.factory, **options)
+        return (*value, telemetry)
+
+    def test_selector_runs_one_fresh_quality_cycle_and_retains_full_inventory_provenance(self):
+        before = self.m.results.tree_hash(self.project)
+        report, lifecycle, assessment, telemetry = self.evaluate(self.key)
+        self.assertEqual([s["skill_key"] for s in assessment["skills"]], [self.key])
+        self.assertEqual(self.quality.call_count, 2)
+        self.assertEqual(self.raw.invoke.call_count, 1)
+        self.assertEqual(report["guide"]["metrics"], {"skills": 2, "requested": 1, "errors": 0})
+        self.assertEqual(report["project_tree_sha256"], before)
+        self.assertEqual(report["source_commit"], "a" * 40)
+        self.assertEqual(report["evaluator_sha256"], self.m.results.evaluator_hash(self.root))
+        self.assertEqual(self.m.results.tree_hash(self.project), before)
+        self.assertEqual(len(telemetry), 1)
+        output = self.root / "results"
+        self.m.results.store(output, report)
+        self.m.results.store_evolution(output, lifecycle)
+        self.m.results.store_assessments(output, assessment)
+        self.m.results.store_telemetry(output, self.m.evaluation_telemetry.bind(report, assessment, telemetry))
+        self.m.results.reindex(self.root, output)
+        self.assertEqual(len(self.m.results.load_assessments(output)[("sample_repo", "998-1")]["skills"]), 1)
+        self.m.results.load_evolution(output)
+        self.m.results.load_telemetry(output)
+        catalog = json.loads((output / "index.json").read_text())
+        self.assertEqual(len(catalog["projects"][0]["detected_skills"]), 2)
+        summary = "\n".join(self.m.evaluation_reporting.report_lines(report, assessment))
+        self.assertIn("1/2 complete", summary)
+        self.assertIn("1/2 current Skills selected", summary)
+        self.assertIn("not full-project coverage", summary)
+
+    def test_default_still_evaluates_all_current_skills(self):
+        report, _, assessment, _ = self.evaluate()
+        self.assertEqual(len(assessment["skills"]), 2)
+        self.assertEqual(self.quality.call_count, 4)
+        self.assertEqual(self.raw.invoke.call_count, 2)
+        self.assertEqual(report["guide"]["metrics"], {"skills": 2, "errors": 0})
+
+    def test_history_identity_is_selectable_without_reusing_its_old_quality_rv001(self):
+        history = [{"project_id": "sample_repo", "skills": [{
+            "source_path": ".github/skills/develop", "skill_key": "auto:existing",
+            "quality": {"base": "OLD_BASELINE_SENTINEL"}}]}]
+        before = deepcopy(history)
+        report, _, assessment, _ = self.evaluate("auto:existing", history)
+        self.assertEqual(assessment["skills"][0]["skill_key"], "auto:existing")
+        self.assertEqual(self.quality.call_count, 2)
+        self.assertEqual(history, before)
+        self.assertNotIn("OLD_BASELINE_SENTINEL", json.dumps([report, assessment]))
+
+    def test_unknown_malformed_stale_and_ambiguous_selectors_never_construct_runtime(self):
+        histories = [
+            ("path:unknown", (), "unknown_assessment_skill"),
+            ("../PRIVATE_SENTINEL", (), "invalid_assessment_skill_key"),
+            ("path:key\nPRIVATE_SENTINEL", (), "invalid_assessment_skill_key"),
+            ("auto:removed", [{"project_id": "sample_repo", "skills": [
+                {"source_path": "skills/removed", "skill_key": "auto:removed"}]}], "unknown_assessment_skill"),
+            (self.key, [{"project_id": "sample_repo", "skills": [
+                {"source_path": ".github/skills/develop", "skill_key": "auto:existing"}]}], "unknown_assessment_skill"),
+            ("auto:shared", [{"project_id": "sample_repo", "skills": [
+                {"source_path": f".github/skills/{name}", "skill_key": "auto:shared"}]}
+                for name in ("develop", "review")], "ambiguous_assessment_skill"),
+        ]
+        for selector, history, code in histories:
+            with self.subTest(code=code):
+                with self.assertRaises(self.m.RuntimeFailure) as caught:
+                    self.evaluate(selector, history)
+                self.assertEqual(caught.exception.code, code)
+                self.assertNotIn("PRIVATE_SENTINEL", str(caught.exception))
+        self.factory.assert_not_called()
+        self.quality.assert_not_called()
+        self.raw.invoke.assert_not_called()
+
+    def test_cli_requires_explicit_project_and_rejects_recorded_work_conflicts(self):
+        self.assertIn("--assessment-skill-key", Path(self.m.__file__).read_text())
+        for extra, code in [
+            ([], "assessment_selection_requires_project"),
+            (["--changed-since", "b" * 40], "assessment_selection_requires_project"),
+            (["--project", "sample_repo", "--skill-key", self.key], "assessment_selection_conflict"),
+            (["--project", "sample_repo", "--work-id", "recorded"], "assessment_selection_conflict"),
+            (["--project", "sample_repo", "--max-rounds", "1"], "assessment_selection_conflict"),
+        ]:
+            with self.subTest(extra=extra):
+                args = ["project_evaluation.py", "--root", str(self.root), "--output", str(self.root / "out"),
+                        "--run-id", "998-1", "--source-commit", "a" * 40,
+                        "--assessment-skill-key", self.key, *extra]
+                error = io.StringIO()
+                with patch.object(self.m.sys, "argv", args), patch.object(
+                        self.m, "assess_with_details") as assess, patch.object(
+                        self.m, "run_recorded_iterations") as recorded, redirect_stderr(error):
+                    self.assertEqual(self.m.main(), 2)
+                self.assertEqual(json.loads(error.getvalue())["code"], code)
+                assess.assert_not_called()
+                recorded.assert_not_called()
+
+    def test_cli_history_selection_persists_new_graph_without_mutating_prior_evidence(self):
+        self.assertIn("--assessment-skill-key", Path(self.m.__file__).read_text())
+        report, lifecycle, assessment, _ = self.evaluate("auto:existing", [{
+            "project_id": "sample_repo", "skills": [
+                {"source_path": ".github/skills/develop", "skill_key": "auto:existing"}]}])
+        history = self.root / "history"
+        self.m.results.store(history, report)
+        self.m.results.store_evolution(history, lifecycle)
+        self.m.results.store_assessments(history, assessment)
+        original = {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")}
+        self.quality.reset_mock()
+        self.raw.invoke.reset_mock()
+        output = self.root / "new-results"
+        args = ["project_evaluation.py", "--root", str(self.root), "--output", str(output),
+                "--run-id", "999-1", "--source-commit", "b" * 40, "--project", "sample_repo",
+                "--history", str(history), "--assessment-skill-key", "auto:existing"]
+        assess = self.m.assess_with_details
+        with patch.object(self.m.sys, "argv", args), patch.object(
+                self.m, "policy_from_environment", return_value=self.policy), patch.object(
+                self.m, "assess_with_details", side_effect=lambda *a, **k: assess(
+                    *a, **k, runtime_factory=self.factory)), redirect_stdout(io.StringIO()):
+            self.assertEqual(self.m.main(), 2)
+        rows = self.m.results.load_reports(output)
+        details = self.m.results.load_assessments(output)
+        self.assertEqual(rows[0]["source_commit"], "b" * 40)
+        self.assertEqual(len(details[("sample_repo", "999-1")]["skills"]), 1)
+        self.assertEqual(details[("sample_repo", "999-1")]["skills"][0]["skill_key"], "auto:existing")
+        self.assertEqual(self.quality.call_count, 2)
+        self.assertEqual(self.raw.invoke.call_count, 1)
+        self.assertEqual(original, {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")})
 
 
 class ChangedProjectTests(unittest.TestCase):

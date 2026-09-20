@@ -13,10 +13,19 @@ from evolution_records import exact, matches, require, DIGEST, VERSION_ID
 import project_checks
 
 
-def text(value, limit=4096):
-    require(isinstance(value, str) and 0 < len(value.encode("utf-8")) <= limit
-            and not any(ord(char) < 32 and char not in "\n\t" for char in value),
-            "invalid_skill_assessment")
+def text(value, limit=4096, *, candidate_field=None):
+    require(candidate_field in (None, "instructions", "hypothesis", "addressed_finding"),
+            "invalid_candidate_field")
+    reason = None
+    if not isinstance(value, str):
+        reason = "type"
+    elif not value:
+        reason = "empty"
+    elif len(value.encode("utf-8")) > limit:
+        reason = "byte_limit"
+    elif any(ord(char) < 32 and char not in "\n\t" for char in value):
+        reason = "control_character"
+    require(reason is None, f"candidate_{candidate_field}_{reason}" if candidate_field else "invalid_skill_assessment")
 
 
 def quality(value):
