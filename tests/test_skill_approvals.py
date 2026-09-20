@@ -299,6 +299,65 @@ class ApprovalTests(unittest.TestCase):
         self.assertTrue(report["blockers"])
         self.assertFalse(environment.exists())
 
+    def test_preflight_checks_existing_adoption_directory_owner_and_access_without_records(self):
+        with repositories._state(self.root) as (folder, _):
+            self.a._environment(folder, create=True)
+        for name in ("approvals", "executions"):
+            path = folder / name
+            path.mkdir(mode=0o700)
+            original_stat = Path.stat
+            def wrong_owner(entry, *args, **kwargs):
+                info = original_stat(entry, *args, **kwargs)
+                if entry == path:
+                    fields = list(info)
+                    fields[4] = info.st_uid + 1
+                    return os.stat_result(fields)
+                return info
+            for kind in ("owner", "access"):
+                with self.subTest(name=name, kind=kind):
+                    guard = patch.object(Path, "stat", wrong_owner) if kind == "owner" else patch.object(
+                        os, "access", return_value=False)
+                    with guard, patch.object(os, "fsync", side_effect=AssertionError("fsync")), \
+                            patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                            patch.object(self.a, "_write", side_effect=AssertionError("write")):
+                        report = self.preflight()
+                    self.assertEqual(report["status"], "blocked", report)
+                    self.assertEqual(report["blockers"], ["unsafe_approval_store"])
+                    self.assertNotIn("approval_argv", report)
+            self.assertEqual(self.preflight()["status"], "eligible")
+            self.assertEqual(list(path.iterdir()), [])
+            path.rmdir()
+        self.assertEqual(self.preflight()["status"], "eligible")
+        self.assertFalse((folder / "active.json").exists())
+
+    def test_existing_adoption_directory_rejections_preserve_mutating_defaults(self):
+        with repositories._state(self.root) as (folder, _):
+            self.a._environment(folder, create=True)
+        target = self.root / "directory-target"
+        target.mkdir(mode=0o700)
+        for name in ("approvals", "executions"):
+            approved = self.approve() if name == "executions" else None
+            path = folder / name
+            for kind in ("file", "symlink", "dangling"):
+                with self.subTest(name=name, kind=kind):
+                    if kind == "file":
+                        path.write_text("not a directory")
+                    else:
+                        path.symlink_to(target if kind == "symlink" else self.root / "missing-target")
+                    try:
+                        if name == "executions":
+                            self.assertEqual(self.approve(), approved)
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            if name == "approvals":
+                                self.approve()
+                            else:
+                                self.a.record_execution(self.root, approval=approved, receipt=self.receipt(approved))
+                        self.assertEqual(caught.exception.code,
+                                         "unsafe_approval_store" if kind == "file" else "unsafe_path")
+                        self.assertFalse((folder / "active.json").exists())
+                    finally:
+                        path.unlink()
+
     def test_preflight_denies_bad_offline_and_sample_passed_evidence_without_initialization(self):
         for mode in ("offline_test", "sample"):
             self.cycle["execution_mode"] = mode
