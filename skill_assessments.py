@@ -13,7 +13,12 @@ from evolution_records import exact, matches, require, DIGEST, VERSION_ID
 import project_checks
 
 
-def text(value, limit=4096, *, candidate_field=None):
+TEXT_BYTES = 4096
+FINDING_BYTES = 160
+MAX_FINDINGS = 128
+
+
+def text(value, limit=TEXT_BYTES, *, candidate_field=None, canonical_body=False):
     require(candidate_field in (None, "instructions", "hypothesis", "addressed_finding"),
             "invalid_candidate_field")
     reason = None
@@ -21,7 +26,11 @@ def text(value, limit=4096, *, candidate_field=None):
         reason = "type"
     elif not value:
         reason = "empty"
-    elif len(value.encode("utf-8")) > limit:
+    elif canonical_body and any(ord(char) < 32 and char not in "\n\t" for char in value):
+        reason = "control_character"
+    elif canonical_body and not value.strip():
+        reason = "empty"
+    elif len((value.strip() if canonical_body else value).encode("utf-8")) > limit:
         reason = "byte_limit"
     elif any(ord(char) < 32 and char not in "\n\t" for char in value):
         reason = "control_character"
