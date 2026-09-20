@@ -143,6 +143,63 @@ class ApprovalCLITests(unittest.TestCase):
         self.assertNotIn("approval_argv", report)
         self.assertFalse((self.root / ".skillops").exists())
 
+    def test_preflight_rejects_unsafe_adoption_directories_without_active(self):
+        import skill_approvals
+        self.select_preflight()
+        with repositories._state(self.root) as (folder, _):
+            skill_approvals._environment(folder, create=True)
+        target = self.root / "directory-target"
+        target.mkdir(mode=0o700)
+        open_file = os.open
+        def readonly_open(path, flags, *args, **kwargs):
+            if path != os.devnull:
+                self.assertFalse(flags & (os.O_CREAT | os.O_WRONLY | os.O_RDWR | os.O_TRUNC))
+            return open_file(path, flags, *args, **kwargs)
+        for name in ("approvals", "executions"):
+            path = folder / name
+            for kind in ("file", "symlink", "dangling", "unsafe_mode"):
+                with self.subTest(name=name, kind=kind):
+                    if kind == "file":
+                        path.write_text("not a directory")
+                    elif kind == "unsafe_mode":
+                        path.mkdir(mode=0o755)
+                        path.chmod(0o755)
+                    else:
+                        path.symlink_to(target if kind == "symlink" else self.root / "missing-target")
+                    try:
+                        before = {p: p.readlink() if p.is_symlink() else p.read_bytes()
+                                  for p in self.root.rglob("*") if p.is_symlink() or p.is_file()}
+                        with patch.object(skillops, "CopilotRuntime", side_effect=AssertionError("runtime")), \
+                                patch.object(skill_approvals, "approve", side_effect=AssertionError("approve")), \
+                                patch.object(skill_approvals, "_write", side_effect=AssertionError("write")), \
+                                patch.object(project_results, "atomic_json", side_effect=AssertionError("write")), \
+                                patch.object(Path, "mkdir", side_effect=AssertionError("mkdir")), \
+                                patch.object(os, "open", side_effect=readonly_open), \
+                                patch.object(os, "fsync", side_effect=AssertionError("fsync")):
+                            status, output, errors, prompt = self.run_cli(interactive=False)
+                        report = json.loads(output)
+                        self.assertEqual(status, 2, report)
+                        self.assertEqual(report["status"], "blocked")
+                        self.assertEqual(report["active"], {"state": "unknown"})
+                        expected = "unsafe_path" if kind in ("symlink", "dangling") else "unsafe_approval_store"
+                        self.assertEqual(report["blockers"], [expected])
+                        self.assertNotIn("approval_argv", report)
+                        self.assertEqual(errors, "")
+                        prompt.assert_not_called()
+                        self.assertFalse((folder / "active.json").exists())
+                        self.assertEqual(before, {p: p.readlink() if p.is_symlink() else p.read_bytes()
+                                                  for p in self.root.rglob("*") if p.is_symlink() or p.is_file()})
+                    finally:
+                        path.rmdir() if kind == "unsafe_mode" else path.unlink()
+        status, output, _, _ = self.run_cli(interactive=False)
+        self.assertEqual(status, 0)
+        report = json.loads(output)
+        self.assertEqual(report["active"], {"state": "absent", "version_id": None, "execution_sha256": None})
+        self.assertEqual(report["approval_argv"][-4:],
+                         ["--expected-active-version", "none", "--expected-active-execution-sha256", "none"])
+        self.assertFalse((folder / "approvals").exists())
+        self.assertFalse((folder / "executions").exists())
+
     def test_preflight_ci_is_blocked_without_initialization(self):
         self.select_preflight()
         with patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):

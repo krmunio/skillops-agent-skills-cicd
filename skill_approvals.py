@@ -142,6 +142,12 @@ def _environment(folder, *, create=False, durable=True):
     if durable:
         _fsync_directory(folder)
         _fsync_directory(folder.parent)
+    else:
+        for name in ("approvals", "executions"):
+            entry = folder / name
+            if present(entry):
+                _directory(entry)
+                _require(os.access(entry, os.R_OK | os.X_OK, effective_ids=True), "unsafe_approval_store")
     return value["environment_id"]
 
 
