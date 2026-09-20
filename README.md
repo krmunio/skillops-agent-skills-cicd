@@ -393,9 +393,15 @@ recorded evidence; it does not install or deploy a skill.
 
 Requirements: Linux, Python 3.12+, Git, an installed and authenticated GitHub
 Copilot CLI with access to the chosen model, and a running Docker daemon.
-All Python dependencies are standard-library modules.
+The evaluator uses the hash-pinned `packaging` requirement parser declared in
+`requirements-evaluator.txt`; other Python dependencies are standard-library modules.
+Install it in a local virtual environment before running evaluator checks or project
+dependency preparation. Missing or different parser versions fail closed.
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 python3 skillops.py doctor
 ```

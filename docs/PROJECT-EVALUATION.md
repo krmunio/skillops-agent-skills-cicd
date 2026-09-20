@@ -502,6 +502,24 @@ require running packaging code. Dynamic dependencies, undeclared legacy dependen
 and unsupported lockfiles still fail explicitly. The resolver never installs the
 project itself or executes its setup script, and wheel-only installation remains
 mandatory.
+Registry requirement strings are parsed in full by `packaging==26.2`, installed from
+the hash-pinned `requirements-evaluator.txt`. This parser dependency is included in
+the evaluator fingerprint and bootstrapped by the test/evaluation jobs; local users
+must install the same manifest in their virtual environment. Missing or different
+parser versions fail closed rather than selecting a weaker fallback.
+
+Supported inputs include registry names, extras, version constraints and environment
+markers accepted by that parser. This is not the full pip requirements-file language:
+direct URLs, requirement-file options/directives, environment-variable expansion,
+backslash continuation, control characters other than tab, and option-looking tokens
+even inside marker literals are rejected. Ordinary blank lines and trailing `#`
+comments in requirements files retain their existing handling; `#` is not accepted
+inside a declared requirement string. In particular, a string such as
+`pytest --no-binary=pytest` cannot override the resolver's wheel-only flags.
+This shared check also applies to retained runtime requirements and the default
+merged-dev path before model construction. Previously accepted unsafe or malformed
+strings are intentionally rejected; valid default dependency selection is unchanged.
+
 An explicit pytest-only dependency profile can opt out of the combined development
 toolchain without removing tests or weakening registry/wheel-only guards. Its complete
 declaration in the project's `pyproject.toml` is:
