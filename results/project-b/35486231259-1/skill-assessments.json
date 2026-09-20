@@ -1,0 +1,323 @@
+{
+  "project_id": "project-b",
+  "report_sha256": "c5a93ddf26f733b0ba19b392aae2b9fdd6f1eaeb5239cd07d1ef094a2e651b84",
+  "run_id": "35486231259-1",
+  "schema_version": 1,
+  "skills": [
+    {
+      "applications": {
+        "base": null,
+        "candidate": null
+      },
+      "base_version_id": "sha256:835c11d23c01330682ea81f77ccf86cce86ff1b3fa5b596b0ca58d591c291368",
+      "candidate_version_id": null,
+      "checks": {
+        "base": null,
+        "candidate": null,
+        "original": {
+          "cases": [
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestBootstrapContent::test_contains_using_superpowers_body",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestBootstrapContent::test_frontmatter_stripped",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestBootstrapContent::test_marker_and_wrapper",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestBootstrapContent::test_skill_view_guidance_present",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestBootstrapContent::test_tool_mapping_sourced_from_reference_file",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestBootstrapContent::test_under_hermes_context_spill_limit",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestSkillsDirResolution::test_repo_layout_resolves",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestStripFrontmatter::test_no_frontmatter_returns_trimmed_content",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestStripFrontmatter::test_strips_surrounding_whitespace_from_body",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_bootstrap.py::TestStripFrontmatter::test_strips_yaml_block",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestBootstrapInjection::test_first_turn_returns_bootstrap_context",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestBootstrapInjection::test_hook_tolerates_future_kwargs",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestBootstrapInjection::test_later_turns_return_none",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestLayoutResolution::test_clone_layout_resolves_sibling_skills",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestLayoutResolution::test_flat_layout_resolves_nested_skills",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestLayoutResolution::test_missing_skills_raises_loudly",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestPluginRegistration::test_register_attaches_only_pre_llm_call_hook",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestPluginRegistration::test_register_registers_every_stock_skill_as_path",
+              "status": "passed"
+            },
+            {
+              "id": "python-tests:tests/hermes/test_plugin.py::TestPluginRegistration::test_registered_skills_match_skill_directories",
+              "status": "passed"
+            }
+          ],
+          "elapsed_seconds": 1.4148230229999967,
+          "environment_sha256": "4bd6c82f85194a27c8934da003d27972f298e7a46e82b91323c5554f0e01b5f9",
+          "gates": [
+            {
+              "id": "unsupported_shell_tests:tests/antigravity/run-tests.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/antigravity/test-antigravity-tools.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_nested_node_tests:tests/brainstorm-server/package.json",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/brainstorm-server/start-server.test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/brainstorm-server/stop-server.test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/brainstorm-server/windows-lifecycle.test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/run-skill-tests.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/test-helpers.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/test-sdd-workspace.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/test-subagent-driven-development-integration.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/test-subagent-driven-development.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/test-worktree-native-preference.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/claude-code/test-worktree-path-policy.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/codex-plugin-sync/test-sync-to-codex-plugin.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/codex/test-marketplace-manifest.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/codex/test-package-codex-plugin.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/devin/test-devin-plugin.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/explicit-skill-requests/run-extended-multiturn-test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/explicit-skill-requests/run-haiku-test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/explicit-skill-requests/run-multiturn-test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/explicit-skill-requests/run-test.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/hooks/test-session-start.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/kimi/run-tests.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/kimi/test-plugin-manifest.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/opencode/run-tests.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/opencode/test-bootstrap-caching.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/opencode/test-plugin-loading.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/opencode/test-priority.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/opencode/test-tools.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/shell-lint/test-lint-shell.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/systematic-debugging/test-find-polluter.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/version-bump/test-bump-version.sh",
+              "status": "error"
+            },
+            {
+              "id": "unsupported_shell_tests:tests/writing-skills/test-render-graphs.sh",
+              "status": "error"
+            }
+          ],
+          "plan_sha256": "c01e041321e26b04a1d53a079ed03b1b2bc19004e5dbb96bc0156e74f1460122",
+          "protected_sha256": "006c343ea6fa72ff1993cfc8e13c19c9c4c939cde9ef77c975a43e6a093e6a03",
+          "status": "blocked"
+        }
+      },
+      "decision": {
+        "policy_version": 1,
+        "reasons": [
+          "activation_unverified",
+          "candidate_unavailable",
+          "efficiency_unverified",
+          "incomplete_stage",
+          "quality_unverified",
+          "regression_unverified",
+          "task_unverified"
+        ],
+        "regression": {
+          "reasons": [
+            "missing_checks"
+          ],
+          "regressions": [],
+          "status": "unverified"
+        },
+        "status": "unverified"
+      },
+      "errors": [
+        {
+          "code": "candidate_instructions_byte_limit",
+          "stage": "generation"
+        }
+      ],
+      "generation": {
+        "addressed_findings": [],
+        "hypothesis": null,
+        "status": "failed"
+      },
+      "quality": {
+        "base": {
+          "context_sha256": "de964188f302222e5b73ac6dc0dba588fbabca855bba77c261b10d321dd24ace",
+          "dimensions": [
+            {
+              "id": "generalization",
+              "score": 3
+            },
+            {
+              "id": "instruction_quality",
+              "score": 2
+            },
+            {
+              "id": "principle_of_lack_of_surprise",
+              "score": 2
+            },
+            {
+              "id": "progressive_disclosure",
+              "score": 2
+            },
+            {
+              "id": "resource_organization",
+              "score": 1
+            },
+            {
+              "id": "trigger_description",
+              "score": 3
+            },
+            {
+              "id": "workflow_clarity",
+              "score": 3
+            }
+          ],
+          "findings": [
+            {
+              "id": "02651a870f1dc78f363ab57d8ef6780cb0fd54499d6d77452dfcbc77e7dc24a0",
+              "message": "SKILL.md exceeds the 500-line guide recommendation.",
+              "severity": "warning"
+            },
+            {
+              "id": "4538114a9cbeb37cd3a9966b8b2f631097e09b03b85cef2d0e76c8ad2af71091",
+              "message": "Local references must stay inside the skill bundle.",
+              "severity": "error"
+            }
+          ],
+          "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+          "status": "completed"
+        },
+        "candidate": null
+      },
+      "skill_key": "path:702a93960adf4d346056da6b",
+      "source_path": "skills/subagent-driven-development",
+      "work": null
+    }
+  ]
+}
