@@ -16,7 +16,7 @@
       "state": "active"
     },
     {
-      "current_run": "35491093882-1",
+      "current_run": "35491563904-1",
       "detected_skills": [
         {
           "display_name": "brainstorming",
@@ -89,7 +89,7 @@
           "source_path": "skills/writing-skills"
         }
       ],
-      "history_count": 19,
+      "history_count": 20,
       "id": "project-b",
       "index": "project-b/index.json",
       "skill_discovery_error": null,
