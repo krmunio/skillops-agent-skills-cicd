@@ -299,6 +299,7 @@ def validate_work_item(data, *, project, source_commit):
     require(project.is_dir() and project.name == data["project_id"], "work_project_mismatch")
     require(tree_hash(project) == data["project_tree_sha256"], "work_source_mismatch")
     plan = project_checks.discover(project)
+    project_checks.validate_dependency_profile(project)
     protected = project_checks.protected_files(project)
     checks = data["checks"]
     require(plan["status"] in ("supported", "partial") and checks["plan_sha256"] == plan["sha256"]

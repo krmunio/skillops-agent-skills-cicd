@@ -278,21 +278,60 @@ def replay_outcome(observed, checks):
     return "satisfied"
 
 
+def _registry_requirements(dependencies):
+    for item in dependencies:
+        require(isinstance(item, str) and re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*", item)
+                and not any(char in item for char in "@:/\\\r\n"), "unsupported_dependencies")
+
+
+def _pytest_profile(metadata):
+    tool = metadata.get("tool", {})
+    require(isinstance(tool, dict), "invalid_check_config")
+    if "skillops" not in tool:
+        return None
+    profile = tool["skillops"]
+    require(isinstance(profile, dict) and set(profile) == {"dependency-profile", "test-dependencies"},
+            "invalid_check_config")
+    require(profile["dependency-profile"] == "pytest", "invalid_check_config")
+    dependencies = profile["test-dependencies"]
+    require(isinstance(dependencies, list) and bool(dependencies), "invalid_check_config")
+    _registry_requirements(dependencies)
+    return dependencies
+
+
+def validate_dependency_profile(root):
+    """Preflight explicit profiles before model construction; legacy dependencies stay deferred."""
+    path = Path(root) / "pyproject.toml"
+    if not path.exists():
+        return
+    try:
+        metadata = tomllib.loads(read_file(path).decode("utf-8"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise RuntimeFailure("invalid_check_config", "Invalid Python dependency metadata.") from error
+    if _pytest_profile(metadata) is not None:
+        dependency_manifest(root, "python")
+
+
 def dependency_manifest(root, language):
     """Only declarative registry requirements reach the network-enabled resolver."""
     root = Path(root)
     if language == "python":
-        dependencies = []
+        dependencies, runtime_requirements = [], []
         static_project_dependencies = False
         for name in ("requirements.txt", "requirements-dev.txt"):
             if (root / name).exists():
                 dependencies.extend(line.split("#", 1)[0].strip() for line in
                                     read_file(root / name).decode("utf-8").splitlines())
+            if name == "requirements.txt":
+                runtime_requirements = list(dependencies)
         if (root / "pyproject.toml").exists():
             try:
                 metadata = tomllib.loads(read_file(root / "pyproject.toml").decode("utf-8"))
             except (UnicodeError, tomllib.TOMLDecodeError) as error:
                 raise RuntimeFailure("invalid_check_config", "Invalid Python dependency metadata.") from error
+            profile = _pytest_profile(metadata)
+            if profile is not None:
+                dependencies = runtime_requirements
             project = metadata.get("project", {})
             require(isinstance(project, dict), "unsupported_dependencies")
             dynamic = project.get("dynamic", [])
@@ -301,22 +340,25 @@ def dependency_manifest(root, language):
                     "unsupported_dependencies")
             declared = project.get("dependencies", [])
             require(isinstance(declared, list), "unsupported_dependencies")
+            if profile is not None:
+                _registry_requirements(declared)
             static_project_dependencies = "dependencies" in project
             dependencies.extend(declared)
             optional = project.get("optional-dependencies", {})
             require(isinstance(optional, dict), "unsupported_dependencies")
             for group in ("test", "tests", "dev"):
                 require(isinstance(optional.get(group, []), list), "unsupported_dependencies")
-                dependencies.extend(optional.get(group, []))
+                if profile is None:
+                    dependencies.extend(optional.get(group, []))
+            if profile is not None:
+                dependencies.extend(profile)
             require("poetry" not in metadata.get("tool", {}), "unsupported_dependencies")
         require(not any((root / name).exists() for name in ("uv.lock", "poetry.lock")),
                 "unsupported_dependencies")
         require(static_project_dependencies or not any((root / name).exists() for name in ("setup.py", "setup.cfg")),
                 "unsupported_dependencies")
         dependencies = [item for item in dependencies if item]
-        for item in dependencies:
-            require(isinstance(item, str) and re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*", item)
-                    and not any(char in item for char in "@:/\\\r\n"), "unsupported_dependencies")
+        _registry_requirements(dependencies)
         if any(check["runner"] == "pytest" for check in discover(root)["checks"]) and not any(
                 re.match(r"(?i)^pytest(?:\b|\[)", item) for item in dependencies):
             dependencies.append("pytest")
@@ -675,11 +717,13 @@ def discover(root):
     python_tests = [name for name in files if name.endswith(".py")
                     and (Path(name).name.startswith("test") or name.endswith("_test.py"))]
     pytest = any(name in configs for name in ("pytest.ini", ".pytest.ini"))
+    profile = None
     if "pyproject.toml" in configs:
         try:
             metadata = tomllib.loads(configs["pyproject.toml"])
         except tomllib.TOMLDecodeError as error:
             raise RuntimeFailure("invalid_check_config", "Invalid Python project configuration.") from error
+        profile = _pytest_profile(metadata)
         pytest |= isinstance(metadata.get("tool"), dict) and "pytest" in metadata["tool"]
     pytest |= any(re.search(r"(?mi)^\s*pytest(?:\s|[<>=~!\[]|$)", configs.get(name, ""))
                   for name in ("requirements.txt", "requirements-dev.txt"))
@@ -700,6 +744,7 @@ def discover(root):
                 for node in ast.walk(tree))
             if pytest:
                 break
+    require(profile is None or pytest, "invalid_check_config")
     if python_tests or pytest:
         start = ["-s", "tests"] if (root / "tests").is_dir() else []
         checks.append({"id": "python-tests", "runner": "pytest" if pytest else "unittest",
