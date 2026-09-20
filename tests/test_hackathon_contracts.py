@@ -28,6 +28,26 @@ class CommonContractsTests(unittest.TestCase):
         self.assertTrue(callable(value), f"Missing shared API: {module.__name__}.{name}")
         return value
 
+    def test_recorded_work_rejects_unsafe_selected_runtime_dependencies(self):
+        import project_checks
+        project = self.data["project"]
+        (project / "pyproject.toml").write_text(
+            '[project]\ndependencies = ["runtime @ file:///unsafe"]\n'
+            '[tool.pytest.ini_options]\n'
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest"]\n')
+        work = deepcopy(self.data["work_item"])
+        work["project_tree_sha256"] = results.tree_hash(project)
+        work["checks"]["plan_sha256"] = project_checks.discover(project)["sha256"]
+        work["checks"]["protected_sha256"] = project_checks.protected_digest(
+            project, project_checks.protected_files(project))
+        for split in ("development", "confirmation"):
+            work["split"] = split
+            work["input_sha256"] = digest({k: v for k, v in work.items() if k != "input_sha256"})
+            with self.subTest(split=split):
+                with self.assertRaises(RuntimeFailure) as caught:
+                    assessments.validate_work_item(work, project=project, source_commit="a" * 40)
+                self.assertEqual(caught.exception.code, "unsupported_dependencies")
+
     def test_work_item_binds_request_sources_checks_and_project(self):
         validate = self.api(assessments, "validate_work_item")
         data = self.data

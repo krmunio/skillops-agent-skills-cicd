@@ -502,6 +502,66 @@ require running packaging code. Dynamic dependencies, undeclared legacy dependen
 and unsupported lockfiles still fail explicitly. The resolver never installs the
 project itself or executes its setup script, and wheel-only installation remains
 mandatory.
+Registry requirement strings are parsed in full by `packaging==26.2`, installed from
+the hash-pinned `requirements-evaluator.txt`. This parser dependency is included in
+the evaluator fingerprint and bootstrapped by the test/evaluation jobs; local users
+must install the same manifest in their virtual environment. Missing or different
+parser versions fail closed rather than selecting a weaker fallback.
+
+Supported inputs include registry names, extras, version constraints and environment
+markers accepted by that parser. This is not the full pip requirements-file language:
+direct URLs, requirement-file options/directives, environment-variable expansion,
+backslash continuation, control characters other than tab, and option-looking tokens
+even inside marker literals are rejected. Ordinary blank lines and trailing `#`
+comments in requirements files retain their existing handling; `#` is not accepted
+inside a declared requirement string. In particular, a string such as
+`pytest --no-binary=pytest` cannot override the resolver's wheel-only flags.
+This shared check also applies to retained runtime requirements and the default
+merged-dev path before model construction. Previously accepted unsafe or malformed
+strings are intentionally rejected; valid default dependency selection is unchanged.
+
+An explicit pytest-only dependency profile can opt out of the combined development
+toolchain without removing tests or weakening registry/wheel-only guards. Its complete
+declaration in the project's `pyproject.toml` is:
+
+```toml
+[tool.skillops]
+dependency-profile = "pytest"
+test-dependencies = ["pytest", "pytz"]
+```
+
+The `tool.skillops` table accepts exactly these two keys. The only supported profile
+name is `pytest`; `test-dependencies` must be a nonempty list of safe registry requirement
+strings. Empty/misspelled/unknown declarations, unsafe specifications and a non-pytest
+check plan fail closed before package resolution or model runtime construction.
+With the table absent, the existing merged dependency behavior is unchanged. With it
+present, `requirements.txt` and static `project.dependencies` remain included, while
+`requirements-dev.txt` and optional `test`/`tests`/`dev` groups are replaced by the declared
+test dependencies. Required runtime extras must therefore be declared explicitly
+(project-a includes `pytz` to retain timezone cases). Pytest is added if needed by the
+existing runner. Dynamic/legacy dependency restrictions and unsupported lockfiles still
+apply. There is no CLI override, source-build fallback or trusted-cache shortcut.
+
+This changes dependency selection, not pytest collection, test commands or required
+gates. All discovered pytest cases still run. The selected declaration is part of
+the existing configuration/plan, protected-file and project-tree hashes; the actually
+prepared immutable image binds the environment. Profile changes require fresh baseline
+and source/check/environment bindings, not reuse of a previous environment claim.
+The profile does not claim upstream formatting, mypy, documentation, packaging or
+multi-Python CI coverage.
+
+Project-a's declaration is a SkillOps preparation overlay on the imported upstream
+`pyproject.toml`, not upstream-authored configuration. Its original upstream hash in
+`.skillops-source.json` remains unchanged as provenance: this file is now an explicit
+local delta. The original `requirements-dev.txt` (including `black==20.8b1` and
+`click==8.0.4`), application source and Skill are unchanged. Historical reports and
+their original dependency failures are not reinterpreted under this profile.
+The strict `project_samples.py verify --project project-a` import check therefore
+returns `source_mismatch` for the prepared working copy. It has not been relaxed:
+fixture tests assert that rejection and verify the original import in a temporary
+copy with only the exact declared TOML suffix removed. Every other imported file,
+license, bootstrap binding and Skill remains subject to the original checks.
+
 Resolution uses a restricted proxy for PyPI and npm's official registries; test/build execution
 has no network and receives no model or deployment credentials.
 
@@ -515,10 +575,11 @@ Unsupported or failed dependency preparation is recorded as an explicit check-st
 It does not prevent independent Skill quality evaluation and candidate generation; execution
 remains unverified. This does not provide package-building or shell-harness support.
 
-Non-model preflight on the pinned samples found that project-a's declared
+Historical non-model preflight on the unmodified pinned samples found that project-a's declared
 `black==20.8b1` cannot be resolved by the wheel-only preparation path. Its dependency
-configuration remains intact, with execution unverified; Skill quality evaluation
-can continue independently. For project-b, pytest collected 19 passing Python cases.
+pin remains intact; the explicit profile above is a separate preparation context,
+not a retroactive execution result. Skill quality evaluation can continue independently.
+For project-b, pytest collected 19 passing Python cases.
 The observation remained blocked with 32 test-named shell scripts and one nested
 Node package explicitly unexecuted. These are scoped check results, not evidence of
 Skill improvement or complete project coverage.
