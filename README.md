@@ -167,6 +167,34 @@ confirmation or adoption; budget/runtime/unverified outcomes return 2.
 
 ### Separate local approval
 
+First inspect one exact binding without initializing local approval state
+(replace every `<...>` placeholder):
+
+```bash
+python3 -B skillops.py approval-preflight \
+  --project '<project-id>' --skill-key '<skill-key>' \
+  --candidate-version 'sha256:<full-bundle-hash>' --cycle '<cycle-id>' \
+  --evidence-sha256 '<cycle-file-sha256>' --results '<local-results-directory>'
+```
+
+This read-only local command uses the same evidence checks as `approve`, calls no
+model, performs no writes/fsync, and permits noninteractive inspection but not
+CI/Actions. Safely observed first-use absence needs no initialization: after all
+evidence checks, eligible output supplies an exact `approval_argv` with both
+expected Active values set to `none`. Existing Active supplies its verified
+version **and private receipt hash** instead. Inaccessible, partial, malformed,
+busy or changing local state blocks; it is not treated as absence.
+
+Exit 0 means eligible **at observation time**, not reserved or approved. Exit 2
+means blocked and provides no approval argv. Actual approval still requires the
+separate human prompt and revalidates evidence/Active under its lock. Output is
+`local_private`: never copy its paths/receipt hashes into public artifacts or logs.
+`--results` is read-only input; no public schema/UI/publisher consumes this output.
+`-B` prevents bytecode writes, not arbitrary shell redirection. Current HEAD and
+evaluator fingerprints must still match; code changes can invalidate older
+evidence, which must not be rewritten to pass. See the
+[preflight contract](docs/HACKATHON-CONTRACTS.md#read-only-local-approval-preflight).
+
 The implemented `approve` command requires a separately operated interactive
 terminal, a live cycle with passed confirmation, and the exact complete bundle
 and evidence hashes. CI/Actions, piped input and missing predecessor fields are
