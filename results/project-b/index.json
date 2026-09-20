@@ -1,6 +1,25 @@
 {
   "history": [
     {
+      "created_at": "2026-09-20T03:23:14.394610+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:835c11d23c01330682ea81f77ccf86cce86ff1b3fa5b596b0ca58d591c291368",
+          "candidate_version_id": null,
+          "display_name": "subagent-driven-development",
+          "skill_key": "path:702a93960adf4d346056da6b"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35486231259-1/report.json",
+      "run_id": "35486231259-1",
+      "skill_assessments": "35486231259-1/skill-assessments.json",
+      "skill_evolution": "35486231259-1/skill-evolution.json"
+    },
+    {
       "created_at": "2026-09-20T03:12:14.239846+00:00",
       "execution_status": "blocked",
       "guide_status": "blocked",
@@ -507,7 +526,7 @@
     }
   ],
   "project": {
-    "current_run": "35485806620-1",
+    "current_run": "35486231259-1",
     "detected_skills": [
       {
         "display_name": "brainstorming",
@@ -580,7 +599,7 @@
         "source_path": "skills/writing-skills"
       }
     ],
-    "history_count": 17,
+    "history_count": 18,
     "id": "project-b",
     "index": "project-b/index.json",
     "skill_discovery_error": null,

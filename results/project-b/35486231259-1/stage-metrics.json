@@ -1,0 +1,113 @@
+{
+  "assessment_sha256": "8bf1cd4cdc0c0765da3329e3181ff95c702fdde8a66389e88d22d407a1bd9327",
+  "project_id": "project-b",
+  "report_sha256": "c5a93ddf26f733b0ba19b392aae2b9fdd6f1eaeb5239cd07d1ef094a2e651b84",
+  "run_id": "35486231259-1",
+  "schema_version": 1,
+  "skills": [
+    {
+      "skill_key": "path:702a93960adf4d346056da6b",
+      "source_path": "skills/subagent-driven-development",
+      "stages": {
+        "base_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "base_quality": {
+          "code": null,
+          "elapsed_seconds": 62.019117373,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 33.754504245,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 27335,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 15993,
+                "input_tokens": 15996,
+                "nano_aiu": 25624250000,
+                "output_tokens": 1126,
+                "premium_request_cost": 1
+              }
+            },
+            {
+              "code": null,
+              "elapsed_seconds": 28.186005859999995,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 23442,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 5358,
+                "input_tokens": 5361,
+                "nano_aiu": 11350500000,
+                "output_tokens": 930,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "completed"
+        },
+        "candidate_application": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "candidate_quality": {
+          "code": null,
+          "elapsed_seconds": null,
+          "invocations": [],
+          "status": "not_started"
+        },
+        "discovery": {
+          "code": null,
+          "elapsed_seconds": 0.021529868999998314,
+          "invocations": [],
+          "status": "completed"
+        },
+        "generation": {
+          "code": "candidate_instructions_byte_limit",
+          "elapsed_seconds": 92.433021907,
+          "invocations": [
+            {
+              "code": null,
+              "elapsed_seconds": 92.432501733,
+              "status": "completed",
+              "usage": {
+                "api_duration_ms": 87542,
+                "cache_read_tokens": 0,
+                "cache_write_tokens": 13429,
+                "input_tokens": 13432,
+                "nano_aiu": 39479250000,
+                "output_tokens": 4538,
+                "premium_request_cost": 1
+              }
+            }
+          ],
+          "status": "blocked"
+        },
+        "original_checks": {
+          "code": null,
+          "elapsed_seconds": 1.4152397619999988,
+          "invocations": [],
+          "status": "completed"
+        },
+        "qualification": {
+          "code": null,
+          "elapsed_seconds": 0.0009180950000029497,
+          "invocations": [],
+          "status": "completed"
+        },
+        "work": {
+          "code": null,
+          "elapsed_seconds": 3.1047999996758335e-05,
+          "invocations": [],
+          "status": "completed"
+        }
+      }
+    }
+  ]
+}
