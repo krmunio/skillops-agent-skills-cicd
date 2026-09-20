@@ -1,6 +1,15 @@
 {
   "history": [
     {
+      "created_at": "2026-09-20T05:17:59.911989+00:00",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35491093882-1/report.json",
+      "run_id": "35491093882-1"
+    },
+    {
       "created_at": "2026-09-20T03:23:14.394610+00:00",
       "evolution_skills": [
         {
@@ -526,7 +535,7 @@
     }
   ],
   "project": {
-    "current_run": "35486231259-1",
+    "current_run": "35491093882-1",
     "detected_skills": [
       {
         "display_name": "brainstorming",
@@ -599,7 +608,7 @@
         "source_path": "skills/writing-skills"
       }
     ],
-    "history_count": 18,
+    "history_count": 19,
     "id": "project-b",
     "index": "project-b/index.json",
     "skill_discovery_error": null,
