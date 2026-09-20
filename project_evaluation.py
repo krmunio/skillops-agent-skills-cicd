@@ -124,6 +124,7 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
         return results.validate(row), None, None
     budget = policy["budget"]
     before = budget["calls"]
+    project_checks.validate_dependency_profile(folder)
     if targets is None:
         targets, inventory_count = assessment_targets(project["id"], folder, history)
     if targets:

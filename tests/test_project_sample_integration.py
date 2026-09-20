@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 
-from project_samples import verify_project
+from project_samples import SampleError, verify_project
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +25,10 @@ SAMPLE_HASHES = {
     "updates.py": "ef438068ac25206058a83e268b6ffa66362133f09a3a83f21c27558aeda86c97",
 }
 PROJECT_IDS = {"sample_repo", *SOURCES}
+PYTEST_OVERLAY = (
+    b'\n[tool.skillops]\ndependency-profile = "pytest"\n'
+    b'test-dependencies = ["pytest", "pytz"]\n'
+)
 
 
 def project_skills(project):
@@ -50,6 +54,23 @@ def public_history_bytes(output):
 
 
 class ProjectSampleFixtureTests(unittest.TestCase):
+    def verify_imported_snapshot(self, project):
+        if project.name != "project-a":
+            return verify_project(project)
+        raw = (project / "pyproject.toml").read_bytes()
+        self.assertTrue(raw.endswith(PYTEST_OVERLAY))
+        provenance = json.loads((project / ".skillops-source.json").read_text())
+        original = raw.removesuffix(PYTEST_OVERLAY)
+        self.assertEqual(sha256(original).hexdigest(), provenance["files"]["pyproject.toml"])
+        with self.assertRaises(SampleError) as caught:
+            verify_project(project)
+        self.assertEqual(caught.exception.code, "source_mismatch")
+        with tempfile.TemporaryDirectory() as folder:
+            snapshot = Path(folder) / project.name
+            shutil.copytree(project, snapshot)
+            (snapshot / "pyproject.toml").write_bytes(original)
+            return verify_project(snapshot)
+
     def test_public_string_checks_preserve_multiline_content(self):
         self.assertEqual(list(string_values({"axis": [None, {"text": 'first\n"second"'}]})), ['first\n"second"'])
 
@@ -64,7 +85,7 @@ class ProjectSampleFixtureTests(unittest.TestCase):
                     self.assertFalse(path.is_symlink())
                     self.assertFalse(getattr(path, "is_junction", lambda: False)())
 
-    def test_external_snapshots_preserve_pinned_source_hashes_and_licenses(self):
+    def test_external_snapshots_preserve_pinned_sources_except_explicit_pytest_overlay(self):
         for identifier, (repository, commit, count) in SOURCES.items():
             with self.subTest(project=identifier):
                 project = ROOT / "projects" / identifier
@@ -72,9 +93,13 @@ class ProjectSampleFixtureTests(unittest.TestCase):
                 self.assertEqual(provenance["schema_version"], 1)
                 self.assertEqual((provenance["repository"], provenance["commit"]), (repository, commit))
                 self.assertEqual(len(provenance["files"]), count)
-                self.assertEqual(verify_project(project)["source_files"], count)
+                self.assertEqual(self.verify_imported_snapshot(project)["source_files"], count)
                 for relative, digest in provenance["files"].items():
-                    self.assertEqual(sha256((project / relative).read_bytes()).hexdigest(), digest, relative)
+                    raw = (project / relative).read_bytes()
+                    if identifier == "project-a" and relative == "pyproject.toml":
+                        self.assertTrue(raw.endswith(PYTEST_OVERLAY))
+                        raw = raw.removesuffix(PYTEST_OVERLAY)
+                    self.assertEqual(sha256(raw).hexdigest(), digest, relative)
                 self.assertTrue(provenance["license_files"])
                 for relative in provenance["license_files"]:
                     self.assertIn(relative, provenance["files"])
@@ -93,7 +118,7 @@ class ProjectSampleFixtureTests(unittest.TestCase):
                 binding = sha256(source.read_bytes()).hexdigest() if source.exists() else None
                 self.assertEqual(metadata["source_manifest_sha256"], binding)
                 self.assertEqual(metadata["state"], "unvalidated_draft")
-                self.assertEqual(verify_project(project)["bootstrap"], "unvalidated_draft")
+                self.assertEqual(self.verify_imported_snapshot(project)["bootstrap"], "unvalidated_draft")
                 skill = project / ".github/skills" / name / "SKILL.md"
                 self.assertEqual(skill.read_bytes(), (ROOT / template).read_bytes().replace(b"\r\n", b"\n"))
         for name, digest in SAMPLE_HASHES.items():

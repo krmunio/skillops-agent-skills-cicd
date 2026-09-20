@@ -2,6 +2,7 @@ from copy import deepcopy
 from hashlib import sha256
 import json
 import os
+import re
 import socket
 import threading
 from pathlib import Path
@@ -30,6 +31,256 @@ def observation(cases=None, **changes):
 
 
 class ProjectChecksTests(unittest.TestCase):
+    def test_registry_requirements_reject_full_grammar_and_requirements_file_controls(self):
+        invalid = (
+            "pytest --no-binary=pytest", "pytest\t--no-binary=pytest", "pytest  --no-binary pytest",
+            "pytest --prefer-binary", "pytest --no-index", "pytest --trusted-host=example.invalid",
+            "pytest -r requirements.txt", "pytest -c constraints.txt", "pytest -e project",
+            "pytest[extra] (>=1) --no-binary=pytest", "pytest\n--no-binary=pytest",
+            "pytest --only-binary=:none:", "pytest --hash=sha256:abcd",
+            'pytest; python_version == "${VERSION}"',
+            'pytest; platform_release == "value --no-binary=pytest"',
+            "pytest>=", "pytest[", "pytest(foo)", "pytest\x00",
+            "pytest @ https://example.invalid/pytest.whl",
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            for item in invalid:
+                for origin in ("profile", "requirements.txt", "project.dependencies", "legacy-dev"):
+                    with self.subTest(item=item, origin=origin):
+                        for name in ("requirements.txt", "requirements-dev.txt", "pyproject.toml"):
+                            (root / name).unlink(missing_ok=True)
+                        declared = [item] if origin == "project.dependencies" else []
+                        profile = [item] if origin == "profile" else ["pytest"]
+                        metadata = '[project]\ndependencies = ' + json.dumps(declared) + "\n"
+                        if origin != "legacy-dev":
+                            metadata += ('[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = '
+                                         + json.dumps(profile) + "\n")
+                        (root / "pyproject.toml").write_text(metadata)
+                        if origin in ("requirements.txt", "legacy-dev"):
+                            name = "requirements.txt" if origin == "requirements.txt" else "requirements-dev.txt"
+                            (root / name).write_text(item + "\n")
+                        with patch.object(checks, "capture") as run:
+                            for validate in (lambda: checks.validate_dependency_profile(root),
+                                             lambda: checks.dependency_manifest(root, "python")):
+                                with self.assertRaises(RuntimeFailure) as caught:
+                                    validate()
+                                self.assertEqual(caught.exception.code, "unsupported_dependencies")
+                            with self.assertRaises(RuntimeFailure):
+                                with checks.prepared_images(root, {"python": "sha256:" + "a" * 64}):
+                                    self.fail("Unsafe requirements must never reach the resolver")
+                            run.assert_not_called()
+
+    def test_registry_requirements_preserve_supported_extras_versions_and_markers(self):
+        valid = [
+            "pytest", "black==20.8b1", "click == 8.0.4", "requests[security,socks]>=2.0,<3",
+            "demo~=1.4.2", "demo!=1.2.*,>=1.0rc1", "demo==1!2.0+local.1",
+            "demo===opaque-version", "demo====1.0",
+            'demo (>=1.0, <2); python_version < "3.13"',
+            'demo; python_version >= "3.10" and (sys_platform != "win32" or os_name == "nt")',
+            'demo; python_version ~= "3.12"',
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements.txt").write_text("\n".join(valid) + "\n")
+            checks.validate_dependency_profile(root)
+            self.assertEqual(checks.dependency_manifest(root, "python"),
+                             {"requirements.txt": "\n".join(valid) + "\n"})
+
+    def test_missing_or_wrong_parser_version_fails_closed(self):
+        import sys
+        with patch.dict(sys.modules, {"packaging.requirements": None}):
+            with self.assertRaises(RuntimeFailure) as caught:
+                checks._registry_requirements(["pytest"])
+            self.assertEqual(caught.exception.code, "unsupported_dependencies")
+        import packaging
+        with patch.object(packaging, "__version__", "0.0"):
+            with self.assertRaises(RuntimeFailure) as caught:
+                checks._registry_requirements(["pytest"])
+            self.assertEqual(caught.exception.code, "unsupported_dependencies")
+
+    def test_preflight_preserves_selected_profile_and_legacy_restriction_boundaries(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements.txt").write_text("pytest\n")
+            (root / "pyproject.toml").write_text('[project]\ndynamic = ["dependencies"]\n')
+            checks.validate_dependency_profile(root)
+            with self.assertRaises(RuntimeFailure):
+                checks.dependency_manifest(root, "python")
+            (root / "requirements-dev.txt").write_text("pytest --no-binary=pytest\n")
+            (root / "pyproject.toml").write_text(
+                '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytz"]\n')
+            checks.validate_dependency_profile(root)
+            self.assertEqual(checks.dependency_manifest(root, "python"),
+                             {"requirements.txt": "pytest\npytz\n"})
+
+    def test_parser_dependency_is_pinned_bootstrapped_and_fingerprinted(self):
+        import project_results
+        root = Path(__file__).resolve().parents[1]
+        manifest = root / "requirements-evaluator.txt"
+        self.assertTrue(manifest.is_file())
+        self.assertIn("packaging==26.2", manifest.read_text())
+        self.assertIn("--hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+                      manifest.read_text())
+        self.assertIn("requirements-evaluator.txt", project_results.CORE)
+        for name, jobs in (("ci.yml", ("dashboard", "offline-and-container")),
+                           ("project-evaluation.yml", ("contracts", "evaluate"))):
+            text = (root / ".github/workflows" / name).read_text()
+            for job in jobs:
+                body = re.split(r"\n  [A-Za-z0-9_-]+:", text.split("\n  " + job + ":", 1)[1], maxsplit=1)[0]
+                with self.subTest(workflow=name, job=job):
+                    self.assertIn("--only-binary=:all: --require-hashes", body)
+                    self.assertIn("-r requirements-evaluator.txt", body)
+
+    def test_pytest_profile_preserves_runtime_dependencies_and_default_merge(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements.txt").write_text("requests==2.32.3\n")
+            (root / "requirements-dev.txt").write_text("black==20.8b1\npytest\n")
+            metadata = ('[project]\ndependencies = ["packaging"]\n'
+                        '[project.optional-dependencies]\ndev = ["mypy"]\n')
+            (root / "pyproject.toml").write_text(metadata)
+            original_plan = checks.discover(root)
+            self.assertEqual(checks.dependency_manifest(root, "python"), {
+                "requirements.txt": "requests==2.32.3\nblack==20.8b1\npytest\npackaging\nmypy\n"})
+            (root / "pyproject.toml").write_text(metadata + (
+                '[tool.skillops]\ndependency-profile = "pytest"\n'
+                'test-dependencies = ["pytest", "pytz"]\n'))
+            self.assertEqual(checks.dependency_manifest(root, "python"), {
+                "requirements.txt": "requests==2.32.3\npackaging\npytest\npytz\n"})
+            plan = checks.discover(root)
+            for key in ("status", "checks", "gates", "exclusions", "reasons"):
+                self.assertEqual(plan[key], original_plan[key])
+            self.assertEqual((root / "requirements-dev.txt").read_text(), "black==20.8b1\npytest\n")
+
+    def test_pytest_profile_rejects_malformed_or_unsafe_declarations_without_resolution(self):
+        declarations = [
+            '[tool]\nskillops = "pytest"\n',
+            '[tool.skillops]\n',
+            '[tool.skillops]\ndependency-profile = "other"\ntest-dependencies = ["pytest"]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependences = ["pytest"]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = []\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = "pytest"\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = [false]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = [""]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["   "]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest", "x @ file:///x"]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["-r other.txt"]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest\\n--index-url=x"]\n',
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            for declaration in declarations:
+                (root / "pyproject.toml").write_text(declaration)
+                with self.subTest(declaration=declaration), patch.object(checks, "capture") as capture:
+                    for operation in (lambda: checks.discover(root),
+                                      lambda: checks.dependency_manifest(root, "python"),
+                                      lambda: checks.prepared_images(root, {"python": "sha256:" + "a" * 64}).__enter__()):
+                        with self.assertRaises(RuntimeFailure) as caught:
+                            operation()
+                        self.assertIn(caught.exception.code, ("invalid_check_config", "unsupported_dependencies"))
+                    capture.assert_not_called()
+
+    def test_profile_changes_bind_hashes_and_resolver_inputs(self):
+        import project_results
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements-dev.txt").write_text("black==20.8b1\npytest\n")
+            snapshots, plans = [], []
+            declarations = (
+                '[project]\ndependencies = []\n',
+                '[project]\ndependencies = []\n[tool.skillops]\ndependency-profile = "pytest"\n'
+                'test-dependencies = ["pytest", "pytz"]\n',
+                '[project]\ndependencies = []\n[tool.skillops]\ndependency-profile = "pytest"\n'
+                'test-dependencies = ["pytest", "pytz==2025.2"]\n',
+            )
+            for declaration in declarations:
+                (root / "pyproject.toml").write_text(declaration)
+                plans.append(checks.discover(root))
+                snapshots.append((
+                    plans[-1]["sha256"],
+                    checks.protected_digest(root, checks.protected_files(root)),
+                    project_results.tree_hash(root),
+                    checks.dependency_manifest(root, "python")["requirements.txt"],
+                ))
+            for values in zip(*snapshots):
+                self.assertEqual(len(set(values)), 3)
+            old = observation(plan_sha256=snapshots[0][0], protected_sha256=snapshots[0][1])
+            new = observation(plan_sha256=snapshots[-1][0], protected_sha256=snapshots[-1][1])
+            self.assertEqual(checks.compare(old, old, new)["reasons"], ["input_mismatch"])
+            with patch.object(checks, "container_capture") as run:
+                with self.assertRaises(RuntimeFailure) as caught:
+                    checks.execute(root, plans[0], {"python": "sha256:" + "a" * 64})
+                self.assertEqual(caught.exception.code, "invalid_check_plan")
+                run.assert_not_called()
+
+    def test_pytest_profile_requires_pytest_and_keeps_unsupported_gates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "pyproject.toml").write_text(
+                '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest"]\n')
+            (root / "test_api.py").write_text("import unittest\n")
+            with self.assertRaises(RuntimeFailure):
+                checks.discover(root)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "test_shell.sh").write_text("exit 0\n")
+            plan = checks.discover(root)
+            self.assertEqual(plan["status"], "partial")
+            self.assertEqual(plan["exclusions"], [{"path": "test_shell.sh", "reason": "unsupported_shell_tests"}])
+
+    def test_profile_preflight_checks_runtime_specs_without_changing_legacy_selection(self):
+        self.assertTrue(callable(getattr(checks, "validate_dependency_profile", None)))
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements-dev.txt").write_text("unsafe @ file:///unused\n")
+            metadata = '[project]\ndependencies = ["runtime @ file:///unsafe"]\n'
+            (root / "pyproject.toml").write_text(metadata)
+            with self.assertRaises(RuntimeFailure):
+                checks.validate_dependency_profile(root)
+            (root / "pyproject.toml").write_text(metadata + (
+                '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest"]\n'))
+            with patch.object(checks, "capture") as capture, self.assertRaises(RuntimeFailure) as caught:
+                checks.validate_dependency_profile(root)
+            self.assertEqual(caught.exception.code, "unsupported_dependencies")
+            capture.assert_not_called()
+
+    def test_profile_resolver_receives_selected_manifest_and_keeps_security_flags(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements-dev.txt").write_text("black==20.8b1\npytest\n")
+            (root / "pyproject.toml").write_text(
+                '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest", "pytz"]\n')
+            calls, manifests = [], []
+            def capture(argv, **kwargs):
+                calls.append(argv)
+                if argv[:3] == ["docker", "network", "inspect"]:
+                    return CompletedProcess(argv, 0, "172.30.0.1\n", "")
+                if argv[:2] == ["docker", "run"]:
+                    mount = next(arg for arg in argv if arg.startswith("type=bind,src=") and "dst=/manifest," in arg)
+                    path = Path(mount.split("src=", 1)[1].split(",", 1)[0])
+                    manifests.append((path / "requirements.txt").read_text())
+                    self.assertIn("--only-binary=:all:", argv)
+                    self.assertIn("--no-cache-dir", argv)
+                    self.assertIn("--isolated", argv)
+                    self.assertIn("https://pypi.org/simple", argv)
+                if argv[:3] == ["docker", "image", "inspect"]:
+                    return CompletedProcess(argv, 0, "sha256:" + "b" * 64, "")
+                return CompletedProcess(argv, 0, "", "")
+            with patch.object(checks, "capture", side_effect=capture), patch.object(
+                    checks, "registry_proxy", return_value=nullcontext("http://172.30.0.1:1234")):
+                with checks.prepared_images(root, {"python": "sha256:" + "a" * 64}) as prepared:
+                    self.assertEqual(prepared["python"], "sha256:" + "b" * 64)
+            self.assertEqual(manifests, ["pytest\npytz\n"])
+            self.assertTrue(any(call[:3] == ["docker", "image", "rm"] for call in calls))
+
     def test_replay_sources_reject_protected_nested_config_skills_and_hash_changes(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
