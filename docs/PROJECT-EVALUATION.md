@@ -147,7 +147,11 @@ For a selected run, existing `guide.metrics.skills` records the **full discovere
 inventory count**, and existing `guide.metrics.requested` records the selected count.
 Only selected assessments and telemetry are emitted. `guide.status: completed` means
 the requested quality assessments completed, not that all inventory Skills passed
-or were assessed. The Actions summary explicitly shows selected scope and inventory
+or were assessed. Final indexing uses the same validated identity history for both
+selected and unselected current Skills, so emitted inventory keys remain selectable
+with that history. Identity-only history does not copy prior assessments into the
+new output; unselected Skills without output evidence remain unassessed.
+The Actions summary explicitly shows selected scope and inventory
 coverage (for example, 1/14 complete); execution qualification remains independent
 and may still block the workflow. No public schema expansion is introduced.
 
