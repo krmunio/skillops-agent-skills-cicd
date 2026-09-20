@@ -124,9 +124,12 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
         return results.validate(row), None, None
     budget = policy["budget"]
     before = budget["calls"]
+    if targets is None:
+        targets, inventory_count = assessment_targets(project["id"], folder, history)
+    if targets:
+        rubric = results.read_json(root / "eval/skill-guide-rubric.json")
+        skill_pipeline.admit_targets(folder, targets, row, rubric)
     try:
-        if targets is None:
-            targets, inventory_count = assessment_targets(project["id"], folder, history)
         if not targets:
             images = resolve_images(folder)
             preparation_seconds = min(180, budget["deadline"] - time.monotonic())
@@ -143,7 +146,6 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
             return results.validate(row), None, None
         raw_runtime = runtime_factory(root)
         runtime = BudgetRuntime(raw_runtime, budget)
-        rubric = results.read_json(root / "eval/skill-guide-rubric.json")
         evaluated, failures = [], []
         with raw_runtime.locked(), ExitStack() as setup:
             check_error = None
@@ -195,12 +197,12 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
             "blocked" if incomplete else "completed", "assessment_unverified" if incomplete else "evaluation_completed",
             {"cli_invocations": budget["calls"] - before}, "rejected" if rejected else None,
         )
-        lifecycle, details = skill_pipeline.attachments(results.validate(row), evaluated) if evaluated else (None, None)
-        return row, lifecycle, details
     except (RuntimeFailure, OSError) as error:
         reason = error.code if isinstance(error, RuntimeFailure) and error.code in results.REASONS else "runtime_error"
         row["execution"] = results.axis("blocked", reason, {"cli_invocations": budget["calls"] - before})
-    return results.validate(row), None, None
+        return results.validate(row), None, None
+    lifecycle, details = skill_pipeline.attachments(results.validate(row), evaluated) if evaluated else (None, None)
+    return row, lifecycle, details
 
 
 def policy_from_environment():
@@ -466,6 +468,11 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
             disclosure, project=project, development_work_item=work, confirmation_work_item=final,
             original=skill_pipeline.captured_files(project, selected[0]), source_path=selected[0]["path"])
     rubric = results.read_json(root / "eval/skill-guide-rubric.json")
+    reservation = _replay_report(
+        {**work, "evaluator_sha256": results.evaluator_hash(root)},
+        _replay_run_id(execution_mode), execution_mode)
+    reservation["created_at"] = datetime.now(timezone.utc).isoformat(timespec="microseconds")
+    skill_pipeline.admit_targets(project, [(selected[0], skill_key)], reservation, rubric, replay=True)
     raw_runtime = (runtime_factory or CopilotRuntime)(root)
     runtime = BudgetRuntime(raw_runtime, budget)
     runtime.execution_mode = execution_mode
@@ -763,13 +770,18 @@ def main():
             row, lifecycle, assessment = assess_with_details(
                 args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()),
                 telemetry=telemetry, assessment_skill_key=args.assessment_skill_key)
+            metrics = evaluation_telemetry.bind(row, assessment, telemetry) if telemetry else None
+            for data, limit in ((row, results.LIMIT), (lifecycle, results.EVOLUTION_LIMIT),
+                                (assessment, results.LIMIT), (metrics, results.LIMIT)):
+                if data is not None:
+                    results.require(len(results.encoded(data)) <= limit, "output_limit")
             results.store(args.output, row)
             if lifecycle is not None:
                 results.store_evolution(args.output, lifecycle)
             if assessment is not None:
                 results.store_assessments(args.output, assessment)
-            if telemetry:
-                results.store_telemetry(args.output, evaluation_telemetry.bind(row, assessment, telemetry))
+            if metrics is not None:
+                results.store_telemetry(args.output, metrics)
             failures += any(row[part]["status"] in ("blocked", "failed") for part in ("guide", "execution"))
             print(json.dumps({"project": project["id"], "guide": row["guide"]["status"],
                               "execution": row["execution"]["status"]}))

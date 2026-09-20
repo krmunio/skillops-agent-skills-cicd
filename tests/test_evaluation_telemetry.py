@@ -226,7 +226,8 @@ class EvaluationTelemetryTests(unittest.TestCase):
                 root = Path(folder)
                 skill = root / "projects/sample_repo/.github/skills/develop/SKILL.md"
                 skill.parent.mkdir(parents=True)
-                skill.write_text("---\nname: develop\ndescription: Check code.\n---\nRead code.\n")
+                skill.write_text("---\nname: develop\ndescription: Check code.\n---\n"
+                                 "Read code and inspect all existing tests before changing the requested behavior.\n")
                 (root / "eval").mkdir()
                 (root / "eval/skill-guide-rubric.json").write_text("{}")
                 raw = Mock(env={})

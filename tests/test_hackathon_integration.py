@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from copilot_runtime import RuntimeFailure, verify_staged_version
 from hackathon_fixtures import digest, fixture
@@ -25,6 +25,7 @@ import skillops
 
 BODY = ("# Develop\nRead the request and source. Preserve tests and safety rules.\n"
         "Consult [notes](notes.txt) when needed. Verify outputs.\n")
+ORIGINAL_BODY = BODY + "Inspect all relevant source and test context before proposing a change.\n"
 
 
 class OfflineTransport:
@@ -74,7 +75,7 @@ class OfflineTransport:
             self.generated += 1
             if self.generated == self.fail_generation_at:
                 raise RuntimeFailure("runtime_error", "Offline model transport interruption.")
-            value = {"instructions": BODY if self.generated == self.original_at else BODY + f"\nAttempt {self.generated}.",
+            value = {"instructions": ORIGINAL_BODY if self.generated == self.original_at else BODY + f"\nAttempt {self.generated}.",
                      "addressed_findings": ["workflow_clarity"], "hypothesis": "Offline fixture hypothesis."}
         else:
             assert role == "developer"
@@ -94,7 +95,7 @@ class ReplayIntegrationTests(unittest.TestCase):
         data = fixture(self.root / "projects")
         self.project = data["project"]
         skill = self.project / "skills/develop/SKILL.md"
-        skill.write_text("---\nname: develop\ndescription: Implement source changes safely when development is requested.\n---\n\n" + BODY)
+        skill.write_text("---\nname: develop\ndescription: Implement source changes safely when development is requested.\n---\n\n" + ORIGINAL_BODY)
         with (self.project / "tests/test_app.py").open("a") as stream:
             stream.write("\nHIDDEN_CONFIRMATION_SENTINEL = 'never send this to a model'\n")
         (self.root / "eval").mkdir()
@@ -228,6 +229,38 @@ class ReplayIntegrationTests(unittest.TestCase):
                 output=self.output, model="offline-model", execution_mode="offline_test",
                 policy={"enabled": True, "authenticated": True, "budget": self.budget},
                 runtime_factory=lambda root: self.raw)
+
+    def test_replay_admission_rejects_known_envelopes_before_runtime_and_private_retention(self):
+        skill = self.project / "skills/develop/SKILL.md"
+        initial = skill.read_bytes()
+        header = initial.split(b"\n---\n", 1)[0] + b"\n---\n\n"
+        for content, companion, code in (
+            (header + b"x" * 32769, None, "original_body_byte_limit"),
+            (initial.replace(b"\n", b"\r\n"), None, "invalid_base_skill"),
+            (header + b"\x7f" * 20000, None, "prompt_limit"),
+            (initial, b"x" * 900000, "output_limit"),
+        ):
+            with self.subTest(code=code):
+                skill.write_bytes(content)
+                if companion is not None:
+                    (skill.parent / "notes.txt").write_bytes(companion)
+                work = deepcopy(self.work)
+                work["project_tree_sha256"] = results.tree_hash(self.project)
+                work["input_sha256"] = digest({k: v for k, v in work.items() if k != "input_sha256"})
+                self.work_path.write_bytes(results.encoded(work))
+                factory = Mock(side_effect=AssertionError("Runtime must not be constructed."))
+                with patch.object(runner, "retain_work_item") as retain, self.assertRaises(RuntimeFailure) as raised:
+                    with runner._replay_session(
+                        self.root, project_id="sample_repo", skill_key=self.key, work_item=self.work_path,
+                        output=self.output, model="offline-model", execution_mode="offline_test",
+                        policy={"enabled": True, "authenticated": True, "budget": self.budget},
+                        runtime_factory=factory,
+                    ):
+                        self.fail("Invalid original was admitted.")
+                self.assertEqual(raised.exception.code, code)
+                factory.assert_not_called()
+                retain.assert_not_called()
+                self.assertEqual(self.raw.calls, [])
 
     def test_one_replay_adapter_uses_real_provider_and_records_unverified_confirmation(self):
         self.budget["calls"] = 7

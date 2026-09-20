@@ -33,7 +33,8 @@ class ReplayTests(unittest.TestCase):
         self.project = self.root / "project"
         skill = self.project / "skills/develop/SKILL.md"
         skill.parent.mkdir(parents=True)
-        skill.write_text("---\nname: develop\ndescription: Develop safely.\n---\nCheck code.\n")
+        skill.write_text("---\nname: develop\ndescription: Develop safely.\n---\n"
+                         "Check code. Inspect the request, relevant source files and existing checks before making changes.\n")
         (skill.parent / "reference.txt").write_text("Keep this companion.\n")
         (self.project / "api.py").write_text("VALUE = 0\n")
         (self.project / "tests").mkdir()
@@ -1046,7 +1047,8 @@ class ConfirmationTests(unittest.TestCase):
 
 
 class CandidateDiagnosticTests(unittest.TestCase):
-    original = {"SKILL.md": b"---\nname: develop\ndescription: Develop safely.\n---\nOriginal.\n"}
+    original = {"SKILL.md": b"---\nname: develop\ndescription: Develop safely.\n---\n"
+                           b"Original body with enough room for unchanged diagnostic fixtures.\n"}
 
     def response(self, field, value):
         response = {"instructions": "Changed body.", "hypothesis": "Synthetic hypothesis.",
@@ -1058,11 +1060,12 @@ class CandidateDiagnosticTests(unittest.TestCase):
         return response
 
     def test_fixed_field_and_condition_codes_never_echo_rejected_content(self):
-        for field, limit in (("instructions", 16000), ("hypothesis", 4096), ("addressed_finding", 160)):
+        body_limit = len(skill_pipeline.original_body(self.original).encode())
+        for field, limit in (("instructions", body_limit), ("hypothesis", 4096), ("addressed_finding", 160)):
             for condition, value in (
                 ("type", {"PRIVATE_SENTINEL": "never log this"}),
                 ("empty", ""),
-                ("byte_limit", "\u00e9" * (limit // 2) + "x"),
+                ("byte_limit", "\u00e9" * (limit // 2 + 1)),
                 ("control_character", "PRIVATE_SENTINEL\r"),
             ):
                 with self.subTest(field=field, condition=condition):
@@ -1072,8 +1075,9 @@ class CandidateDiagnosticTests(unittest.TestCase):
                     self.assertNotIn("PRIVATE_SENTINEL", str(caught.exception))
                     self.assertNotIn("never log this", str(caught.exception))
 
-    def test_existing_utf8_boundaries_lf_tab_and_del_acceptance_are_unchanged(self):
-        for field, limit in (("instructions", 16000), ("hypothesis", 4096), ("addressed_finding", 160)):
+    def test_effective_utf8_boundaries_retain_lf_tab_and_del_acceptance(self):
+        body_limit = len(skill_pipeline.original_body(self.original).encode())
+        for field, limit in (("instructions", body_limit), ("hypothesis", 4096), ("addressed_finding", 160)):
             for value in ("x" * limit, "\u00e9" * (limit // 2), "text\n\t\x7f"):
                 with self.subTest(field=field, bytes=len(value.encode())):
                     files = skill_pipeline.candidate_files(self.original, self.response(field, value))
@@ -1139,7 +1143,7 @@ class SkillPipelineTests(unittest.TestCase):
         for bundle in skill_guide.discover(project):
             original, files = skill_pipeline.captured_files(project, bundle)
             candidate = skill_pipeline.candidate_files(files, {
-                "instructions": "x" * 16000, "addressed_findings": [],
+                "instructions": "x" * len(skill_pipeline.original_body(files).encode()), "addressed_findings": [],
                 "hypothesis": "Synthetic capacity check only.",
             })
             version, _ = evolution.capture_version(
@@ -1154,10 +1158,11 @@ class SkillPipelineTests(unittest.TestCase):
             row["decision"] = skill_assessments.decide(row)
             evaluated.append((row, [(original, files), (version, candidate)]))
         self.assertEqual(len(evaluated), 14)
-        with patch.object(project_results, "EVOLUTION_LIMIT", project_results.LIMIT), self.assertRaises(RuntimeFailure):
+        with patch.object(project_results, "EVOLUTION_LIMIT", len(project_results.encoded(
+                skill_pipeline.attachments(report, evaluated)[0])) - 1), self.assertRaises(RuntimeFailure):
             skill_pipeline.attachments(report, evaluated)
         lifecycle, details = skill_pipeline.attachments(report, evaluated)
-        self.assertGreater(len(project_results.encoded(lifecycle)), project_results.LIMIT)
+        self.assertLessEqual(len(project_results.encoded(lifecycle)), project_results.LIMIT)
         self.assertLessEqual(len(project_results.encoded(lifecycle)), project_results.EVOLUTION_LIMIT)
         with tempfile.TemporaryDirectory() as output:
             project_results.store(output, report)
@@ -1172,7 +1177,8 @@ class SkillPipelineTests(unittest.TestCase):
                 project = root / "project"
                 path = project / ".github/skills/develop/SKILL.md"
                 path.parent.mkdir(parents=True)
-                path.write_text("---\nname: develop\ndescription: Repair code and validate it.\n---\nCheck code.\n")
+                path.write_text("---\nname: develop\ndescription: Repair code and validate it.\n---\n"
+                                "Check code. Inspect the request, relevant source files and existing checks before changes.\n")
                 (project / "api.py").write_text("VALUE = 0\n")
                 (project / "tests").mkdir()
                 (project / "tests/test_api.py").write_text(
@@ -1274,7 +1280,8 @@ class SkillPipelineTests(unittest.TestCase):
                 self.assertEqual((root / "api.py").read_text(), "original")
 
     def test_candidate_keeps_frontmatter_and_resource_bytes(self):
-        original = {"SKILL.md": b"---\nname: review\ndescription: Review code.\n---\nOld.\n",
+        original = {"SKILL.md": b"---\nname: review\ndescription: Review code.\n---\n"
+                               b"Review the supplied change with its source and existing tests.\n",
                     "references/checks.md": b"Do not change this resource.\n"}
         changed = skill_pipeline.candidate_files(original, {
             "instructions": "Review changed behavior and retained tests.",
