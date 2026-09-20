@@ -329,11 +329,12 @@ Retain screenshots and a file-openable gallery as a no-server backup.
 ### Prepared project samples
 
 - `projects/sample_repo`: original issue-management seeds plus an explicitly added development skill.
-- `projects/project-a`: pinned `dbader/schedule` 1.2.2 source with a scheduling-specific, unvalidated skill draft.
+- `projects/project-a`: pinned `dbader/schedule` 1.2.2 source with a scheduling-specific,
+  unvalidated skill draft and an explicit pytest-only preparation overlay in `pyproject.toml`.
 - `projects/project-b`: pinned `obra/superpowers` v6.3.0 source with its existing skills preserved.
 
 ```bash
-python3 project_samples.py verify --project project-a
+python3 project_samples.py verify --project project-a  # Expected source_mismatch: declared preparation overlay
 python3 project_samples.py verify --project project-b
 python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
 ```
@@ -343,6 +344,10 @@ directories, preserves licenses/hashes, and requires a selected draft if skills
 are missing. See [preparation commands and boundaries](docs/PROJECT-EVALUATION.md#reproducible-sample-preparation)
 before importing another repository. It never executes upstream code or replaces
 existing skills. Draft installation is not successful behavioral evaluation.
+Project-a retains its original upstream manifest and formatter pin: the strict import
+verifier deliberately rejects its local TOML overlay rather than relabeling it as
+upstream content. The pytest profile does not cover all upstream CI jobs; see the
+[dependency profile contract](docs/PROJECT-EVALUATION.md#automatic-evaluation-support-and-boundaries).
 
 The project workflow's `sample-onboarding-results` artifact verifies actual
 non-model reports using the existing evaluator and schema. Project guide assessment

@@ -14,6 +14,38 @@ from unittest.mock import patch, MagicMock
 
 
 class ProjectEvaluationTests(unittest.TestCase):
+    def test_invalid_dependency_profile_is_rejected_before_model_runtime(self):
+        m = self.module()
+        declarations = (
+            '[tool.skillops]\ndependency-profile = "unknown"\ntest-dependencies = ["pytest"]\n',
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["x @ file:///unsafe"]\n',
+            '[project]\ndependencies = ["x @ file:///unsafe"]\n'
+            '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest"]\n',
+            '[tool.skillops\n',
+        )
+        for declaration in declarations:
+            with self.subTest(declaration=declaration), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                project = root / "projects/sample_repo"
+                skill = project / "skills/develop/SKILL.md"
+                skill.parent.mkdir(parents=True)
+                skill.write_text("---\nname: develop\ndescription: Develop.\n---\nCheck.\n")
+                (project / "test_api.py").write_text("def test_api(): assert True\n")
+                (project / "pyproject.toml").write_text(declaration)
+                (root / "eval").mkdir()
+                (root / "eval/skill-guide-rubric.json").write_text('{"dimensions":["clarity"]}')
+                policy = {"enabled": True, "authenticated": True,
+                          "budget": {"calls": 0, "max_calls": 8, "deadline": m.time.monotonic() + 60}}
+                row = {"id": "sample_repo", "adapter": None, "tree_sha256": "b" * 64, "error": None}
+                runtime = Mock(side_effect=AssertionError("Model runtime must not be constructed"))
+                with patch.object(m.skill_pipeline, "admit_targets"), patch.object(
+                        m.project_checks, "prepared_images") as prepared:
+                    with self.assertRaises(m.RuntimeFailure) as caught:
+                        m.assess_with_details(root, row, "123-1", "a" * 40, policy, runtime_factory=runtime)
+                    self.assertIn(caught.exception.code, ("invalid_check_config", "unsupported_dependencies"))
+                    runtime.assert_not_called()
+                    prepared.assert_not_called()
+
     def test_live_history_ignores_examples_but_retains_real_assessments(self):
         from hashlib import sha256
         import dashboard_samples

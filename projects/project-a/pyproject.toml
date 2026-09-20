@@ -24,3 +24,7 @@ Documentation = "https://schedule.readthedocs.io"
 Repository = "https://github.com/dbader/schedule.git"
 Issues = "https://github.com/dbader/schedule/issues"
 Changelog = "https://github.com/dbader/schedule/blob/master/HISTORY.rst"
+
+[tool.skillops]
+dependency-profile = "pytest"
+test-dependencies = ["pytest", "pytz"]
