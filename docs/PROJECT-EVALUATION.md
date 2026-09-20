@@ -87,6 +87,92 @@ python3 project_evaluation.py --root . --output ci-results --run-id <run-id> \
 authorization and resource limits still apply. An empty selection records a no-op
 in the Actions summary; it is not a passing Skill evaluation.
 
+### Assess one current Skill
+
+`--assessment-skill-key <canonical-key>` selects one **currently discovered** Skill
+within an explicit `--project`. Omitting it keeps the existing full-project behavior.
+It is distinct from recorded-work `--skill-key`: do not combine it with `--work-id`,
+`--skill-key`, `--max-rounds` or `--changed-since`. Unknown, malformed, removed or
+ambiguous identities fail before runtime construction or model calls.
+
+Copy `skill_key`, not `source_path`, from the current inventory in a trusted
+`results/index.json`, or from a validated assessment for that same current source
+path. For example, this read-only command lists the public inventory:
+
+```bash
+jq -r '.projects[] | select(.id == "project-b") | .detected_skills[]
+  | [.skill_key, .source_path] | @tsv' results/index.json
+```
+
+Use the same validated history with `--history` when it supplies a registered or
+legacy canonical identity. Do not derive a new path key to override an existing
+history association. Discovery still reads the **whole current project inventory**
+and resolves its canonical keys before selecting exactly one match. A stale result
+key cannot select a removed Skill or an arbitrary historical version.
+
+After **separate paid-execution authorization**, local
+`SKILLOPS_LIVE_EVALUATION_ENABLED=true`, configured authentication and the existing
+shared call/time/per-session Credit limits, a local assessment can use:
+
+```bash
+python3 project_evaluation.py --root . --output new-results \
+  --run-id <unique-run-id> --source-commit "$(git rev-parse HEAD)" \
+  --project project-b --assessment-skill-key <canonical-current-skill-key> \
+  --history <validated-history-results>
+```
+
+The corresponding manual Actions input is `assessment_skill_key` (blank by default).
+The following is a billable dispatch and also uses the existing connected result
+persistence and public deployment, so authorization must cover all those actions:
+
+```bash
+gh workflow run project-evaluation.yml --ref main \
+  -f project=project-b -f assessment_skill_key="$ASSESSMENT_SKILL_KEY" -f live=true
+```
+
+`ASSESSMENT_SKILL_KEY` must contain the reviewed canonical inventory key. Existing
+repository budget defaults or separately approved project-wide overrides apply;
+selection never raises or replicates limits. Push and PR behavior is unchanged.
+
+Every selected cycle performs **fresh original quality, one new candidate generation,
+and fresh candidate quality** under the actual source commit and evaluator fingerprint.
+History provides identity only, never a cached baseline. Earlier completed reports
+remain immutable; a later evaluator must not relabel or silently resume their evidence.
+The existing checks and any automatically derived paired applications are unchanged.
+This option supplies no recorded user-work replay, held-out confirmation, approval
+or adoption evidence, and cannot guarantee that a previously rejected response will
+succeed on another run.
+
+For a selected run, existing `guide.metrics.skills` records the **full discovered
+inventory count**, and existing `guide.metrics.requested` records the selected count.
+Only selected assessments and telemetry are emitted. `guide.status: completed` means
+the requested quality assessments completed, not that all inventory Skills passed
+or were assessed. Final indexing uses the same validated identity history for both
+selected and unselected current Skills, so emitted inventory keys remain selectable
+with that history. Identity-only history does not copy prior assessments into the
+new output; unselected Skills without output evidence remain unassessed.
+The Actions summary explicitly shows selected scope and inventory
+coverage (for example, 1/14 complete); execution qualification remains independent
+and may still block the workflow. No public schema expansion is introduced.
+
+### Content-free candidate diagnostics
+
+Future candidate text failures use fixed
+`candidate_<field>_<condition>` codes. Fields are only `instructions`, `hypothesis`
+and `addressed_finding` (an entry in `addressed_findings`). Conditions are only
+`type`, `empty`, `byte_limit` and `control_character`. The unchanged UTF-8 byte
+limits are 16000, 4096 and 160 respectively; LF/TAB remain allowed and other C0
+control characters remain rejected. Other shape, array, unchanged-candidate and
+sensitive-content guards retain their existing behavior.
+
+Diagnostics contain no input values, excerpts, untrusted field names or raw
+exceptions. Existing private runtime handling is unchanged; no raw response is
+added to logs or public artifacts. An invocation may be `completed` while the
+generation stage is `blocked` by validation; no candidate version or candidate
+quality is fabricated in that case. Historical `invalid_skill_assessment` remains
+valid evidence. More specific future codes do not recover the unknown offending
+field in an older response or establish that its root cause has been fixed.
+
 ### Actions stage visibility
 
 Trusted evaluation enables `SKILLOPS_ACTIONS_PROGRESS=true` to group logs by project,

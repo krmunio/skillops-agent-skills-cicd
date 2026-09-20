@@ -77,6 +77,14 @@ main push에서는 추가·변경된 프로젝트만 선택하며, 공통 평가
 선택된 Skill마다 후보는 최대 1개이고 전체 실행 한도를 공유합니다. 기존 `--project <id>` 수동 선택은 유지하며,
 `--changed-since <full-before-sha>`는 체크아웃된 `--source-commit`을 기준으로 영향받은 프로젝트를 선택합니다.
 두 선택 옵션은 함께 사용할 수 없습니다. 대상이 없으면 모델 평가를 생략하며 통과 결과를 만들지 않습니다.
+명시적 `--project`와 `--assessment-skill-key <현재-canonical-key>`를 함께 사용하면 현재 탐지된
+Skill 하나의 원본 품질 → 새 후보 생성 → 후보 품질을 새로 평가합니다. Actions 입력 이름은
+`assessment_skill_key`이며, 생략 시 기존 전체 프로젝트 동작을 유지합니다. inventory/results의
+`skill_key`를 복사하고 동일한 identity 이력을 사용해야 하며, `source_path`와 혼동하면 안 됩니다.
+기존 baseline은 재사용하지 않고 전체 inventory 대비 선택 범위를 표시합니다. recorded-work의
+`--skill-key`와는 별개이며 함께 사용할 수 없습니다. 이후 후보 문자열 검증 실패는 응답 본문 없이
+고정 필드·조건 코드로 기록합니다. [선택·진단 계약](docs/PROJECT-EVALUATION.md#assess-one-current-skill)을
+참고하세요. 실제 유료 실행과 연결 게시·배포는 별도 승인이 필요하며, replay·confirmation·채택을 입증하지 않습니다.
 새 자동 Skill 실행은 보고서에 연결된 `stage-metrics.json`에 단계별 완료 여부, 한도 내에서 시도된 CLI 호출,
 소요 시간과 확인 가능한 사용량을 보존합니다. 알 수 없는 사용량은 null로 남기며, Actions 요약은 부분 측정값과
 전체 비용을 구분하고 기록된 판정 정책을 표시합니다. 기존 결과 형식과 대시보드 동작은 유지합니다.

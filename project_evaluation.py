@@ -71,8 +71,21 @@ def resolve_images(project):
     return images
 
 
+def assessment_targets(project_id, folder, history, selected_key=None):
+    if selected_key is not None:
+        results.require(evolution.matches(evolution.SKILL_KEY, selected_key), "invalid_assessment_skill_key")
+    inventory = [(bundle, skill_pipeline.skill_key(project_id, bundle["path"], history))
+                 for bundle in skill_guide.discover(folder)]
+    if selected_key is None:
+        return inventory, len(inventory)
+    selected = [(bundle, key) for bundle, key in inventory if key == selected_key]
+    results.require(bool(selected), "unknown_assessment_skill")
+    results.require(len(selected) == 1, "ambiguous_assessment_skill")
+    return selected, len(inventory)
+
+
 def assess_with_details(root, project, run_id, source_commit, policy, *, runtime_factory=CopilotRuntime, history=(),
-                        telemetry=None):
+                        telemetry=None, assessment_skill_key=None):
     root = Path(root)
     folder = root / "projects" / project["id"]
     row = {
@@ -95,6 +108,10 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
     if adapter not in (None, repositories.EVALUATION_SET):
         row["execution"] = results.axis("configuration_required", "unsupported_adapter")
         return results.validate(row), None, None
+    targets = None
+    if assessment_skill_key is not None:
+        targets, inventory_count = assessment_targets(project["id"], folder, history, assessment_skill_key)
+        row["guide"]["metrics"] = {"skills": inventory_count, "requested": len(targets), "errors": 0}
     reason = None
     if policy.get("enabled") is not True:
         reason = "live_disabled"
@@ -108,8 +125,9 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
     budget = policy["budget"]
     before = budget["calls"]
     try:
-        bundles = skill_guide.discover(folder)
-        if not bundles:
+        if targets is None:
+            targets, inventory_count = assessment_targets(project["id"], folder, history)
+        if not targets:
             images = resolve_images(folder)
             preparation_seconds = min(180, budget["deadline"] - time.monotonic())
             results.require(preparation_seconds > 0, "time_limit")
@@ -138,8 +156,7 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
             except (RuntimeFailure, OSError) as error:
                 check_error = error.code if isinstance(error, RuntimeFailure) else "io_error"
                 prepared = {}
-            for bundle in bundles:
-                key = skill_pipeline.skill_key(project["id"], bundle["path"], history)
+            for bundle, key in targets:
                 identifier = sha256(key.encode()).hexdigest()
                 artifact = runtime.private / "assessments" / run_id / project["id"] / identifier
                 observer = (partial(evaluation_reporting.progress, project["id"], bundle["path"])
@@ -164,10 +181,13 @@ def assess_with_details(root, project, run_id, source_commit, policy, *, runtime
         complete_quality = not failures and all(
             all(item["quality"][arm] is not None and item["quality"][arm]["status"] == "completed"
                 for arm in ("base", "candidate")) for item in assessments)
+        guide_metrics = {"skills": inventory_count, "errors": len(failures)}
+        if assessment_skill_key is not None:
+            guide_metrics["requested"] = len(targets)
         row["guide"] = results.axis(
             "completed" if complete_quality else "blocked",
             "evaluation_completed" if complete_quality else "evaluation_failed",
-            {"skills": len(bundles), "errors": len(failures)},
+            guide_metrics,
         )
         incomplete = failures or any(item["errors"] or item["decision"]["status"] == "unverified" for item in assessments)
         rejected = any(item["decision"]["status"] == "rejected" for item in assessments)
@@ -690,6 +710,8 @@ def main():
     selection.add_argument("--project", help="Evaluate only this catalog project; omitted means the entire catalog.")
     selection.add_argument("--changed-since", help="Evaluate projects affected since this full Git commit.")
     parser.add_argument("--history", type=Path, help="Previously validated results, used for stable Skill identity.")
+    parser.add_argument("--assessment-skill-key",
+                        help="Assess one exact current Skill with fresh quality; requires --project, not recorded work.")
     parser.add_argument("--work-id", help="Select one private recorded development task; never pass its request.")
     parser.add_argument("--skill-key", help="Exact Skill for recorded-work iteration.")
     parser.add_argument("--max-rounds", type=int, choices=range(1, 11))
@@ -698,6 +720,11 @@ def main():
     try:
         results.require(results.matches(results.RUN, args.run_id))
         results.require(results.matches(r"[a-f0-9]{40}", args.source_commit))
+        if args.assessment_skill_key is not None:
+            results.require(args.project is not None and args.changed_since is None,
+                            "assessment_selection_requires_project")
+            results.require(all(value is None for value in (args.work_id, args.skill_key, args.max_rounds)),
+                            "assessment_selection_conflict")
         projects = results.catalog(args.root)
         if args.project is not None:
             projects = [project for project in projects if project["id"] == args.project]
@@ -735,7 +762,7 @@ def main():
             telemetry = []
             row, lifecycle, assessment = assess_with_details(
                 args.root, project, args.run_id, args.source_commit, policy, history=prior.get(project["id"], ()),
-                telemetry=telemetry)
+                telemetry=telemetry, assessment_skill_key=args.assessment_skill_key)
             results.store(args.output, row)
             if lifecycle is not None:
                 results.store_evolution(args.output, lifecycle)
@@ -746,7 +773,7 @@ def main():
             failures += any(row[part]["status"] in ("blocked", "failed") for part in ("guide", "execution"))
             print(json.dumps({"project": project["id"], "guide": row["guide"]["status"],
                               "execution": row["execution"]["status"]}))
-        results.reindex(args.root, args.output)
+        results.reindex(args.root, args.output, identity_history=prior)
         return 2 if failures else 0
     except (RuntimeFailure, OSError) as error:
         code = error.code if isinstance(error, RuntimeFailure) else "io_error"
