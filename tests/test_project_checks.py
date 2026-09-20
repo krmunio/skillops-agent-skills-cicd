@@ -2,6 +2,7 @@ from copy import deepcopy
 from hashlib import sha256
 import json
 import os
+import re
 import socket
 import threading
 from pathlib import Path
@@ -30,6 +31,110 @@ def observation(cases=None, **changes):
 
 
 class ProjectChecksTests(unittest.TestCase):
+    def test_registry_requirements_reject_full_grammar_and_requirements_file_controls(self):
+        invalid = (
+            "pytest --no-binary=pytest", "pytest\t--no-binary=pytest", "pytest  --no-binary pytest",
+            "pytest --prefer-binary", "pytest --no-index", "pytest --trusted-host=example.invalid",
+            "pytest -r requirements.txt", "pytest -c constraints.txt", "pytest -e project",
+            "pytest[extra] (>=1) --no-binary=pytest", "pytest\n--no-binary=pytest",
+            "pytest --only-binary=:none:", "pytest --hash=sha256:abcd",
+            'pytest; python_version == "${VERSION}"',
+            'pytest; platform_release == "value --no-binary=pytest"',
+            "pytest>=", "pytest[", "pytest(foo)", "pytest\x00",
+            "pytest @ https://example.invalid/pytest.whl",
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            for item in invalid:
+                for origin in ("profile", "requirements.txt", "project.dependencies", "legacy-dev"):
+                    with self.subTest(item=item, origin=origin):
+                        for name in ("requirements.txt", "requirements-dev.txt", "pyproject.toml"):
+                            (root / name).unlink(missing_ok=True)
+                        declared = [item] if origin == "project.dependencies" else []
+                        profile = [item] if origin == "profile" else ["pytest"]
+                        metadata = '[project]\ndependencies = ' + json.dumps(declared) + "\n"
+                        if origin != "legacy-dev":
+                            metadata += ('[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = '
+                                         + json.dumps(profile) + "\n")
+                        (root / "pyproject.toml").write_text(metadata)
+                        if origin in ("requirements.txt", "legacy-dev"):
+                            name = "requirements.txt" if origin == "requirements.txt" else "requirements-dev.txt"
+                            (root / name).write_text(item + "\n")
+                        with patch.object(checks, "capture") as run:
+                            for validate in (lambda: checks.validate_dependency_profile(root),
+                                             lambda: checks.dependency_manifest(root, "python")):
+                                with self.assertRaises(RuntimeFailure) as caught:
+                                    validate()
+                                self.assertEqual(caught.exception.code, "unsupported_dependencies")
+                            with self.assertRaises(RuntimeFailure):
+                                with checks.prepared_images(root, {"python": "sha256:" + "a" * 64}):
+                                    self.fail("Unsafe requirements must never reach the resolver")
+                            run.assert_not_called()
+
+    def test_registry_requirements_preserve_supported_extras_versions_and_markers(self):
+        valid = [
+            "pytest", "black==20.8b1", "click == 8.0.4", "requests[security,socks]>=2.0,<3",
+            "demo~=1.4.2", "demo!=1.2.*,>=1.0rc1", "demo==1!2.0+local.1",
+            "demo===opaque-version", "demo====1.0",
+            'demo (>=1.0, <2); python_version < "3.13"',
+            'demo; python_version >= "3.10" and (sys_platform != "win32" or os_name == "nt")',
+            'demo; python_version ~= "3.12"',
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements.txt").write_text("\n".join(valid) + "\n")
+            checks.validate_dependency_profile(root)
+            self.assertEqual(checks.dependency_manifest(root, "python"),
+                             {"requirements.txt": "\n".join(valid) + "\n"})
+
+    def test_missing_or_wrong_parser_version_fails_closed(self):
+        import sys
+        with patch.dict(sys.modules, {"packaging.requirements": None}):
+            with self.assertRaises(RuntimeFailure) as caught:
+                checks._registry_requirements(["pytest"])
+            self.assertEqual(caught.exception.code, "unsupported_dependencies")
+        import packaging
+        with patch.object(packaging, "__version__", "0.0"):
+            with self.assertRaises(RuntimeFailure) as caught:
+                checks._registry_requirements(["pytest"])
+            self.assertEqual(caught.exception.code, "unsupported_dependencies")
+
+    def test_preflight_preserves_selected_profile_and_legacy_restriction_boundaries(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / "test_api.py").write_text("def test_api(): assert True\n")
+            (root / "requirements.txt").write_text("pytest\n")
+            (root / "pyproject.toml").write_text('[project]\ndynamic = ["dependencies"]\n')
+            checks.validate_dependency_profile(root)
+            with self.assertRaises(RuntimeFailure):
+                checks.dependency_manifest(root, "python")
+            (root / "requirements-dev.txt").write_text("pytest --no-binary=pytest\n")
+            (root / "pyproject.toml").write_text(
+                '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytz"]\n')
+            checks.validate_dependency_profile(root)
+            self.assertEqual(checks.dependency_manifest(root, "python"),
+                             {"requirements.txt": "pytest\npytz\n"})
+
+    def test_parser_dependency_is_pinned_bootstrapped_and_fingerprinted(self):
+        import project_results
+        root = Path(__file__).resolve().parents[1]
+        manifest = root / "requirements-evaluator.txt"
+        self.assertTrue(manifest.is_file())
+        self.assertIn("packaging==26.2", manifest.read_text())
+        self.assertIn("--hash=sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+                      manifest.read_text())
+        self.assertIn("requirements-evaluator.txt", project_results.CORE)
+        for name, jobs in (("ci.yml", ("dashboard", "offline-and-container")),
+                           ("project-evaluation.yml", ("contracts", "evaluate"))):
+            text = (root / ".github/workflows" / name).read_text()
+            for job in jobs:
+                body = re.split(r"\n  [A-Za-z0-9_-]+:", text.split("\n  " + job + ":", 1)[1], maxsplit=1)[0]
+                with self.subTest(workflow=name, job=job):
+                    self.assertIn("--only-binary=:all: --require-hashes", body)
+                    self.assertIn("-r requirements-evaluator.txt", body)
+
     def test_pytest_profile_preserves_runtime_dependencies_and_default_merge(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -129,7 +234,7 @@ class ProjectChecksTests(unittest.TestCase):
             self.assertEqual(plan["status"], "partial")
             self.assertEqual(plan["exclusions"], [{"path": "test_shell.sh", "reason": "unsupported_shell_tests"}])
 
-    def test_profile_preflight_checks_selected_runtime_specs_and_preserves_legacy_behavior(self):
+    def test_profile_preflight_checks_runtime_specs_without_changing_legacy_selection(self):
         self.assertTrue(callable(getattr(checks, "validate_dependency_profile", None)))
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
@@ -137,7 +242,8 @@ class ProjectChecksTests(unittest.TestCase):
             (root / "requirements-dev.txt").write_text("unsafe @ file:///unused\n")
             metadata = '[project]\ndependencies = ["runtime @ file:///unsafe"]\n'
             (root / "pyproject.toml").write_text(metadata)
-            checks.validate_dependency_profile(root)
+            with self.assertRaises(RuntimeFailure):
+                checks.validate_dependency_profile(root)
             (root / "pyproject.toml").write_text(metadata + (
                 '[tool.skillops]\ndependency-profile = "pytest"\ntest-dependencies = ["pytest"]\n'))
             with patch.object(checks, "capture") as capture, self.assertRaises(RuntimeFailure) as caught:
