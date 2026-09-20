@@ -21,6 +21,10 @@ on:
         description: 'Optional catalog project ID; empty evaluates the entire catalog'
         type: string
         default: ''
+      assessment_skill_key:
+        description: 'Optional exact current Skill key for fresh assessment; requires project; excludes recorded work'
+        type: string
+        default: ''
       live:
         description: 'Authorize billable execution for this dispatch using configured limits'
         type: boolean
@@ -164,6 +168,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
           PROJECT_ID: ${{ inputs.project }}
+          ASSESSMENT_SKILL_KEY: ${{ inputs.assessment_skill_key }}
           WORK_ID: ${{ inputs.work_id }}
           SKILL_KEY: ${{ inputs.skill_key }}
           MAX_ROUNDS: ${{ inputs.max_rounds }}
@@ -188,6 +193,13 @@ jobs:
             args+=(--changed-since "$BEFORE_SHA")
           elif [ -n "$PROJECT_ID" ]; then
             args+=(--project "$PROJECT_ID")
+          fi
+          if [ -n "$ASSESSMENT_SKILL_KEY" ]; then
+            if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ -z "$PROJECT_ID" ] || [ -n "$WORK_ID$SKILL_KEY$MAX_ROUNDS" ]; then
+              echo "::error::Current Skill assessment requires an explicit project and cannot select recorded work."
+              exit 2
+            fi
+            args+=(--assessment-skill-key "$ASSESSMENT_SKILL_KEY")
           fi
           if [ -n "$WORK_ID$SKILL_KEY$MAX_ROUNDS" ]; then
             if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ -z "$PROJECT_ID" ] || [ -z "$WORK_ID" ] || [ -z "$SKILL_KEY" ] || [ -z "$MAX_ROUNDS" ]; then

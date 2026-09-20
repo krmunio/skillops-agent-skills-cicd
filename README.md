@@ -80,6 +80,15 @@ Each selected Skill gets at most one candidate within the shared run limits. Man
 `--project <id>` selection is unchanged; `--changed-since <full-before-sha>` selects
 affected projects from the checked-out `--source-commit`. The two selectors are mutually
 exclusive. No affected projects means no model evaluation, not a fabricated pass.
+An optional `--assessment-skill-key <canonical-current-key>` with `--project` selects
+one current Skill for a fresh original/generation/candidate quality cycle; the Actions
+input is `assessment_skill_key`. Copy the canonical key from inventory/results and
+use the matching identity history. Default full-project behavior is unchanged;
+subset coverage is explicit, old baselines are not reused, and recorded-work
+`--skill-key` is a separate incompatible mode. Future candidate text failures report
+fixed field/condition codes without response content. See the
+[selection and diagnostic contract](docs/PROJECT-EVALUATION.md#assess-one-current-skill)
+for scope, provenance and separate paid/publication authorization.
 New automatic Skill runs retain report-bound `stage-metrics.json` attachments with
 stage completion, admitted CLI attempts, elapsed time and available usage. Unknown
 usage remains null; the Actions summary distinguishes partial measurements from
