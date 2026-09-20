@@ -160,10 +160,11 @@ and may still block the workflow. No public schema expansion is introduced.
 Future candidate text failures use fixed
 `candidate_<field>_<condition>` codes. Fields are only `instructions`, `hypothesis`
 and `addressed_finding` (an entry in `addressed_findings`). Conditions are only
-`type`, `empty`, `byte_limit` and `control_character`. The unchanged UTF-8 byte
-limits are 16000, 4096 and 160 respectively; LF/TAB remain allowed and other C0
-control characters remain rejected. Other shape, array, unchanged-candidate and
-sensitive-content guards retain their existing behavior.
+`type`, `empty`, `byte_limit` and `control_character`. The instructions limit is
+the frozen original-body allowance below. Hypothesis and individual finding IDs
+retain their raw UTF-8 limits of 4096 and 160 bytes; at most 128 unique finding IDs
+are accepted. LF/TAB remain allowed and other C0 controls remain rejected. Other
+shape, array and sensitive-content guards retain their existing behavior.
 
 Diagnostics contain no input values, excerpts, untrusted field names or raw
 exceptions. Existing private runtime handling is unchanged; no raw response is
@@ -172,6 +173,62 @@ generation stage is `blocked` by validation; no candidate version or candidate
 quality is fabricated in that case. Historical `invalid_skill_assessment` remains
 valid evidence. More specific future codes do not recover the unknown offending
 field in an older response or establish that its root cause has been fixed.
+
+### Original-body allowance and independent admission limits
+
+Both quality-cycle and recorded-work replay generators share this policy:
+
+```text
+B0 = len(frontmatter(initially_admitted_original_SKILL).body.strip().encode("utf-8"))
+C  = len(decoded_instructions.strip().encode("utf-8"))
+0 < B0 <= 32768
+0 < C <= B0
+```
+
+This is **no growth for every Skill**, without a 16000-byte floor. The original
+body is parsed by the existing scalar frontmatter parser (which joins body lines
+with LF); bytes are not character counts, token counts, or JSON-escaped lengths.
+Admission supports LF-delimited frontmatter only: CRLF frontmatter, invalid UTF-8,
+an empty canonical original, or an original above 32768 bytes is rejected before
+runtime construction or original-quality model calls. This independent 32 KiB
+admission ceiling is not an allowance of 32 KiB for each candidate.
+
+Raw response type, nonempty-string and C0-control guards run **before** stripping;
+CR cannot be hidden by outer whitespace. An empty canonical candidate also fails.
+Outer padding cannot enlarge the allowance. A body equal to the current parent's
+canonical body, with or without its final LF, is `unchanged_candidate`.
+Rendering preserves the original frontmatter bytes and every companion file
+byte; no truncation or content rewriting is used to make an oversized candidate
+fit. Replay always anchors its allowance to retained `context.original`, not the
+previous candidate, including after shrinking an intermediate candidate. Supplied
+replay candidates are checked against that same anchor; confirmation isolation,
+task/safety checks, and semantic/efficiency regression gates are unchanged.
+
+Before runtime construction, the selected current scope is checked for known
+generation/quality prompt limits and a conservative complete base-plus-maximum-
+candidate capture reservation. The reservation sums independently serialized
+one-Skill envelopes, retaining base64 content, metadata, frontmatter and
+companions without relying on cross-Skill deduplication. Unselected Skills do
+not consume this reservation. Full inventory/validated-history identity selection
+still runs first. A rejected admission does not create a runtime or retry.
+
+Known admission is **not** a guarantee that future measured findings/checks will
+fit. Actual generation prompts are rechecked before the generator invocation;
+final sidecars and their serialized sizes are checked before public result writes.
+Oversize remains an explicit failure, with no summarization, silent reduction or
+hidden retry. Existing limits remain: 100000 UTF-8 prompt bytes, 48 KiB quality
+evidence batches, 4 MiB runtime transport, 1 MiB ordinary result JSON and 2 MiB
+evolution JSON (including corresponding frontend limits). None is a model-credit,
+cost, completion or whole-workflow-time guarantee.
+
+Historical fixed-16000-byte results remain immutable and valid under their
+original policy. This intentional compatibility change would exceed the
+original-body allowance for 8 of the 13 retained historical B candidates
+(a retained-body comparison, not reconstruction of private raw responses).
+Original captures plus the actual source/evaluator fingerprint reproduce the
+new allowance without a public schema field. New code requires fresh original
+quality; old baseline quality must not be reused or relabeled. Offline boundary
+tests establish neither improved quality nor new live coverage/adoption.
 
 ### Actions stage visibility
 

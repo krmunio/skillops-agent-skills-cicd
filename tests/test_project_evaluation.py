@@ -159,7 +159,7 @@ class ProjectEvaluationTests(unittest.TestCase):
                 return value, captures
             bad = project / ".github/skills/bad/SKILL.md"
             bad.parent.mkdir(parents=True)
-            bad.write_text("invalid")
+            bad.write_text("---\nname: INVALID\ndescription: Invalid name fixture.\n---\nCheck code.")
             def evaluate_one(*args, **kwargs):
                 if args[3]["path"].endswith("/bad"):
                     raise m.RuntimeFailure("invalid_skill_name", "Invalid Skill name.")
@@ -214,7 +214,8 @@ class TargetedQualityTests(unittest.TestCase):
         for name in ("develop", "review"):
             path = self.project / f".github/skills/{name}/SKILL.md"
             path.parent.mkdir(parents=True)
-            path.write_text(f"---\nname: {name}\ndescription: Check code safely.\n---\nOriginal {name}.\n")
+            path.write_text(f"---\nname: {name}\ndescription: Check code safely.\n---\n"
+                            f"Original {name}. Inspect relevant code and existing tests before making the requested change.\n")
         (self.root / "eval").mkdir()
         (self.root / "eval/skill-guide-rubric.json").write_text('{"dimensions":["workflow_clarity"]}')
         self.raw = MagicMock(project=self.root, cli="/offline/copilot", env={})
