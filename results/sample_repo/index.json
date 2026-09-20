@@ -1,6 +1,15 @@
 {
   "history": [
     {
+      "created_at": "2026-09-20T02:28:18.638958+00:00",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "35483564903-1/report.json",
+      "run_id": "35483564903-1"
+    },
+    {
       "created_at": "2026-09-19T16:15:11.131861+00:00",
       "execution_status": "blocked",
       "guide_status": "blocked",
@@ -588,7 +597,7 @@
     }
   ],
   "project": {
-    "current_run": null,
+    "current_run": "35483564903-1",
     "detected_skills": [
       {
         "display_name": "develop",
@@ -596,7 +605,7 @@
         "source_path": ".github/skills/develop"
       }
     ],
-    "history_count": 43,
+    "history_count": 44,
     "id": "sample_repo",
     "index": "sample_repo/index.json",
     "skill_discovery_error": null,
