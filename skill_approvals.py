@@ -116,15 +116,17 @@ def _write(path, value, *, immutable=True):
     _require(_read(path) == value, "local_write_unverified")
 
 
-def _environment(folder, *, create=False):
+def _environment(folder, *, create=False, durable=True):
+    _require(durable or not create, "readonly_approval_store")
     path = folder / "environment.json"
     info = folder.stat()
     binding = {
         "root": str(folder.resolve()), "device": info.st_dev, "inode": info.st_ino,
         "uid": os.getuid(), "hostname": socket.gethostname(),
     }
-    if not path.exists() and not path.is_symlink():
-        _require(not any((folder / name).exists() or (folder / name).is_symlink()
+    present = (lambda entry: entry.exists() or entry.is_symlink()) if durable else repositories._present
+    if not present(path):
+        _require(not any(present(folder / name)
                          for name in ("approvals", "executions", "active.json")), "missing_local_environment")
         if not create:
             return None
@@ -137,12 +139,13 @@ def _environment(folder, *, create=False):
              and project_results.matches(project_results.ID, value["environment_id"]), "invalid_local_environment")
     _require(all(type(value[key]) is type(expected) and value[key] == expected
                  for key, expected in binding.items()), "local_environment_mismatch")
-    _fsync_directory(folder)
-    _fsync_directory(folder.parent)
+    if durable:
+        _fsync_directory(folder)
+        _fsync_directory(folder.parent)
     return value["environment_id"]
 
 
-def _approval(folder, environment, approval_id):
+def _approval(folder, environment, approval_id, *, durable=True):
     _require(project_results.matches(project_results.ID, approval_id))
     value = _read(folder / "approvals" / (approval_id + ".json"))
     evolution.exact(value, APPROVAL_FIELDS)
@@ -161,7 +164,8 @@ def _approval(folder, environment, approval_id):
     evolution.timestamp(value["approved_at"])
     binding = {key: item for key, item in value.items() if key not in ("approval_id", "approved_at")}
     _require(approval_id == "approval-" + _digest(binding)[:48], "approval_binding_mismatch")
-    _fsync_directory(folder / "approvals")
+    if durable:
+        _fsync_directory(folder / "approvals")
     return value
 
 
@@ -195,9 +199,10 @@ def _execution(value, approval):
     return value
 
 
-def _active(folder, environment):
+def _active(folder, environment, *, durable=True):
     path = folder / "active.json"
-    if not path.exists() and not path.is_symlink():
+    present = path.exists() or path.is_symlink() if durable else repositories._present(path)
+    if not present:
         return {"schema_version": 1, "environment_id": environment, "selections": {}}
     value = _read(path)
     evolution.exact(value, "schema_version environment_id selections")
@@ -214,14 +219,15 @@ def _active(folder, environment):
             receipt = _read(folder / "executions" / (pointer["execution_id"] + ".json"))
             _require(_digest(receipt) == pointer["execution_sha256"], "changed_active_receipt")
             _require(isinstance(receipt, dict) and "approval_id" in receipt, "invalid_active")
-            approval = _approval(folder, environment, receipt["approval_id"])
+            approval = _approval(folder, environment, receipt["approval_id"], durable=durable)
             _execution(receipt, approval)
             _require(receipt["execution_id"] == pointer["execution_id"] and receipt["status"] == "verified"
                      and receipt["project_id"] == project_id and receipt["skill_key"] == skill_key, "invalid_active")
     # A visible replace is not durable until its directory has been synchronized.
-    if value["selections"]:
-        _fsync_directory(folder / "executions")
-    _fsync_directory(folder)
+    if durable:
+        if value["selections"]:
+            _fsync_directory(folder / "executions")
+        _fsync_directory(folder)
     return value
 
 
@@ -353,6 +359,54 @@ def _evidence(root, *, project_id, skill_key, candidate_version_id, cycle_id, ev
     _require(project_results.evaluator_hash(root) == source["evaluator_sha256"], "approval_evaluator_changed")
     return {"source_path": cycle["source_path"], "source_commit": source["source_commit"],
             "project_tree_sha256": source["project_tree_sha256"]}, selected
+
+
+def preflight(root, *, project_id, skill_key, candidate_version_id, cycle_id, evidence_sha256, results):
+    """Return a private, non-reserving observation; never initialize or authorize use."""
+    report = {
+        "schema_version": 1, "status": "blocked", "trust_scope": "local_private",
+        "observation_only": True, "reserved": False, "approval_revalidates": True,
+        "active_changed": False, "model_calls": 0, "active": {"state": "unknown"}, "blockers": [],
+    }
+    try:
+        _local_only()
+        _identity(project_id, skill_key)
+        _version(candidate_version_id)
+        _require(project_results.matches(project_results.RUN, cycle_id)
+                 and evolution.matches(evolution.DIGEST, evidence_sha256))
+        root = project_results.safe_path(root)
+        results = project_results.safe_path(results)
+        report.update(target={"root": str(root), "project_id": project_id, "skill_key": skill_key},
+                      binding={"candidate_version_id": candidate_version_id, "cycle_id": cycle_id,
+                               "evidence_sha256": evidence_sha256}, results_path=str(results))
+        operator = _operator()
+        with repositories._readonly_state(root) as folder:
+            environment, active = None, None
+            observed = _pair(None, None)
+            if folder is not None:
+                environment = _environment(folder, durable=False)
+                active = _active(folder, environment, durable=False)
+                observed = _active_snapshot(folder, active, project_id, skill_key)
+            source, _ = _evidence(root, project_id=project_id, skill_key=skill_key,
+                                  candidate_version_id=candidate_version_id, cycle_id=cycle_id,
+                                  evidence_sha256=evidence_sha256, results=results)
+            if folder is not None:
+                _require(_environment(folder, durable=False) == environment, "local_environment_mismatch")
+                current = _active(folder, environment, durable=False)
+                _require(current == active
+                         and _active_snapshot(folder, current, project_id, skill_key) == observed, "active_conflict")
+            _require(_operator() == operator, "local_identity_changed")
+        report["binding"].update(source)
+        report.update(status="eligible", store_state="absent" if folder is None else "present",
+                      environment_state="uninitialized" if environment is None else "initialized",
+                      active={"state": "absent" if observed["version_id"] is None else "present", **observed})
+    except RuntimeFailure as error:
+        report["blockers"] = [error.code]
+    except KeyError:
+        report["blockers"] = ["local_identity_unavailable"]
+    except OSError:
+        report["blockers"] = ["io_error"]
+    return report
 
 
 def approve(root, *, project_id, skill_key, candidate_version_id, cycle_id,

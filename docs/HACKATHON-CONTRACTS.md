@@ -400,6 +400,72 @@ evaluation agents and automatic pipelines must never execute it. An agent may
 display the exact command for review, but user authorization to implement this
 feature is not authorization to approve a candidate.
 
+### Read-only local approval preflight
+
+Replace every angle-bracket placeholder with the exact local evidence binding:
+
+```text
+python3 -B skillops.py approval-preflight \
+  --project <project-id> --skill-key <skill-key> \
+  --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
+  --evidence-sha256 <cycle-file-sha256> --results <local-results-directory>
+```
+
+This noninteractive local command runs before `CopilotRuntime` construction and
+uses the **same `_evidence` validator as `approve`**: complete transitive evidence,
+private recorded WorkItems, current source/evaluator, selected complete bundle,
+development improvement and isolated passed live confirmation remain required.
+`offline_test`/sample passed confirmation is not eligible. CI/Actions are refused.
+`--results` is an input directory, not an output destination. There is no
+`--latest`, `--live`, publication, initialization or approval option.
+
+Exit **0** means `status: eligible`, not approved, reserved or durably adopted.
+Exit **2** means `status: blocked` with validator codes in `blockers` (parser usage
+errors also exit 2). The private JSON observation contains:
+
+- `trust_scope: local_private`, `observation_only: true`, `reserved: false`,
+  `approval_revalidates: true`, `active_changed: false`, `model_calls: 0`;
+- exact target root/project/Skill, candidate/cycle/evidence binding and results
+  path; eligible bindings additionally include source path/commit/tree hash;
+- eligible `store_state` and `environment_state`, separately from `active.state`;
+- a verified local Active version/receipt-hash pair, or a positively observed
+  absent pair. Failed validation leaves `active.state: unknown`, never an
+  invented null/null pair;
+- **only when eligible**, `approval_argv`: a local Python `-B` argv array for the
+  exact separate `approve` operation, including both `--expected-active-*` values.
+  Paths with spaces remain single arguments; this is not a shell command string.
+
+First use does not require prior registry registration or initialization. A
+positively observed missing store, or an empty owner-only store without a lock,
+can be eligible after all evidence checks. An existing locked store may have no
+`registry.json` and no environment yet. Missing environment is accepted only
+without approvals/executions/Active state. Existing records without their lock,
+partial adoption state without its environment, inaccessible/malformed/symlink
+state, unknown local operator and lock contention block rather than becoming
+absence. Only confirmed target Active absence generates `none`/`none`.
+
+Existing locks are opened read-only and shared; no lock is created. Store
+identity and registry content, environment, Active and operator are checked for
+observed changes during validation. Nothing is initialized, approved, executed
+or published: no private profile, directory, receipt or Active write and no
+`fsync`. Preflight therefore does not establish durability. The observation can
+become stale immediately after it returns. Actual interactive `approve` still
+revalidates evidence and the version-plus-receipt pair under its existing lock
+with existing durability checks; changes and ABA remain conflicts.
+
+The JSON and argv are **private local output**, not a public result/adoption
+record. No public schema, publisher or web UI consumes them. Do not paste target
+paths or private receipt hashes into public artifacts or logs. Operator identity,
+environment ID and WorkItem content are not output. `-B` prevents bytecode writes;
+it does not prevent an operator from redirecting stdout to an unsafe destination.
+
+Current HEAD and evaluator fingerprint requirements are unchanged. Changing
+preflight/CLI/approval code changes the evaluator fingerprint and can invalidate
+older evidence. Obtain evidence for the intended code version separately; never
+rewrite old report hashes or bypass validation to make historical evidence pass.
+
+### Separate interactive approval
+
 The following local approval command is implemented by `skillops.py`; its
 interactive boundary delegates all evidence/state validation to session 4's
 `skill_approvals.approve`. Approval alone does not complete the still-separate
