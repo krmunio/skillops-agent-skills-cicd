@@ -7,13 +7,9 @@ on:
     branches: [main]
     paths:
       - 'projects/**'
-      - 'project_profiles.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - '*.py'
+      - 'skillops/**'
       - 'eval/**'
       - 'skills/**'
-      - 'dashboard/**'
       - '.github/workflows/project-evaluation.yml'
   workflow_dispatch:
     inputs:
@@ -57,6 +53,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONPATH: ${{ github.workspace }}/skillops
+
 concurrency:
   group: skillops-project-evaluation-${{ github.ref }}
   cancel-in-progress: false
@@ -84,34 +83,34 @@ jobs:
           python-version: '3.12'
       - name: Install hash-pinned evaluator parser
         run: |
-          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
+          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r skillops/requirements-evaluator.txt
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
       - name: Install locked native CLI for non-model isolation probes
         run: |
-          npm ci --no-audit --no-fund
-          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+          npm --prefix skillops ci --no-audit --no-fund
+          echo "$PWD/skillops/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Prepare pinned Python image for actual container controls
         run: |
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
           docker tag python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea python:3.12-slim
           docker pull node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
           docker tag node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 node:22-slim
-      - run: python3 -m unittest discover -s tests -p 'test_*.py' -v
-      - run: python3 project_results.py catalog
+      - run: python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
+      - run: python3 skillops/project_results.py catalog
       - name: Verify actual sample reports with model execution disabled
         env:
           SKILLOPS_LIVE_EVALUATION_ENABLED: 'false'
         run: |
           cp -R results ci-sample-results
           set +e
-          python3 project_evaluation.py --output ci-sample-results --run-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --source-commit "$(git rev-parse HEAD)"
+          python3 skillops/project_evaluation.py --output ci-sample-results --run-id "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" --source-commit "$(git rev-parse HEAD)"
           assessment_status=$?
           set -e
           test "$assessment_status" -eq 2
-          python3 project_results.py validate --results ci-sample-results
-          SKILLOPS_SAMPLE_REPORTS_DIR=ci-sample-results python3 -m unittest discover -s tests -p 'test_project_sample_integration.py' -v
+          python3 skillops/project_results.py validate --results ci-sample-results
+          SKILLOPS_SAMPLE_REPORTS_DIR=ci-sample-results python3 -m unittest discover -s skillops/tests -p 'test_project_sample_integration.py' -v
           printf 'Sample report contracts verified. Guide assessment remains blocked; live model execution was disabled.\n' >> "$GITHUB_STEP_SUMMARY"
       - name: Retain validated non-model onboarding evidence separately
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -146,7 +145,7 @@ jobs:
           python-version: '3.12'
       - name: Install hash-pinned evaluator parser
         run: |
-          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
+          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r skillops/requirements-evaluator.txt
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -159,13 +158,13 @@ jobs:
       - name: Install pinned runtime only for enabled live evaluation
         if: vars.SKILLOPS_LIVE_EVALUATION_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && inputs.live)
         run: |
-          npm ci --no-audit --no-fund
+          npm --prefix skillops ci --no-audit --no-fund
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
           docker tag python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea python:3.12-slim
           docker pull node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5
           docker tag node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 node:22-slim
           docker image inspect python:3.12-slim node:22-slim --format '{{.Id}}'
-          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
+          echo "$PWD/skillops/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Assess projects or record explicit blocked prerequisites
         id: assess
         env:
@@ -217,7 +216,7 @@ jobs:
               args+=(--live)
             fi
           fi
-          python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
+          python3 skillops/project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
       - name: Summarize baseline and project evaluation
         if: always()
         env:
@@ -226,12 +225,12 @@ jobs:
           WORK_ID: ${{ inputs.work_id }}
         run: |
           if [ -n "$WORK_ID" ]; then
-            python3 project_results.py validate --results ci-results
+            python3 skillops/project_results.py validate --results ci-results
             printf 'Recorded development iteration uses public result references only. No local approval or Active transition was authorized by this dispatch.\n' >> "$GITHUB_STEP_SUMMARY"
           elif [ "$SELECTED_PROJECTS" = "0" ]; then
             printf '## SkillOps evaluation\n\nNo changed projects selected; no model evaluation ran and no assessment result was fabricated.\n' >> "$GITHUB_STEP_SUMMARY"
           else
-            python3 evaluation_reporting.py --results ci-results --run-id "$RESULT_RUN" >> "$GITHUB_STEP_SUMMARY"
+            python3 skillops/evaluation_reporting.py --results ci-results --run-id "$RESULT_RUN" >> "$GITHUB_STEP_SUMMARY"
           fi
       - name: Retain public-safe reports, including blocked outcomes
         if: always()
@@ -281,13 +280,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 project_results.py validate --results ci-results
+          python3 skillops/project_results.py validate --results ci-results
           for attempt in 1 2 3 4 5; do
             git -C .results-worktree fetch origin evaluation-results
             target="$RUNNER_TEMP/results-attempt-$attempt"
             git -C .results-worktree worktree add --detach "$target" FETCH_HEAD
-            python3 project_results.py merge-samples --results "$target/results"
-            python3 project_results.py merge --incoming ci-results --results "$target/results"
+            python3 skillops/project_results.py merge-samples --results "$target/results"
+            python3 skillops/project_results.py merge --incoming ci-results --results "$target/results"
             git -C "$target" add -- results
             if git -C "$target" diff --cached --quiet; then
               exit 0
@@ -325,11 +324,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
-      - run: npm ci --no-audit --no-fund
-      - run: python3 project_results.py build --results .results-worktree/results --output .dashboard-public/site
+      - run: npm --prefix skillops ci --no-audit --no-fund
+      - run: python3 skillops/project_results.py build --results .results-worktree/results --output .dashboard-public/site
       - name: Deploy only static assets and validated public results
         env:
           SWA_CLI_DEPLOYMENT_TOKEN: ${{ secrets.SKILLOPS_SWA_DEPLOYMENT_TOKEN }}
         run: |
           test -n "$SWA_CLI_DEPLOYMENT_TOKEN" || { echo "::error::SWA deployment secret is missing."; exit 1; }
-          npx swa deploy .dashboard-public/site --env production
+          skillops/node_modules/.bin/swa deploy .dashboard-public/site --env production

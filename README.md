@@ -9,6 +9,30 @@ Self-Evolving Agent SkillOps connects observed problems, proposed instruction ch
 versioned evaluations and project regression evidence. "Self-evolving" means generating and
 evaluating candidates, not silently rewriting or deploying the original Skill.
 
+## Repository layout and commands
+
+Application code, dashboard assets, tests, locked npm dependencies, evaluator
+requirements, profiles and templates live in `skillops/`. Commands below run
+from the repository root, for example `python3 skillops/skillops.py --help`.
+From the application directory, use `python3 skillops.py --help` or
+`python3 project_results.py catalog`; no Python package installation is needed.
+Run browser tests with `npm --prefix skillops run test:dashboard` from the root,
+or `npm run test:dashboard` from `skillops/`.
+
+`projects/`, `results/`, `.skillops/`, `.skillops-private/` and `runs/` remain
+repository-root resources regardless of the invocation directory. Explicit
+relative CLI paths still resolve from the caller's working directory; from
+`skillops/`, use `--results ../results`, for example. `--root`, where available,
+selects a repository/data root, not the application directory. Omitted results
+paths resolve under that root.
+
+`eval/` and `skills/` retain protected benchmark inputs and seed Skill paths;
+`evidence/` and `publication-candidates/` retain historical/reviewed data.
+Relocation changes evaluator fingerprints, not project identities or historical
+bytes. Old results remain readable as history; an old calibration or approval
+does not become current evidence under the relocated evaluator. No root command
+wrappers are provided: update callers to the explicit `skillops/` entrypoints.
+
 ## Improvement loop
 
 ```text
@@ -73,7 +97,7 @@ is required. Missing supported checks or a suitable work item leaves execution e
 Model-backed workflow execution still requires explicit settings and authentication.
 Actions log groups and the run summary distinguish Anthropic baseline quality,
 APO-inspired evidence linkage, and project regression checks. Inspect saved evidence
-without model calls using `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`.
+without model calls using `python3 skillops/evaluation_reporting.py --results results --run-id <saved-run-id>`.
 These are presentation changes, not independent evaluator jobs or an APO score.
 Main pushes select added/changed projects; shared evaluator changes select the catalog.
 Each selected Skill gets at most one candidate within the shared run limits. Manual
@@ -116,7 +140,7 @@ WorkItem and fixed original Skill. It does not replace the existing automatic
 single-candidate path:
 
 ```bash
-python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+python3 skillops/skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
   --work-item <private-development-json> --results <replay-results-directory>
 ```
 
@@ -145,7 +169,7 @@ their results `offline_test`, never measured model improvement.
 ### Bounded development iteration and offline demo
 
 ```bash
-python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
+python3 skillops/skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
   --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
   --confirmation-disclosure <private-reviewed-disclosure-json> \
   --max-rounds 2 --results <iteration-results-directory>
@@ -180,7 +204,7 @@ First inspect one exact binding without initializing local approval state
 (replace every `<...>` placeholder):
 
 ```bash
-python3 -B skillops.py approval-preflight \
+python3 -B skillops/skillops.py approval-preflight \
   --project '<project-id>' --skill-key '<skill-key>' \
   --candidate-version 'sha256:<full-bundle-hash>' --cycle '<cycle-id>' \
   --evidence-sha256 '<cycle-file-sha256>' --results '<local-results-directory>'
@@ -210,7 +234,7 @@ and evidence hashes. CI/Actions, piped input and missing predecessor fields are
 rejected. Both `none` values mean explicitly no prior Active, never a wildcard.
 
 ```bash
-python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+python3 skillops/skillops.py approve --project <project-id> --skill-key <skill-key> \
   --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
   --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
   --expected-active-execution-sha256 none --results <results-directory>
@@ -236,7 +260,7 @@ returns an explicit publication error; it never changes Active.
 ### Separately authorized next execution
 
 ```bash
-python3 skillops.py run-approved --project <project-id> --skill-key <skill-key> \
+python3 skillops/skillops.py run-approved --project <project-id> --skill-key <skill-key> \
   --approval <approval-id> --candidate-version sha256:<full-bundle-hash> \
   --evidence-sha256 <cycle-file-sha256> --work-item <new-private-work-json> \
   --results <results-directory>
@@ -273,7 +297,7 @@ No secret configuration or live dispatch is performed by the implementation.
 
 ### Publish existing reviewed results without evaluation
 
-`reviewed_publication.py` and the separate manual `publish-reviewed-results.yml`
+`skillops/reviewed_publication.py` and the separate manual `publish-reviewed-results.yml`
 reuse the existing immutable merge/index/build and static deployment path without
 calling evaluation, approval or approved execution. Default behavior is
 **validation only**. Trusted code commit, same-repository data commit and public
@@ -292,10 +316,10 @@ For a **no-paid-calls terminal demo/backup**, use a clean committed integration
 checkout and a new output directory:
 
 ```bash
-SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 tests/export_iteration_evidence.py \
+SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 skillops/tests/export_iteration_evidence.py \
   --output /tmp/skillops-iterate-demo
 python3 -m json.tool /tmp/skillops-iterate-demo/manifest.json
-python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
+python3 skillops/project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
 ```
 
 The exporter runs production provider/loop/storage modules with synthetic inputs
@@ -314,9 +338,9 @@ generated `n2-feedback` directory into a new results directory, then use the
 official build (never copy private runtime directories):
 
 ```bash
-python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
-python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
-python3 project_results.py build --results <demo-results> --output <new-site>
+python3 skillops/project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 skillops/project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 skillops/project_results.py build --results <demo-results> --output <new-site>
 python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
 ```
 
@@ -334,9 +358,9 @@ Retain screenshots and a file-openable gallery as a no-server backup.
 - `projects/project-b`: pinned `obra/superpowers` v6.3.0 source with its existing skills preserved.
 
 ```bash
-python3 project_samples.py verify --project project-a  # Expected source_mismatch: declared preparation overlay
-python3 project_samples.py verify --project project-b
-python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
+python3 skillops/project_samples.py verify --project project-a  # Expected source_mismatch: declared preparation overlay
+python3 skillops/project_samples.py verify --project project-b
+python3 skillops/project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
 ```
 
 The portable helper imports public commit-pinned archives into unused project
@@ -394,16 +418,16 @@ recorded evidence; it does not install or deploy a skill.
 Requirements: Linux, Python 3.12+, Git, an installed and authenticated GitHub
 Copilot CLI with access to the chosen model, and a running Docker daemon.
 The evaluator uses the hash-pinned `packaging` requirement parser declared in
-`requirements-evaluator.txt`; other Python dependencies are standard-library modules.
+`skillops/requirements-evaluator.txt`; other Python dependencies are standard-library modules.
 Install it in a local virtual environment before running evaluator checks or project
 dependency preparation. Missing or different parser versions fail closed.
 
 ```bash
 python3 -m venv .venv
 . .venv/bin/activate
-python3 -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-python3 skillops.py doctor
+python3 -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r skillops/requirements-evaluator.txt
+PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
+python3 skillops/skillops.py doctor
 ```
 
 `doctor` makes no model calls and does not claim authentication is working.
@@ -422,7 +446,7 @@ not a mutable tag. Image, CLI or evaluation-input changes invalidate calibration
 Authenticate from your terminal:
 
 ```bash
-python3 skillops.py login
+python3 skillops/skillops.py login
 ```
 
 This uses a project-owned private Copilot profile, not your personal profile.
@@ -436,7 +460,7 @@ supported, but never copied into a report or printed.
 ## Live conformance probe
 
 ```bash
-python3 skillops.py probe --model gpt-6-astra
+python3 skillops/skillops.py probe --model gpt-6-astra
 ```
 
 This invokes the model and can consume Copilot usage. It requests no tools,
@@ -464,8 +488,8 @@ size-dependent skill-guide judge calls described below.
 There are no automatic model retries or silent output repairs.
 
 ```bash
-python3 skillops.py calibrate --model gpt-6-astra
-python3 skillops.py baseline --model gpt-6-astra
+python3 skillops/skillops.py calibrate --model gpt-6-astra
+python3 skillops/skillops.py baseline --model gpt-6-astra
 ```
 
 Calibration checks authored correct, defective and instruction-in-data controls
@@ -610,9 +634,9 @@ ceiling; it is not a claim that the development skill improved.
 ## Generate and compare a skill candidate
 
 ```bash
-python3 skillops.py propose --baseline BASELINE_RUN_ID --model gpt-6-astra
-python3 skillops.py calibrate --model gpt-6-astra
-python3 skillops.py compare --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py propose --baseline BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py calibrate --model gpt-6-astra
+python3 skillops/skillops.py compare --candidate CANDIDATE_RUN_ID --model gpt-6-astra
 ```
 
 Use the generated run IDs, not filesystem paths. The baseline must exist locally;
@@ -700,9 +724,9 @@ the models. It adds no spending cap and does not change the selection policy.
 These commands are offline: they require neither Copilot authentication nor Docker.
 
 ```bash
-python3 skillops.py register --repository sample --path projects/sample_repo \
+python3 skillops/skillops.py register --repository sample --path projects/sample_repo \
   --skill develop --evaluation-set issue-management-v2
-python3 skillops.py repositories
+python3 skillops/skillops.py repositories
 ```
 
 Registration stores an immutable snapshot of the current engine
@@ -722,11 +746,11 @@ arbitrary test command, or support other languages automatically.
 For an **explicitly approved live evaluation**, use the registered ID:
 
 ```bash
-python3 skillops.py calibrate --repository sample --model gpt-6-astra
-python3 skillops.py baseline --repository sample --model gpt-6-astra
-python3 skillops.py propose --baseline BOUND_BASELINE_RUN_ID --model gpt-6-astra
-python3 skillops.py compare --repository sample --candidate CANDIDATE_RUN_ID --model gpt-6-astra
-python3 skillops.py eligibility --repository sample --comparison COMPARISON_RUN_ID
+python3 skillops/skillops.py calibrate --repository sample --model gpt-6-astra
+python3 skillops/skillops.py baseline --repository sample --model gpt-6-astra
+python3 skillops/skillops.py propose --baseline BOUND_BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py compare --repository sample --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py eligibility --repository sample --comparison COMPARISON_RUN_ID
 ```
 
 The first four commands call the model; `eligibility` does not. Generation inherits
@@ -779,10 +803,10 @@ Judge process separation also does not eliminate shared-model bias.
 
 ```bash
 # Offline runner tests; no installed Copilot, model calls or Docker needed.
-python3 -m unittest discover -s tests -p 'test_*.py' -v
+PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 
 # Also execute container positive/negative controls; requires the image.
-SKILLOPS_CONTAINER_TESTS=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
+SKILLOPS_CONTAINER_TESTS=1 PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 ```
 
 The dedicated profile is serialized by a nonblocking lock. Temporary developer
