@@ -1239,7 +1239,7 @@ def build(root, results, output):
         require(match[2] in modules, "invalid_dashboard_import")
         return f"{match[1]}./{modules[match[2]]}{match[3]}"
 
-    for name in ("views.js", "evolution.js", "assessments.js", "trace.js", "app.js"):
+    for name in ("i18n.js", "views.js", "evolution.js", "assessments.js", "trace.js", "app.js"):
         source = read_bytes(root / "skillops/dashboard" / name).decode("utf-8")
         raw = re.sub(r"(?m)^(\s*import\b[^;]*?\bfrom\s*['\"])\./([^'\"]+\.js)(['\"])",
                      rewrite_import, source).encode("utf-8")

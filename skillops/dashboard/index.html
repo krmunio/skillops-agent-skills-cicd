@@ -1,100 +1,108 @@
 <!doctype html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="자가 진화 에이전트 스킬옵스: 프로젝트별 Skill 품질, 개선 근거와 실행 결과를 구분하는 대시보드">
-  <title>Self-Evolving Agent SkillOps · 자가 진화 에이전트 스킬옵스</title>
+  <meta name="description" content="Self-Evolving Agent SkillOps: a dashboard separating project Skill quality, improvement evidence and execution results" data-i18n-content="자가 진화 에이전트 스킬옵스: 프로젝트별 Skill 품질, 개선 근거와 실행 결과를 구분하는 대시보드">
+  <title data-i18n="Self-Evolving Agent SkillOps · 자가 진화 에이전트 스킬옵스">Self-Evolving Agent SkillOps</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" type="module"></script>
 </head>
 <body>
-  <a class="skip" href="#main">평가 결과로 이동</a>
+  <a class="skip" href="#main"><span data-i18n="평가 결과로 이동">Skip to evaluation results</span></a>
   <header class="site-header">
-    <a class="brand" href="/" aria-label="Self-Evolving Agent SkillOps">
+    <a class="brand" href="/" aria-label="Self-Evolving Agent SkillOps" data-i18n-aria-label="자가 진화 에이전트 스킬옵스">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none" focusable="false"><path d="M8 13V8h16m0 0-5-5m5 5-5 5M24 19v5H8m0 0 5-5m-5 5 5 5" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      <span class="brand-full" aria-hidden="true"><span class="brand-name">SkillOps</span><span class="brand-description">Self-Evolving Agent</span></span>
+      <span class="brand-full" aria-hidden="true"><span class="brand-name">SkillOps</span><span class="brand-description" data-i18n="자가 진화 에이전트">Self-Evolving Agent</span></span>
       <span class="brand-short" aria-hidden="true">SkillOps</span>
     </a>
-    <span class="header-caption">자가 진화 에이전트 스킬옵스</span>
-    <div class="header-actions"><span class="readonly">공개 기록 · 읽기 전용</span><button id="refresh" type="button"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M16 8a6 6 0 1 0 .1 4M16 4v4h-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>새로고침</button></div>
+    <span class="header-caption"><span data-i18n="자가 진화 에이전트 스킬옵스">Self-Evolving Agent SkillOps</span></span>
+    <div class="header-actions">
+      <label class="language-control" for="language-select"><span data-i18n="언어">Language</span>
+        <select id="language-select"><option value="en" lang="en">English</option><option value="ko" lang="ko">한국어</option></select>
+      </label>
+      <span class="readonly"><span data-i18n="공개 기록 · 읽기 전용">Public records · Read-only</span></span>
+      <button id="refresh" type="button"><svg viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false"><path d="M16 8a6 6 0 1 0 .1 4M16 4v4h-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span data-i18n="새로고침">Refresh</span></button>
+    </div>
   </header>
+  <p id="language-status" role="status" hidden></p>
   <div class="workspace">
-    <aside aria-label="프로젝트 선택">
+    <aside aria-label="Select a project" data-i18n-aria-label="프로젝트 선택">
       <div class="sidebar-inner">
-        <span class="sidebar-caption" aria-hidden="true">WORKSPACE</span>
-        <h2>프로젝트 <span id="project-count"></span><span class="project-scroll-hint" aria-hidden="true" hidden>옆으로 이동 →</span></h2>
-        <div class="project-picker"><div id="projects"><p class="muted">목록을 불러오는 중입니다.</p></div></div>
+        <span class="sidebar-caption" aria-hidden="true" data-i18n="작업 공간">WORKSPACE</span>
+        <h2><span data-i18n="프로젝트">Project</span> <span id="project-count"></span><span class="project-scroll-hint" aria-hidden="true" hidden><span data-i18n="옆으로 이동 →">Scroll sideways →</span></span></h2>
+        <div class="project-picker"><div id="projects"><p class="muted"><span data-i18n="목록을 불러오는 중입니다.">Loading the list.</span></p></div></div>
         <div class="sample-entry">
         <details id="offline-examples">
-          <summary>오프라인 예제</summary>
-          <p>세션 1이 확정한 생산 모듈의 offline_test 기록입니다. 현재 실측 결과·승인 가능한 후보가 아닙니다. 명시적으로 선택한 예제만 열며, 게시 근거가 없으면 오류를 표시합니다.</p>
-          <p><a href="/?project=sample_repo&amp;run=local-20260918T094535Z-b9a681f6cfb2&amp;skill=path%3A90ae807bd3d394fc140a6df8">N=2 · 최종 확인 미검증</a></p>
-          <p><a href="/?project=sample_repo&amp;run=local-20260918T094533Z-f6297a587afc&amp;skill=path%3A90ae807bd3d394fc140a6df8">최종 확인 통과 · 승인 불가</a></p>
-          <p><a href="/?project=sample_repo&amp;run=local-20260918T094534Z-bcba9c0a589e&amp;skill=path%3A90ae807bd3d394fc140a6df8">최종 확인 실패</a></p>
-          <p>생산 근거: PR #38 · b8dade4. 실제 평가 이력·아래 합성 화면 예시와 구분합니다.</p>
+          <summary><span data-i18n="오프라인 예제">Offline examples</span></summary>
+          <p><span data-i18n="세션 1이 확정한 생산 모듈의 offline_test 기록입니다. 현재 실측 결과·승인 가능한 후보가 아닙니다. 명시적으로 선택한 예제만 열며, 게시 근거가 없으면 오류를 표시합니다.">offline_test records from the production module finalized in session 1. Not current measurements or approval-eligible candidates. Examples open only when explicitly selected; missing published evidence is an error.</span></p>
+          <p><a href="/?project=sample_repo&amp;run=local-20260918T094535Z-b9a681f6cfb2&amp;skill=path%3A90ae807bd3d394fc140a6df8"><span data-i18n="N=2 · 최종 확인 미검증">N=2 · Confirmation unverified</span></a></p>
+          <p><a href="/?project=sample_repo&amp;run=local-20260918T094533Z-f6297a587afc&amp;skill=path%3A90ae807bd3d394fc140a6df8"><span data-i18n="최종 확인 통과 · 승인 불가">Confirmation passed · Ineligible for approval</span></a></p>
+          <p><a href="/?project=sample_repo&amp;run=local-20260918T094534Z-bcba9c0a589e&amp;skill=path%3A90ae807bd3d394fc140a6df8"><span data-i18n="최종 확인 실패">Confirmation failed</span></a></p>
+          <p><span data-i18n="생산 근거: PR #38 · b8dade4. 실제 평가 이력·아래 합성 화면 예시와 구분합니다.">Production evidence: PR #38 · b8dade4. Separate from actual evaluation history and the synthetic UI example below.</span></p>
         </details>
-        <span class="eyebrow">화면 둘러보기</span>
-        <button id="demo-open" type="button" aria-pressed="false">샘플 화면 보기</button>
-        <p class="sample-description">가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
+        <span class="eyebrow"><span data-i18n="화면 둘러보기">Explore the UI</span></span>
+        <button id="demo-open" type="button" aria-pressed="false"><span data-i18n="샘플 화면 보기">Open sample view</span></button>
+        <p class="sample-description"><span data-i18n="가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.">Explore details using fictional Skills and evaluation results. Not included in actual history.</span></p>
         </div>
       </div>
     </aside>
     <main id="main" tabindex="-1">
       <div id="error" role="alert" hidden></div>
       <div id="sample-banner" role="status" hidden>
-        <strong>샘플 · 합성 데이터</strong>
-        <span>화면 설명을 위해 만든 예시입니다. 실제 평가·개선 성과·채택 근거가 아닙니다.</span>
-        <button id="exit-sample" type="button">실제 기록으로 돌아가기</button>
+        <strong><span data-i18n="샘플 · 합성 데이터">Sample · Synthetic data</span></strong>
+        <span><span data-i18n="화면 설명을 위해 만든 예시입니다. 실제 평가·개선 성과·채택 근거가 아닙니다.">An example for demonstrating the UI, not evidence of real evaluation, improvement or adoption.</span></span>
+        <button id="exit-sample" type="button"><span data-i18n="실제 기록으로 돌아가기">Return to real records</span></button>
       </div>
       <section class="intro">
-        <p class="route">프로젝트 / 평가 결과</p>
-        <p class="dashboard-context"><span class="readonly-context">공개 기록 · 읽기 전용</span> · <span class="vision-context">자가 진화는 앞으로의 방향성이며 현재 검증된 성과를 뜻하지 않습니다.</span></p>
-        <div class="title-line"><h1 id="project-title">프로젝트 평가</h1><span id="origin" class="badge">프로젝트 선택</span></div>
+        <p class="original-content-note" data-i18n="기록된 원문 · 번역하지 않음">Original recorded content · Not translated</p>
+        <p class="route"><span data-i18n="프로젝트 / 평가 결과">Project / Evaluation results</span></p>
+        <p class="dashboard-context"><span class="readonly-context"><span data-i18n="공개 기록 · 읽기 전용">Public records · Read-only</span></span> · <span class="vision-context"><span data-i18n="자가 진화는 앞으로의 방향성이며 현재 검증된 성과를 뜻하지 않습니다.">Self-Evolving describes our future direction, not currently verified results.</span></span></p>
+        <div class="title-line"><h1 id="project-title"><span data-i18n="프로젝트 평가">Project evaluation</span></h1><span id="origin" class="badge"><span data-i18n="프로젝트 선택">Select a project</span></span></div>
         <div class="selection-line">
-          <label for="skill-select">대상 Skill</label>
-          <select id="skill-select" disabled><option>Skill 정보 미기록</option></select>
-          <span id="selection-summary">프로젝트를 선택해 주세요.</span>
+          <label for="skill-select"><span data-i18n="대상 Skill">Target Skill</span></label>
+          <select id="skill-select" disabled><option data-i18n="Skill 정보 미기록">Skill information unrecorded</option></select>
+          <span id="selection-summary"><span data-i18n="프로젝트를 선택해 주세요.">Select a project.</span></span>
         </div>
-        <p id="freshness" class="freshness">평가 당시의 버전과 현재 소스의 일치 여부를 구분합니다.</p>
+        <p id="freshness" class="freshness"><span data-i18n="평가 당시의 버전과 현재 소스의 일치 여부를 구분합니다.">Distinguishes the evaluated version from the current source.</span></p>
       </section>
       <section id="project-summary" class="panel project-summary" aria-labelledby="project-summary-title" hidden></section>
-      <nav class="section-nav" aria-label="평가 영역">
-        <span class="section-nav-label" aria-hidden="true">이 페이지</span>
-        <a href="#evidence-trace"><span aria-hidden="true">01</span>작업·승인·사용 근거</a>
-        <a href="#quality-section"><span aria-hidden="true">02</span>스킬 품질·개선 근거</a>
-        <a href="#execution-section"><span aria-hidden="true">03</span>프로젝트 실행</a>
-        <a href="#changes-section"><span aria-hidden="true">04</span>Skill 변경</a>
-        <a href="#history-section"><span aria-hidden="true">05</span>평가 이력</a>
+      <nav class="section-nav" aria-label="Evaluation sections" data-i18n-aria-label="평가 영역">
+        <span class="section-nav-label" aria-hidden="true"><span data-i18n="이 페이지">On this page</span></span>
+        <a href="#evidence-trace"><span aria-hidden="true">01</span><span data-i18n="작업·승인·사용 근거">Task, approval and use evidence</span></a>
+        <a href="#quality-section"><span aria-hidden="true">02</span><span data-i18n="스킬 품질·개선 근거">Skill quality and improvement</span></a>
+        <a href="#execution-section"><span aria-hidden="true">03</span><span data-i18n="프로젝트 실행">Project execution</span></a>
+        <a href="#changes-section"><span aria-hidden="true">04</span><span data-i18n="Skill 변경">Skill changes</span></a>
+        <a href="#history-section"><span aria-hidden="true">05</span><span data-i18n="평가 이력">Evaluation history</span></a>
       </nav>
-      <section id="evidence-trace" class="panel evaluation-section" aria-label="작업·승인·사용 근거"></section>
+      <section id="evidence-trace" class="panel evaluation-section" aria-label="Task, approval and use evidence" data-i18n-aria-label="작업·승인·사용 근거"></section>
       <div id="detail" hidden>
         <section id="quality-section" class="evaluation-section" data-section="quality" aria-labelledby="quality-title">
-          <div class="section-heading"><h2 id="quality-title">스킬 품질 및 개선 근거 평가</h2><span id="quality-summary"></span></div>
-          <p class="section-description">잘 작성된 지침인지, 변경에 타당한 근거가 있는지 확인합니다. 실제 실행 성능과는 별개의 평가입니다.</p>
+          <div class="section-heading"><h2 id="quality-title"><span data-i18n="스킬 품질 및 개선 근거 평가">Skill quality and improvement evidence</span></h2><span id="quality-summary"></span></div>
+          <p class="section-description"><span data-i18n="잘 작성된 지침인지, 변경에 타당한 근거가 있는지 확인합니다. 실제 실행 성능과는 별개의 평가입니다.">Checks instruction quality and evidence supporting changes. Separate from actual execution performance.</span></p>
           <div class="two-column">
             <article class="panel">
-              <h3>스킬 품질</h3>
+              <h3><span data-i18n="스킬 품질">Skill quality</span></h3>
               <div id="guide"></div>
               <details class="methodology">
-                <summary>평가 기준·출처 설명</summary>
-                <p class="method-description">Anthropic의 스킬 작성 가이드를 참고해 사용 조건·지침의 명확성, 간결성, 문서·리소스 구성과 단계적 정보 제공 구조를 살펴봅니다.</p>
-                <p>정적 검사와 LLM rubric 결과를 구분합니다. 적용되지 않는 항목은 분모에서 제외하고 이유를 표시합니다. 참고 가이드와 실제 수행된 검사는 동일하지 않으며, 공식 인증을 의미하지 않습니다.</p>
+                <summary><span data-i18n="평가 기준·출처 설명">Evaluation criteria and sources</span></summary>
+                <p class="method-description"><span data-i18n="Anthropic의 스킬 작성 가이드를 참고해 사용 조건·지침의 명확성, 간결성, 문서·리소스 구성과 단계적 정보 제공 구조를 살펴봅니다.">References Anthropic’s Skill authoring guidance to examine clear triggers/instructions, concision, document/resource organization and progressive disclosure.</span></p>
+                <p><span data-i18n="정적 검사와 LLM rubric 결과를 구분합니다. 적용되지 않는 항목은 분모에서 제외하고 이유를 표시합니다. 참고 가이드와 실제 수행된 검사는 동일하지 않으며, 공식 인증을 의미하지 않습니다.">Static checks and LLM rubric results are distinct. Inapplicable items are excluded from denominators with reasons shown. Reference guidance is not proof that checks ran or an official certification.</span></p>
               </details>
             </article>
             <article class="panel">
-              <h3>개선 근거</h3>
+              <h3><span data-i18n="개선 근거">Improvement evidence</span></h3>
               <div id="improvement-evidence"></div>
               <details class="methodology">
-                <summary>판단 기준 설명</summary>
-                <p class="method-description">APO의 근거 기반 개선 접근을 참고해 관측된 문제, 개선 가설, 지침 변경과 재평가 결과가 연결되는지 살펴봅니다.</p>
-                <p>변경 이유만으로 개선을 인정하지 않습니다. 문제와 관련된 변경인지, 같은 조건의 재평가가 주장을 뒷받침하는지 구분합니다. 미기록 근거를 추정하거나 별도 인증 점수를 만들지 않습니다.</p>
+                <summary><span data-i18n="판단 기준 설명">Decision criteria</span></summary>
+                <p class="method-description"><span data-i18n="APO의 근거 기반 개선 접근을 참고해 관측된 문제, 개선 가설, 지침 변경과 재평가 결과가 연결되는지 살펴봅니다.">References APO’s evidence-based improvement approach to connect observed issues, hypotheses, instruction changes and reevaluation.</span></p>
+                <p><span data-i18n="변경 이유만으로 개선을 인정하지 않습니다. 문제와 관련된 변경인지, 같은 조건의 재평가가 주장을 뒷받침하는지 구분합니다. 미기록 근거를 추정하거나 별도 인증 점수를 만들지 않습니다.">A reason for changing instructions alone does not establish improvement. Check relevance and reevaluation under the same conditions. Missing evidence is not inferred and no certification score is invented.</span></p>
               </details>
             </article>
           </div>
         </section>
         <section id="execution-section" class="evaluation-section" data-section="execution" aria-labelledby="execution-title">
-          <div class="section-heading"><h2 id="execution-title">프로젝트 실행 평가</h2><span id="run-title"></span></div>
+          <div class="section-heading"><h2 id="execution-title"><span data-i18n="프로젝트 실행 평가">Project execution evaluation</span></h2><span id="run-title"></span></div>
           <p id="execution-scope" class="section-description"></p>
           <div class="outcome-grid">
             <article id="execution" class="outcome-card"></article>
@@ -102,41 +110,41 @@
             <article id="time-card" class="outcome-card"></article>
           </div>
           <div class="two-column">
-            <article class="panel"><h3>왜 이렇게 판단했나</h3><div id="decision-reasons"></div></article>
-            <article class="panel"><h3>어떤 작업을 평가했나</h3><div id="task-results"></div></article>
+            <article class="panel"><h3><span data-i18n="왜 이렇게 판단했나">Why this decision?</span></h3><div id="decision-reasons"></div></article>
+            <article class="panel"><h3><span data-i18n="어떤 작업을 평가했나">Which tasks were evaluated?</span></h3><div id="task-results"></div></article>
           </div>
-          <details class="provenance"><summary>평가 시점·원본 수치·식별 정보</summary><p id="run-time"></p><div id="all-metrics"></div><dl id="provenance"></dl><a id="report-link">공개용 JSON 보기</a></details>
+          <details class="provenance"><summary><span data-i18n="평가 시점·원본 수치·식별 정보">Evaluation time, original metrics and identifiers</span></summary><p id="run-time"></p><div id="all-metrics"></div><dl id="provenance"></dl><a id="report-link"><span data-i18n="공개용 JSON 보기">View public JSON</span></a></details>
         </section>
         <section id="changes-section" class="evaluation-section" data-section="changes" aria-labelledby="changes-title">
-          <div class="section-heading"><h2 id="changes-title">무엇을 바꿨나</h2><span>평가 당시 Skill 기준</span></div>
-          <p class="section-description">기존·후보 지침과 변경 내용을 확인합니다. 자가 생성된 후보와 실제 채택된 버전은 다릅니다.</p>
-          <article id="evolution-metadata" class="panel" aria-label="Skill 버전과 채택 근거" hidden></article>
+          <div class="section-heading"><h2 id="changes-title"><span data-i18n="무엇을 바꿨나">What changed?</span></h2><span><span data-i18n="평가 당시 Skill 기준">Skill version at evaluation time</span></span></div>
+          <p class="section-description"><span data-i18n="기존·후보 지침과 변경 내용을 확인합니다. 자가 생성된 후보와 실제 채택된 버전은 다릅니다.">Inspect base/candidate instructions and changes. A generated candidate is not an adopted version.</span></p>
+          <article id="evolution-metadata" class="panel" aria-label="Skill versions and adoption evidence" data-i18n-aria-label="Skill 버전과 채택 근거" hidden></article>
           <article id="skill-changes" class="panel"></article>
         </section>
       </div>
       <section id="history-section" class="history-section" data-section="history" aria-labelledby="history-title">
         <div class="section-heading">
-          <h2 id="history-title">프로젝트 이력</h2>
+          <h2 id="history-title"><span data-i18n="프로젝트 이력">Project history</span></h2>
         </div>
-        <div class="history-tabs" role="tablist" aria-label="프로젝트 이력 종류">
-          <button id="skill-history-tab" role="tab" type="button" aria-selected="true" aria-controls="skill-history-panel">Skill 이력</button>
-          <button id="execution-history-tab" role="tab" type="button" aria-selected="false" aria-controls="execution-history-panel" tabindex="-1">실행 이력</button>
+        <div class="history-tabs" role="tablist" aria-label="Project history type" data-i18n-aria-label="프로젝트 이력 종류">
+          <button id="skill-history-tab" role="tab" type="button" aria-selected="true" aria-controls="skill-history-panel"><span data-i18n="Skill 이력">Skill history</span></button>
+          <button id="execution-history-tab" role="tab" type="button" aria-selected="false" aria-controls="execution-history-panel" tabindex="-1"><span data-i18n="실행 이력">Run history</span></button>
         </div>
         <div id="skill-history-panel" role="tabpanel" aria-labelledby="skill-history-tab">
-          <p class="history-note">Skill을 선택하면 연결된 버전·평가 이력과 As-Is / To-Be를 확인할 수 있습니다. <span id="skill-count"></span></p>
+          <p class="history-note"><span data-i18n="Skill을 선택하면 연결된 버전·평가 이력과 As-Is / To-Be를 확인할 수 있습니다.">Select a Skill to view linked versions, evaluations and As-Is / To-Be.</span> <span id="skill-count"></span></p>
           <div id="skill-list"></div>
           <div id="skill-history-runs"></div>
         </div>
         <div id="execution-history-panel" role="tabpanel" aria-labelledby="execution-history-tab" hidden>
           <div class="history-controls">
             <span id="history-count"></span>
-            <label class="history-filter">종류 <select id="history-filter"><option value="">전체</option><option value="comparison">후보 비교</option><option value="baseline">기준 평가</option><option value="candidate">후보 생성</option><option value="calibration">평가기 교정</option><option value="project_assessment">프로젝트 평가</option></select></label>
+            <label class="history-filter"><span data-i18n="종류">Type</span> <select id="history-filter"><option value="" data-i18n="전체">All</option><option value="comparison" data-i18n="후보 비교">Candidate comparison</option><option value="baseline" data-i18n="기준 평가">Baseline evaluation</option><option value="candidate" data-i18n="후보 생성">Candidate generation</option><option value="calibration" data-i18n="평가기 교정">Evaluator calibration</option><option value="project_assessment" data-i18n="프로젝트 평가">Project evaluation</option></select></label>
           </div>
-          <p class="history-note">Skill이 미연결된 기록도 포함합니다. 실행을 선택하면 위의 평가 결과와 원문이 해당 기록으로 함께 전환됩니다.</p>
-          <div id="history"><p class="empty">저장된 결과를 기다리고 있습니다.</p></div>
+          <p class="history-note"><span data-i18n="Skill이 미연결된 기록도 포함합니다. 실행을 선택하면 위의 평가 결과와 원문이 해당 기록으로 함께 전환됩니다.">Includes records not linked to a Skill. Selecting a run updates the evaluation and source above together.</span></p>
+          <div id="history"><p class="empty"><span data-i18n="저장된 결과를 기다리고 있습니다.">Waiting for saved results.</span></p></div>
         </div>
       </section>
-      <footer>실제 기록은 공개가 허용된 요약과 검토된 Skill 원문을 제공합니다. 미기록 정보는 추정하지 않습니다. 샘플의 지침·평가·변경 내용은 합성 예시이며 실제 이력과 분리됩니다.</footer>
+      <footer><span data-i18n="실제 기록은 공개가 허용된 요약과 검토된 Skill 원문을 제공합니다. 미기록 정보는 추정하지 않습니다. 샘플의 지침·평가·변경 내용은 합성 예시이며 실제 이력과 분리됩니다.">Real records provide approved public summaries and reviewed Skill source. Missing information is not inferred. Sample instructions, evaluations and changes are synthetic and separate from real history.</span></footer>
     </main>
   </div>
 </body>
