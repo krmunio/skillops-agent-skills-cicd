@@ -29,6 +29,7 @@ permissions:
   contents: read
 
 env:
+  PYTHONPATH: ${{ github.workspace }}/skillops
   CODE_SHA: ${{ github.sha }}
   DATA_SHA: ${{ inputs.data_sha }}
   BUNDLE: ${{ inputs.bundle }}
@@ -74,7 +75,7 @@ jobs:
           if [ "$OPERATION" = deploy ]; then
             args+=(--public-url "$PUBLIC_URL")
           fi
-          python3 reviewed_publication.py --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" \
+          python3 skillops/reviewed_publication.py --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" \
             --bundle "$BUNDLE" --manifest-sha "$MANIFEST_SHA" \
             --existing-sha "$(git rev-parse refs/remotes/origin/evaluation-results)" "${args[@]}"
       - name: Report validation-only boundary
@@ -110,7 +111,7 @@ jobs:
           set -euo pipefail
           [[ "$DATA_SHA" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags origin "$DATA_SHA" refs/heads/evaluation-results:refs/remotes/origin/evaluation-results
-          python3 reviewed_publication.py --mode commit \
+          python3 skillops/reviewed_publication.py --mode commit \
             --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" --bundle "$BUNDLE" --manifest-sha "$MANIFEST_SHA" \
             --existing-sha "$(git rev-parse refs/remotes/origin/evaluation-results)" \
             --output "$RUNNER_TEMP/reviewed-stage" > "$RUNNER_TEMP/reviewed-commit.json"
@@ -165,10 +166,10 @@ jobs:
           git fetch --no-tags origin "$DATA_SHA" refs/heads/evaluation-results:refs/remotes/origin/evaluation-results
           current="$(git rev-parse refs/remotes/origin/evaluation-results)"
           git merge-base --is-ancestor "$STORED_SHA" "$current"
-          python3 reviewed_publication.py --mode stage --require-stored \
+          python3 skillops/reviewed_publication.py --mode stage --require-stored \
             --code-sha "$CODE_SHA" --data-sha "$DATA_SHA" --bundle "$BUNDLE" --manifest-sha "$MANIFEST_SHA" \
             --existing-sha "$current" --output "$RUNNER_TEMP/reviewed-deployment" --public-url "$PUBLIC_URL"
-      - run: npm ci --no-audit --no-fund
+      - run: npm --prefix skillops ci --no-audit --no-fund
       - name: Deploy only the official static build
         id: deploy
         env:
@@ -176,11 +177,11 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$SWA_CLI_DEPLOYMENT_TOKEN" || { echo "::error::SWA deployment secret is missing."; exit 2; }
-          npx swa deploy "$RUNNER_TEMP/reviewed-deployment/site" --env production
+          skillops/node_modules/.bin/swa deploy "$RUNNER_TEMP/reviewed-deployment/site" --env production
       - name: Verify public content bytes; HTTP success alone is insufficient
         id: verify
         run: |
-          python3 reviewed_publication.py --mode verify-url \
+          python3 skillops/reviewed_publication.py --mode verify-url \
             --site "$RUNNER_TEMP/reviewed-deployment/site" --public-url "$PUBLIC_URL"
       - name: Distinguish deployment completion from public URL verification
         if: always()
