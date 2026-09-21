@@ -21,6 +21,10 @@ on:
         description: 'Optional catalog project ID; empty evaluates the entire catalog'
         type: string
         default: ''
+      assessment_skill_key:
+        description: 'Optional exact current Skill key for fresh assessment; requires project; excludes recorded work'
+        type: string
+        default: ''
       live:
         description: 'Authorize billable execution for this dispatch using configured limits'
         type: boolean
@@ -37,6 +41,18 @@ on:
         description: 'Optional per-session Credit soft cap (minimum 30); requires project'
         type: string
         default: ''
+      work_id:
+        description: 'Optional private recorded task ID; requires project, skill_key, max_rounds and live opt-in'
+        type: string
+        default: ''
+      skill_key:
+        description: 'Exact Skill identity for recorded work; not a path or a candidate selector'
+        type: string
+        default: ''
+      max_rounds:
+        description: 'Explicit development round cap 1-10; requires work_id'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -51,13 +67,31 @@ jobs:
     timeout-minutes: 10
     env:
       SKILLOPS_CONTAINER_TESTS: '1'
+      SKILLOPS_ISOLATION_TESTS: '1'
+      SKILLOPS_LIVE_EVALUATION_ENABLED: 'false'
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          ref: ${{ env.SOURCE_SHA }}
           persist-credentials: false
+      - name: Verify exact contract source identity
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          printf 'Contract source: %s; live model evaluation disabled.\n' "$SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
+      - name: Install hash-pinned evaluator parser
+        run: |
+          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+      - name: Install locked native CLI for non-model isolation probes
+        run: |
+          npm ci --no-audit --no-fund
+          echo "$PWD/node_modules/.bin" >> "$GITHUB_PATH"
       - name: Prepare pinned Python image for actual container controls
         run: |
           docker pull python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
@@ -110,6 +144,9 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
+      - name: Install hash-pinned evaluator parser
+        run: |
+          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: '22'
@@ -137,6 +174,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
           PROJECT_ID: ${{ inputs.project }}
+          ASSESSMENT_SKILL_KEY: ${{ inputs.assessment_skill_key }}
+          WORK_ID: ${{ inputs.work_id }}
+          SKILL_KEY: ${{ inputs.skill_key }}
+          MAX_ROUNDS: ${{ inputs.max_rounds }}
+          DISPATCH_LIVE: ${{ github.event_name == 'workflow_dispatch' && inputs.live }}
+          SKILLOPS_RECORDED_WORK_ITEMS: ${{ inputs.work_id && secrets.SKILLOPS_RECORDED_WORK_ITEMS || '' }}
           LIMIT_OVERRIDE: ${{ inputs.max_invocations || inputs.max_seconds || inputs.max_ai_credits }}
           COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ github.token }}
@@ -157,14 +200,35 @@ jobs:
           elif [ -n "$PROJECT_ID" ]; then
             args+=(--project "$PROJECT_ID")
           fi
+          if [ -n "$ASSESSMENT_SKILL_KEY" ]; then
+            if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ -z "$PROJECT_ID" ] || [ -n "$WORK_ID$SKILL_KEY$MAX_ROUNDS" ]; then
+              echo "::error::Current Skill assessment requires an explicit project and cannot select recorded work."
+              exit 2
+            fi
+            args+=(--assessment-skill-key "$ASSESSMENT_SKILL_KEY")
+          fi
+          if [ -n "$WORK_ID$SKILL_KEY$MAX_ROUNDS" ]; then
+            if [ "$EVENT_NAME" != "workflow_dispatch" ] || [ -z "$PROJECT_ID" ] || [ -z "$WORK_ID" ] || [ -z "$SKILL_KEY" ] || [ -z "$MAX_ROUNDS" ]; then
+              echo "::error::Recorded work requires explicit project, task ID, Skill and round cap."
+              exit 2
+            fi
+            args+=(--work-id "$WORK_ID" --skill-key "$SKILL_KEY" --max-rounds "$MAX_ROUNDS")
+            if [ "$DISPATCH_LIVE" = "true" ]; then
+              args+=(--live)
+            fi
+          fi
           python3 project_evaluation.py --output ci-results --run-id "$RESULT_RUN" --source-commit "$SOURCE_SHA" --history .prior-results/results "${args[@]}"
       - name: Summarize baseline and project evaluation
         if: always()
         env:
           RESULT_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
           SELECTED_PROJECTS: ${{ steps.assess.outputs.selected_projects }}
+          WORK_ID: ${{ inputs.work_id }}
         run: |
-          if [ "$SELECTED_PROJECTS" = "0" ]; then
+          if [ -n "$WORK_ID" ]; then
+            python3 project_results.py validate --results ci-results
+            printf 'Recorded development iteration uses public result references only. No local approval or Active transition was authorized by this dispatch.\n' >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$SELECTED_PROJECTS" = "0" ]; then
             printf '## SkillOps evaluation\n\nNo changed projects selected; no model evaluation ran and no assessment result was fabricated.\n' >> "$GITHUB_STEP_SUMMARY"
           else
             python3 evaluation_reporting.py --results ci-results --run-id "$RESULT_RUN" >> "$GITHUB_STEP_SUMMARY"
@@ -174,7 +238,17 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: public-project-results
-          path: ci-results/
+          path: |
+            ci-results/index.json
+            ci-results/*/index.json
+            ci-results/*/*/report.json
+            ci-results/*/*/skill-snapshots.json
+            ci-results/*/*/skill-evolution.json
+            ci-results/*/*/skill-assessments.json
+            ci-results/*/*/stage-metrics.json
+            ci-results/*/*/replay-evaluation.json
+            ci-results/*/*/cycle.json
+            ci-results/*/*/adoption.json
           if-no-files-found: error
           retention-days: 7
 

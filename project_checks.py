@@ -230,45 +230,151 @@ def protected_files(root):
     return sorted(paths)
 
 
+def replay_sources(root, sources):
+    """Read only pinned existing source; replay never exposes protected file bodies."""
+    from evolution_records import relative_path
+    from project_results import CORE
+    root = Path(root)
+    require(isinstance(sources, dict) and 1 <= len(sources) <= 16, "work_input_limit")
+    protected = set(protected_files(root))
+    bundles = [path.parent for path in root.rglob("SKILL.md")]
+    output, total = {}, 0
+    for name, expected in sources.items():
+        relative_path(name)
+        path = root / name
+        require(name not in protected and name not in CORE
+                and not any(part.startswith(".") or part in ("skills", "eval", "fixtures")
+                            for part in Path(name).parts)
+                and not any(path.is_relative_to(bundle) for bundle in bundles)
+                and path.name not in CONFIG_FILES
+                and not path.name.startswith(("test", "requirements"))
+                and not path.name.endswith("_test.py")
+                and path.suffix in (".py", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"),
+                "protected_work_source")
+        require(matches(DIGEST, expected), "invalid_work_source")
+        raw = read_file(path, 65536)
+        require(sha256(raw).hexdigest() == expected, "work_inputs_changed")
+        total += len(raw)
+        require(total <= 65536, "work_input_limit")
+        try:
+            output[name] = raw.decode("utf-8")
+        except UnicodeError as error:
+            raise RuntimeFailure("invalid_encoding", "Editable source must be UTF-8.") from error
+        require("\0" not in output[name], "invalid_encoding")
+    return output
+
+
+def replay_outcome(observed, checks):
+    """A runtime/coverage failure is not an observed task-quality failure."""
+    validate_observation(observed)
+    outcomes = []
+    for population, required in (("cases", "required_case_ids"), ("gates", "required_gate_ids")):
+        values = {row["id"]: row["status"] for row in observed[population]}
+        outcomes.extend(values.get(key) for key in checks[required])
+    if "failed" in outcomes:
+        return "not_satisfied"
+    if observed["status"] == "blocked" or not outcomes or any(value != "passed" for value in outcomes):
+        return "unverified"
+    return "satisfied"
+
+
+def _registry_requirements(dependencies):
+    if not dependencies:
+        return
+    try:
+        import packaging
+        from packaging.requirements import InvalidRequirement, Requirement
+    except ImportError as error:
+        raise RuntimeFailure("unsupported_dependencies", "Install the pinned requirements-evaluator.txt parser.") from error
+    require(packaging.__version__ == "26.2", "unsupported_dependencies")
+    for item in dependencies:
+        require(isinstance(item, str)
+                and not any(ord(char) < 32 and char != "\t" or ord(char) == 127 for char in item)
+                and not any(char in item for char in "\\$#")
+                and not re.search(r"(?:^|[ \t])-", item), "unsupported_dependencies")
+        try:
+            requirement = Requirement(item)
+        except InvalidRequirement as error:
+            raise RuntimeFailure("unsupported_dependencies", "Invalid registry requirement.") from error
+        require(requirement.url is None, "unsupported_dependencies")
+
+
+def _pytest_profile(metadata):
+    tool = metadata.get("tool", {})
+    require(isinstance(tool, dict), "invalid_check_config")
+    if "skillops" not in tool:
+        return None
+    profile = tool["skillops"]
+    require(isinstance(profile, dict) and set(profile) == {"dependency-profile", "test-dependencies"},
+            "invalid_check_config")
+    require(profile["dependency-profile"] == "pytest", "invalid_check_config")
+    dependencies = profile["test-dependencies"]
+    require(isinstance(dependencies, list) and bool(dependencies), "invalid_check_config")
+    _registry_requirements(dependencies)
+    return dependencies
+
+
+def _python_metadata(root):
+    path = Path(root) / "pyproject.toml"
+    if not path.exists():
+        return {}
+    try:
+        return tomllib.loads(read_file(path).decode("utf-8"))
+    except (UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise RuntimeFailure("invalid_check_config", "Invalid Python dependency metadata.") from error
+
+
+def _python_requirements(root, metadata):
+    profile = _pytest_profile(metadata)
+    dependencies = []
+    names = ("requirements.txt",) if profile is not None else ("requirements.txt", "requirements-dev.txt")
+    for name in names:
+        if (root / name).exists():
+            lines = read_file(root / name).decode("utf-8").splitlines()
+            dependencies.extend(value for line in lines if (value := line.split("#", 1)[0].strip()))
+    project = metadata.get("project", {})
+    require(isinstance(project, dict), "unsupported_dependencies")
+    declared = project.get("dependencies", [])
+    require(isinstance(declared, list), "unsupported_dependencies")
+    dependencies.extend(declared)
+    optional = project.get("optional-dependencies", {})
+    require(isinstance(optional, dict), "unsupported_dependencies")
+    for group in ("test", "tests", "dev"):
+        require(isinstance(optional.get(group, []), list), "unsupported_dependencies")
+        if profile is None:
+            dependencies.extend(optional.get(group, []))
+    if profile is not None:
+        dependencies.extend(profile)
+    _registry_requirements(dependencies)
+    return dependencies
+
+
+def validate_dependency_profile(root):
+    """Reject unsafe selected requirement syntax before models, including legacy manifests."""
+    root = Path(root)
+    metadata = _python_metadata(root)
+    _python_requirements(root, metadata)
+    if _pytest_profile(metadata) is not None:
+        dependency_manifest(root, "python")
+
+
 def dependency_manifest(root, language):
     """Only declarative registry requirements reach the network-enabled resolver."""
     root = Path(root)
     if language == "python":
-        dependencies = []
-        static_project_dependencies = False
-        for name in ("requirements.txt", "requirements-dev.txt"):
-            if (root / name).exists():
-                dependencies.extend(line.split("#", 1)[0].strip() for line in
-                                    read_file(root / name).decode("utf-8").splitlines())
-        if (root / "pyproject.toml").exists():
-            try:
-                metadata = tomllib.loads(read_file(root / "pyproject.toml").decode("utf-8"))
-            except (UnicodeError, tomllib.TOMLDecodeError) as error:
-                raise RuntimeFailure("invalid_check_config", "Invalid Python dependency metadata.") from error
-            project = metadata.get("project", {})
-            require(isinstance(project, dict), "unsupported_dependencies")
-            dynamic = project.get("dynamic", [])
-            require(isinstance(dynamic, list) and all(isinstance(name, str) for name in dynamic)
-                    and not {"dependencies", "optional-dependencies"}.intersection(dynamic),
-                    "unsupported_dependencies")
-            declared = project.get("dependencies", [])
-            require(isinstance(declared, list), "unsupported_dependencies")
-            static_project_dependencies = "dependencies" in project
-            dependencies.extend(declared)
-            optional = project.get("optional-dependencies", {})
-            require(isinstance(optional, dict), "unsupported_dependencies")
-            for group in ("test", "tests", "dev"):
-                require(isinstance(optional.get(group, []), list), "unsupported_dependencies")
-                dependencies.extend(optional.get(group, []))
-            require("poetry" not in metadata.get("tool", {}), "unsupported_dependencies")
+        metadata = _python_metadata(root)
+        dependencies = _python_requirements(root, metadata)
+        project = metadata.get("project", {})
+        dynamic = project.get("dynamic", [])
+        require(isinstance(dynamic, list) and all(isinstance(name, str) for name in dynamic)
+                and not {"dependencies", "optional-dependencies"}.intersection(dynamic),
+                "unsupported_dependencies")
+        static_project_dependencies = "dependencies" in project
+        require("poetry" not in metadata.get("tool", {}), "unsupported_dependencies")
         require(not any((root / name).exists() for name in ("uv.lock", "poetry.lock")),
                 "unsupported_dependencies")
         require(static_project_dependencies or not any((root / name).exists() for name in ("setup.py", "setup.cfg")),
                 "unsupported_dependencies")
-        dependencies = [item for item in dependencies if item]
-        for item in dependencies:
-            require(isinstance(item, str) and re.match(r"^[A-Za-z0-9][A-Za-z0-9_.-]*", item)
-                    and not any(char in item for char in "@:/\\\r\n"), "unsupported_dependencies")
         if any(check["runner"] == "pytest" for check in discover(root)["checks"]) and not any(
                 re.match(r"(?i)^pytest(?:\b|\[)", item) for item in dependencies):
             dependencies.append("pytest")
@@ -627,11 +733,13 @@ def discover(root):
     python_tests = [name for name in files if name.endswith(".py")
                     and (Path(name).name.startswith("test") or name.endswith("_test.py"))]
     pytest = any(name in configs for name in ("pytest.ini", ".pytest.ini"))
+    profile = None
     if "pyproject.toml" in configs:
         try:
             metadata = tomllib.loads(configs["pyproject.toml"])
         except tomllib.TOMLDecodeError as error:
             raise RuntimeFailure("invalid_check_config", "Invalid Python project configuration.") from error
+        profile = _pytest_profile(metadata)
         pytest |= isinstance(metadata.get("tool"), dict) and "pytest" in metadata["tool"]
     pytest |= any(re.search(r"(?mi)^\s*pytest(?:\s|[<>=~!\[]|$)", configs.get(name, ""))
                   for name in ("requirements.txt", "requirements-dev.txt"))
@@ -652,6 +760,7 @@ def discover(root):
                 for node in ast.walk(tree))
             if pytest:
                 break
+    require(profile is None or pytest, "invalid_check_config")
     if python_tests or pytest:
         start = ["-s", "tests"] if (root / "tests").is_dir() else []
         checks.append({"id": "python-tests", "runner": "pytest" if pytest else "unittest",

@@ -80,6 +80,15 @@ Each selected Skill gets at most one candidate within the shared run limits. Man
 `--project <id>` selection is unchanged; `--changed-since <full-before-sha>` selects
 affected projects from the checked-out `--source-commit`. The two selectors are mutually
 exclusive. No affected projects means no model evaluation, not a fabricated pass.
+An optional `--assessment-skill-key <canonical-current-key>` with `--project` selects
+one current Skill for a fresh original/generation/candidate quality cycle; the Actions
+input is `assessment_skill_key`. Copy the canonical key from inventory/results and
+use the matching identity history. Default full-project behavior is unchanged;
+subset coverage is explicit, old baselines are not reused, and recorded-work
+`--skill-key` is a separate incompatible mode. Future candidate text failures report
+fixed field/condition codes without response content. See the
+[selection and diagnostic contract](docs/PROJECT-EVALUATION.md#assess-one-current-skill)
+for scope, provenance and separate paid/publication authorization.
 New automatic Skill runs retain report-bound `stage-metrics.json` attachments with
 stage completion, admitted CLI attempts, elapsed time and available usage. Unknown
 usage remains null; the Actions summary distinguishes partial measurements from
@@ -100,14 +109,232 @@ evaluation history or current-version qualification. The publisher appends them
 with `merge-samples`; static builds only read stored results. No paid calls,
 source changes or candidate adoption are performed.
 
+### One recorded development replay
+
+The opt-in adapter evaluates one candidate against a recorded development
+WorkItem and fixed original Skill. It does not replace the existing automatic
+single-candidate path:
+
+```bash
+python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --results <replay-results-directory>
+```
+
+This command **blocks without model calls** unless `--live` is explicitly added
+and the environment provides `SKILLOPS_LIVE_EVALUATION_ENABLED=true`,
+authentication (`COPILOT_GITHUB_TOKEN` or `GITHUB_TOKEN`), approved
+`SKILLOPS_MAX_INVOCATIONS`, `SKILLOPS_MAX_SECONDS` and
+`SKILLOPS_MAX_AI_CREDITS_PER_SESSION`. Obtain separate authorization for the
+project, Skill and limits before enabling it. Credit is a per-session soft cap,
+not an aggregate monetary guarantee. All stages share one call/time budget.
+The project must be under `projects/`; the private WorkItem pins its actual Git
+commit, request, source hashes and protected checks. See the
+[replay contract](docs/HACKATHON-CONTRACTS.md) for its schema and callback API.
+
+Each run stores immutable `report.json`, complete `skill-evolution.json` and
+`replay-evaluation.json`; the CLI returns the exact evidence reference.
+Confirmation remains `not_run` with `confirmation_isolation_unverified` and
+approval eligibility is always false. Development improvement is not final
+confirmation, approval or verified next use. The command never updates Active.
+Development iteration is connected by the `iterate` command below.
+Approval/next-use are separate explicit commands, not replay side effects.
+The official publisher preserves validated replay/cycle/adoption graphs.
+Offline integration tests simulate only model/container boundaries and label
+their results `offline_test`, never measured model improvement.
+
+### Bounded development iteration and offline demo
+
+```bash
+python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
+  --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
+  --confirmation-disclosure <private-reviewed-disclosure-json> \
+  --max-rounds 2 --results <iteration-results-directory>
+```
+
+This uses the actual `run_cycle` module and the same replay persistence callback.
+The original remains the comparison baseline; only the parent candidate and
+development feedback change. Preparation, every round and optional confirmation
+share one runtime and authorized budget. The same `--live`, authentication and
+limit gates apply; the example alone makes no model calls. Confirmation is
+optional: omit both confirmation options for development-only execution.
+When requested, the reviewed WorkItem/disclosure pair is registered inside the
+verified runtime boundary before development. The selected complete Capture is
+confirmed once with that registration; unsupported isolation remains blocked.
+The operator must review semantic independence; matching file hashes alone do
+not prove it. `approval_eligible` requires live, passed, reloaded final evidence,
+never development improvement or an offline confirmation result.
+No candidate is approved or made Active.
+
+Each saved evaluation has its own run. A terminal `cycle.json` and aggregate
+`report.json` bind those runs; the actual loader revalidates their hashes and
+complete captures. An admitted attempt ending before persistence has null
+`run_id`, `evaluation_ref` and `decision`; unstarted rounds are not invented.
+A persistence callback failure propagates without a terminal cycle or success
+receipt, while earlier stored rounds remain unchanged. There is no automatic
+retry or recovery. Exit 0 denotes normal development termination, not final
+confirmation or adoption; budget/runtime/unverified outcomes return 2.
+
+### Separate local approval
+
+First inspect one exact binding without initializing local approval state
+(replace every `<...>` placeholder):
+
+```bash
+python3 -B skillops.py approval-preflight \
+  --project '<project-id>' --skill-key '<skill-key>' \
+  --candidate-version 'sha256:<full-bundle-hash>' --cycle '<cycle-id>' \
+  --evidence-sha256 '<cycle-file-sha256>' --results '<local-results-directory>'
+```
+
+This read-only local command uses the same evidence checks as `approve`, calls no
+model, performs no writes/fsync, and permits noninteractive inspection but not
+CI/Actions. Safely observed first-use absence needs no initialization: after all
+evidence checks, eligible output supplies an exact `approval_argv` with both
+expected Active values set to `none`. Existing Active supplies its verified
+version **and private receipt hash** instead. Inaccessible, partial, malformed,
+busy or changing local state blocks; it is not treated as absence.
+
+Exit 0 means eligible **at observation time**, not reserved or approved. Exit 2
+means blocked and provides no approval argv. Actual approval still requires the
+separate human prompt and revalidates evidence/Active under its lock. Output is
+`local_private`: never copy its paths/receipt hashes into public artifacts or logs.
+`--results` is read-only input; no public schema/UI/publisher consumes this output.
+`-B` prevents bytecode writes, not arbitrary shell redirection. Current HEAD and
+evaluator fingerprints must still match; code changes can invalidate older
+evidence, which must not be rewritten to pass. See the
+[preflight contract](docs/HACKATHON-CONTRACTS.md#read-only-local-approval-preflight).
+
+The implemented `approve` command requires a separately operated interactive
+terminal, a live cycle with passed confirmation, and the exact complete bundle
+and evidence hashes. CI/Actions, piped input and missing predecessor fields are
+rejected. Both `none` values mean explicitly no prior Active, never a wildcard.
+
+```bash
+python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+  --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
+  --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
+  --expected-active-execution-sha256 none --results <results-directory>
+```
+
+Review the displayed binding and type `approve <full-candidate-version>` separately.
+Approval calls no model and does not change Active. The original Skill and evidence
+stay immutable. Canonical private WorkItems are retained before replay execution;
+no private requests/operator identities are copied to public results.
+Development-only/offline outputs are **not approvable**, including offline passed
+confirmation. Runtime isolation, registered confirmation, next-use and reviewed
+adoption publication are connected. Synthetic authorization-contract tests prove
+wiring, not paid model improvement or operational authorization.
+
+Add `--publish-reviewed` only after reviewing the public projection and referenced
+Skill captures. It stores a new local `adoption.json` observation; no deployment
+occurs. Official `validate`, `merge`, `index` and `build` resolve all confirmed
+cycle, approval and task-report references, reject private/extra fields and
+conflicting observations, and preserve immutable evidence. Approval-only reports
+have no task metrics. Projection failure leaves the private approval recorded but
+returns an explicit publication error; it never changes Active.
+
+### Separately authorized next execution
+
+```bash
+python3 skillops.py run-approved --project <project-id> --skill-key <skill-key> \
+  --approval <approval-id> --candidate-version sha256:<full-bundle-hash> \
+  --evidence-sha256 <cycle-file-sha256> --work-item <new-private-work-json> \
+  --results <results-directory>
+```
+
+This also requires explicit `--live`, authentication and separately authorized
+call/time/Credit limits; local approval alone grants no execution budget.
+CI/Actions is refused. A fresh runtime/run/budget applies only the exact resolved
+complete Capture. The new task ID must not have been retained before, including
+failed attempts; choose a genuinely new task instead of automatic retry.
+Staging, activation and post-invocation inventory are observed by the host.
+Only the approval module stores verified receipts and updates the Active
+version/receipt-hash pair. Verified use is distinct from task success: a failed
+task exits 2 even if the exact approved Skill was verifiably used.
+`--publish-reviewed` stores the public observation locally; publication failure
+is explicit and does not undo already durable private use/Active.
+
+### Explicit recorded-development Actions
+
+For an authorized recorded-development Actions dispatch, select **project,
+work_id, skill_key and max_rounds (1-10)**. `live=true`, authentication and the
+approved invocation/time/Credit limits are all required; defaults remain disabled.
+The separately provisioned `SKILLOPS_RECORDED_WORK_ITEMS` secret maps each task ID
+to `{"work_item": <private development WorkItem>}`. Requests are never dispatch
+inputs, command arguments, logs or public artifacts. Inputs must match the exact
+dispatched source commit. The existing iteration/provider/storage path is reused,
+and the cycle ID is the workflow run/attempt. This development-only dispatch
+neither approves a candidate nor imports local approvals as Actions authority.
+Its separate `--history` directory is validated and used to preserve the exact
+existing Skill ID, including `auto:` identities, with a fresh output directory.
+History is neither rewritten nor copied as new results; invalid history or an
+unknown Skill is rejected rather than replaced with another ID.
+No secret configuration or live dispatch is performed by the implementation.
+
+### Publish existing reviewed results without evaluation
+
+`reviewed_publication.py` and the separate manual `publish-reviewed-results.yml`
+reuse the existing immutable merge/index/build and static deployment path without
+calling evaluation, approval or approved execution. Default behavior is
+**validation only**. Trusted code commit, same-repository data commit and public
+manifest hash are pinned separately; hashes do not attest public-content review.
+Local storage, input validation, result-branch storage, deployment and public-URL
+byte verification are separate states. `--publish-reviewed` still means only
+local projection storage, never deployment.
+
+See [reviewed publication and exact offline candidates](docs/REVIEWED-PUBLICATION.md)
+for commands, permissions, bounds and session 5 handoff. Feature-branch disclosure
+does not authorize result-branch writes, production deployment or new model calls.
+
+### Offline presentation backup
+
+For a **no-paid-calls terminal demo/backup**, use a clean committed integration
+checkout and a new output directory:
+
+```bash
+SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 tests/export_iteration_evidence.py \
+  --output /tmp/skillops-iterate-demo
+python3 -m json.tool /tmp/skillops-iterate-demo/manifest.json
+python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
+```
+
+The exporter runs production provider/loop/storage modules with synthetic inputs
+and simulated model/container transport. It does not copy prebuilt result
+fixtures. The manifest contains the integration SHA, scenario directories,
+cycle/run IDs and hashes for N=2 feedback, early stop, maximum rounds, budget
+exhaustion, unsaved attempts and persistence failure. All results are explicitly
+`offline_test`; separate passed/failed confirmation scenarios are synthetic
+wiring evidence and remain ineligible for approval. Existing outputs are never
+overwritten. The official builder includes `trace.js` and hash-verified replay/cycle
+links. Public deployment still requires separate authorization; design PR #32 is
+not part of this demo.
+
+To prepare the read-only local screen, merge reviewed historical reports and the
+generated `n2-feedback` directory into a new results directory, then use the
+official build (never copy private runtime directories):
+
+```bash
+python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 project_results.py build --results <demo-results> --output <new-site>
+python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
+```
+
+Use `/?project=<project>&run=<exact-cycle-id>&skill=<skill-key>` on the loopback
+server; cycle IDs and run references are in the exporter manifest. The screen
+labels `offline_test` as non-measured and keeps final confirmation/approval
+incomplete. Historical reports retain their original bytes and outcomes.
+Retain screenshots and a file-openable gallery as a no-server backup.
+
 ### Prepared project samples
 
 - `projects/sample_repo`: original issue-management seeds plus an explicitly added development skill.
-- `projects/project-a`: pinned `dbader/schedule` 1.2.2 source with a scheduling-specific, unvalidated skill draft.
+- `projects/project-a`: pinned `dbader/schedule` 1.2.2 source with a scheduling-specific,
+  unvalidated skill draft and an explicit pytest-only preparation overlay in `pyproject.toml`.
 - `projects/project-b`: pinned `obra/superpowers` v6.3.0 source with its existing skills preserved.
 
 ```bash
-python3 project_samples.py verify --project project-a
+python3 project_samples.py verify --project project-a  # Expected source_mismatch: declared preparation overlay
 python3 project_samples.py verify --project project-b
 python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
 ```
@@ -117,6 +344,10 @@ directories, preserves licenses/hashes, and requires a selected draft if skills
 are missing. See [preparation commands and boundaries](docs/PROJECT-EVALUATION.md#reproducible-sample-preparation)
 before importing another repository. It never executes upstream code or replaces
 existing skills. Draft installation is not successful behavioral evaluation.
+Project-a retains its original upstream manifest and formatter pin: the strict import
+verifier deliberately rejects its local TOML overlay rather than relabeling it as
+upstream content. The pytest profile does not cover all upstream CI jobs; see the
+[dependency profile contract](docs/PROJECT-EVALUATION.md#automatic-evaluation-support-and-boundaries).
 
 The project workflow's `sample-onboarding-results` artifact verifies actual
 non-model reports using the existing evaluator and schema. Project guide assessment
@@ -162,9 +393,15 @@ recorded evidence; it does not install or deploy a skill.
 
 Requirements: Linux, Python 3.12+, Git, an installed and authenticated GitHub
 Copilot CLI with access to the chosen model, and a running Docker daemon.
-All Python dependencies are standard-library modules.
+The evaluator uses the hash-pinned `packaging` requirement parser declared in
+`requirements-evaluator.txt`; other Python dependencies are standard-library modules.
+Install it in a local virtual environment before running evaluator checks or project
+dependency preparation. Missing or different parser versions fail closed.
 
 ```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 python3 skillops.py doctor
 ```

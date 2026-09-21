@@ -1,8 +1,68 @@
 from pathlib import Path
+import os
+import subprocess
+import textwrap
 import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_current_quality_input_is_optional_distinct_and_passed_as_one_quoted_argument(self):
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/project-evaluation.yml").read_text()
+        self.assertIn("      assessment_skill_key:", text)
+        self.assertRegex(text, r"(?s)      assessment_skill_key:\n.*?type: string\n        default: ''")
+        evaluate = text.split("\n  evaluate:\n", 1)[1].split("\n  persist:\n", 1)[0]
+        self.assertIn("ASSESSMENT_SKILL_KEY: ${{ inputs.assessment_skill_key }}", evaluate)
+        self.assertIn('args+=(--assessment-skill-key "$ASSESSMENT_SKILL_KEY")', evaluate)
+        step = evaluate.split("      - name: Assess projects or record explicit blocked prerequisites\n", 1)[1]
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1].split("      - name:", 1)[0])
+        self.assertNotIn("${{", script)
+        prefix = 'set -e\nfunction git() { printf "%s\\n" "$SOURCE_SHA"; }\nfunction python3() { printf "%s\\0" "$@"; }\n'
+        baseline = {"PATH": os.environ["PATH"], "SOURCE_SHA": "a" * 40, "BEFORE_SHA": "b" * 40,
+                    "RESULT_RUN": "123-1", "EVENT_NAME": "workflow_dispatch", "PROJECT_ID": "sample_repo",
+                    "DISPATCH_LIVE": "false"}
+        selector = "auto:current; echo PRIVATE_SENTINEL"
+        cases = [
+            ({}, 0, False),
+            ({"EVENT_NAME": "push", "PROJECT_ID": ""}, 0, False),
+            ({"ASSESSMENT_SKILL_KEY": selector}, 0, True),
+            ({"ASSESSMENT_SKILL_KEY": "auto:current", "PROJECT_ID": ""}, 2, False),
+            ({"ASSESSMENT_SKILL_KEY": "auto:current", "EVENT_NAME": "push"}, 2, False),
+            ({"ASSESSMENT_SKILL_KEY": "auto:current", "WORK_ID": "work"}, 2, False),
+            ({"ASSESSMENT_SKILL_KEY": "auto:current", "SKILL_KEY": "auto:recorded"}, 2, False),
+            ({"ASSESSMENT_SKILL_KEY": "auto:current", "MAX_ROUNDS": "1"}, 2, False),
+        ]
+        for extra, status, selected in cases:
+            with self.subTest(extra=extra):
+                result = subprocess.run(["bash", "-c", prefix + script], env={**baseline, **extra},
+                                        capture_output=True, timeout=10)
+                self.assertEqual(result.returncode, status, result.stderr)
+                if status == 0:
+                    argv = result.stdout.decode().split("\0")
+                    self.assertEqual("--assessment-skill-key" in argv, selected)
+                    if selected:
+                        self.assertEqual(argv[argv.index("--assessment-skill-key") + 1], selector)
+
+    def test_recorded_dispatch_selects_only_ids_and_explicit_limits_with_no_approval_command(self):
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/project-evaluation.yml").read_text()
+        evaluate = text.split("\n  evaluate:\n", 1)[1].split("\n  persist:\n", 1)[0]
+        for name in ("work_id", "skill_key", "max_rounds"):
+            self.assertIn(f"      {name}:", text)
+        self.assertIn("secrets.SKILLOPS_RECORDED_WORK_ITEMS", evaluate)
+        self.assertIn('args+=(--work-id "$WORK_ID" --skill-key "$SKILL_KEY" --max-rounds "$MAX_ROUNDS")', evaluate)
+        self.assertIn('if [ "$DISPATCH_LIVE" = "true" ]', evaluate)
+        self.assertNotIn("skillops.py approve", text)
+        self.assertNotIn("run-approved", text)
+        script = evaluate.split("        run: |\n", 2)[-1]
+        self.assertNotIn('"$SKILLOPS_RECORDED_WORK_ITEMS"', script)
+
+    def test_public_result_artifact_uses_explicit_filenames_not_private_trees(self):
+        text = (Path(__file__).resolve().parents[1] / ".github/workflows/project-evaluation.yml").read_text()
+        artifact = text.split("name: public-project-results", 1)[1].split("\n  persist:", 1)[0]
+        self.assertNotIn("path: ci-results/", artifact)
+        for name in ("report.json", "skill-evolution.json", "replay-evaluation.json", "cycle.json", "adoption.json"):
+            self.assertIn("ci-results/*/*/" + name, artifact)
+        self.assertNotIn(".skillops", artifact)
+
     def test_manual_project_limits_are_not_replicated_per_skill(self):
         root = Path(__file__).resolve().parents[1]
         text = (root / ".github/workflows/project-evaluation.yml").read_text()
@@ -25,7 +85,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('args+=(--changed-since "$BEFORE_SHA")', evaluate)
         self.assertIn('args+=(--project "$PROJECT_ID")', evaluate)
         self.assertIn("SELECTED_PROJECTS: ${{ steps.assess.outputs.selected_projects }}", evaluate)
-        self.assertIn('if [ "$SELECTED_PROJECTS" = "0" ]', evaluate)
+        self.assertIn('[ "$SELECTED_PROJECTS" = "0" ]', evaluate)
         self.assertIn("No changed projects", evaluate)
         self.assertIn("      - 'package-lock.json'", text)
 

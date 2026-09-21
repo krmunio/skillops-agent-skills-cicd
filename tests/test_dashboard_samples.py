@@ -1,5 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
+from publication_fixtures import dashboard_fixture
 import tempfile
 import unittest
 
@@ -83,7 +84,7 @@ class DashboardSamplesTests(unittest.TestCase):
             for report in real:
                 results.store(data, report)
             results.merge_samples(ROOT, data)
-            results.build(ROOT, data, site)
+            results.build(dashboard_fixture(folder / "publisher"), data, site)
             built = results.load_reports(site / "results")
             self.assertEqual([r for r in built if r["origin"] != "sample"], real)
             self.assertEqual(len([r for r in built if r["origin"] == "sample"]), 6)

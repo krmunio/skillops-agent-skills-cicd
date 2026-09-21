@@ -87,6 +87,149 @@ python3 project_evaluation.py --root . --output ci-results --run-id <run-id> \
 authorization and resource limits still apply. An empty selection records a no-op
 in the Actions summary; it is not a passing Skill evaluation.
 
+### Assess one current Skill
+
+`--assessment-skill-key <canonical-key>` selects one **currently discovered** Skill
+within an explicit `--project`. Omitting it keeps the existing full-project behavior.
+It is distinct from recorded-work `--skill-key`: do not combine it with `--work-id`,
+`--skill-key`, `--max-rounds` or `--changed-since`. Unknown, malformed, removed or
+ambiguous identities fail before runtime construction or model calls.
+
+Copy `skill_key`, not `source_path`, from the current inventory in a trusted
+`results/index.json`, or from a validated assessment for that same current source
+path. For example, this read-only command lists the public inventory:
+
+```bash
+jq -r '.projects[] | select(.id == "project-b") | .detected_skills[]
+  | [.skill_key, .source_path] | @tsv' results/index.json
+```
+
+Use the same validated history with `--history` when it supplies a registered or
+legacy canonical identity. Do not derive a new path key to override an existing
+history association. Discovery still reads the **whole current project inventory**
+and resolves its canonical keys before selecting exactly one match. A stale result
+key cannot select a removed Skill or an arbitrary historical version.
+
+After **separate paid-execution authorization**, local
+`SKILLOPS_LIVE_EVALUATION_ENABLED=true`, configured authentication and the existing
+shared call/time/per-session Credit limits, a local assessment can use:
+
+```bash
+python3 project_evaluation.py --root . --output new-results \
+  --run-id <unique-run-id> --source-commit "$(git rev-parse HEAD)" \
+  --project project-b --assessment-skill-key <canonical-current-skill-key> \
+  --history <validated-history-results>
+```
+
+The corresponding manual Actions input is `assessment_skill_key` (blank by default).
+The following is a billable dispatch and also uses the existing connected result
+persistence and public deployment, so authorization must cover all those actions:
+
+```bash
+gh workflow run project-evaluation.yml --ref main \
+  -f project=project-b -f assessment_skill_key="$ASSESSMENT_SKILL_KEY" -f live=true
+```
+
+`ASSESSMENT_SKILL_KEY` must contain the reviewed canonical inventory key. Existing
+repository budget defaults or separately approved project-wide overrides apply;
+selection never raises or replicates limits. Push and PR behavior is unchanged.
+
+Every selected cycle performs **fresh original quality, one new candidate generation,
+and fresh candidate quality** under the actual source commit and evaluator fingerprint.
+History provides identity only, never a cached baseline. Earlier completed reports
+remain immutable; a later evaluator must not relabel or silently resume their evidence.
+The existing checks and any automatically derived paired applications are unchanged.
+This option supplies no recorded user-work replay, held-out confirmation, approval
+or adoption evidence, and cannot guarantee that a previously rejected response will
+succeed on another run.
+
+For a selected run, existing `guide.metrics.skills` records the **full discovered
+inventory count**, and existing `guide.metrics.requested` records the selected count.
+Only selected assessments and telemetry are emitted. `guide.status: completed` means
+the requested quality assessments completed, not that all inventory Skills passed
+or were assessed. Final indexing uses the same validated identity history for both
+selected and unselected current Skills, so emitted inventory keys remain selectable
+with that history. Identity-only history does not copy prior assessments into the
+new output; unselected Skills without output evidence remain unassessed.
+The Actions summary explicitly shows selected scope and inventory
+coverage (for example, 1/14 complete); execution qualification remains independent
+and may still block the workflow. No public schema expansion is introduced.
+
+### Content-free candidate diagnostics
+
+Future candidate text failures use fixed
+`candidate_<field>_<condition>` codes. Fields are only `instructions`, `hypothesis`
+and `addressed_finding` (an entry in `addressed_findings`). Conditions are only
+`type`, `empty`, `byte_limit` and `control_character`. The instructions limit is
+the frozen original-body allowance below. Hypothesis and individual finding IDs
+retain their raw UTF-8 limits of 4096 and 160 bytes; at most 128 unique finding IDs
+are accepted. LF/TAB remain allowed and other C0 controls remain rejected. Other
+shape, array and sensitive-content guards retain their existing behavior.
+
+Diagnostics contain no input values, excerpts, untrusted field names or raw
+exceptions. Existing private runtime handling is unchanged; no raw response is
+added to logs or public artifacts. An invocation may be `completed` while the
+generation stage is `blocked` by validation; no candidate version or candidate
+quality is fabricated in that case. Historical `invalid_skill_assessment` remains
+valid evidence. More specific future codes do not recover the unknown offending
+field in an older response or establish that its root cause has been fixed.
+
+### Original-body allowance and independent admission limits
+
+Both quality-cycle and recorded-work replay generators share this policy:
+
+```text
+B0 = len(frontmatter(initially_admitted_original_SKILL).body.strip().encode("utf-8"))
+C  = len(decoded_instructions.strip().encode("utf-8"))
+0 < B0 <= 32768
+0 < C <= B0
+```
+
+This is **no growth for every Skill**, without a 16000-byte floor. The original
+body is parsed by the existing scalar frontmatter parser (which joins body lines
+with LF); bytes are not character counts, token counts, or JSON-escaped lengths.
+Admission supports LF-delimited frontmatter only: CRLF frontmatter, invalid UTF-8,
+an empty canonical original, or an original above 32768 bytes is rejected before
+runtime construction or original-quality model calls. This independent 32 KiB
+admission ceiling is not an allowance of 32 KiB for each candidate.
+
+Raw response type, nonempty-string and C0-control guards run **before** stripping;
+CR cannot be hidden by outer whitespace. An empty canonical candidate also fails.
+Outer padding cannot enlarge the allowance. A body equal to the current parent's
+canonical body, with or without its final LF, is `unchanged_candidate`.
+Rendering preserves the original frontmatter bytes and every companion file
+byte; no truncation or content rewriting is used to make an oversized candidate
+fit. Replay always anchors its allowance to retained `context.original`, not the
+previous candidate, including after shrinking an intermediate candidate. Supplied
+replay candidates are checked against that same anchor; confirmation isolation,
+task/safety checks, and semantic/efficiency regression gates are unchanged.
+
+Before runtime construction, the selected current scope is checked for known
+generation/quality prompt limits and a conservative complete base-plus-maximum-
+candidate capture reservation. The reservation sums independently serialized
+one-Skill envelopes, retaining base64 content, metadata, frontmatter and
+companions without relying on cross-Skill deduplication. Unselected Skills do
+not consume this reservation. Full inventory/validated-history identity selection
+still runs first. A rejected admission does not create a runtime or retry.
+
+Known admission is **not** a guarantee that future measured findings/checks will
+fit. Actual generation prompts are rechecked before the generator invocation;
+final sidecars and their serialized sizes are checked before public result writes.
+Oversize remains an explicit failure, with no summarization, silent reduction or
+hidden retry. Existing limits remain: 100000 UTF-8 prompt bytes, 48 KiB quality
+evidence batches, 4 MiB runtime transport, 1 MiB ordinary result JSON and 2 MiB
+evolution JSON (including corresponding frontend limits). None is a model-credit,
+cost, completion or whole-workflow-time guarantee.
+
+Historical fixed-16000-byte results remain immutable and valid under their
+original policy. This intentional compatibility change would exceed the
+original-body allowance for 8 of the 13 retained historical B candidates
+(a retained-body comparison, not reconstruction of private raw responses).
+Original captures plus the actual source/evaluator fingerprint reproduce the
+new allowance without a public schema field. New code requires fresh original
+quality; old baseline quality must not be reused or relabeled. Offline boundary
+tests establish neither improved quality nor new live coverage/adoption.
+
 ### Actions stage visibility
 
 Trusted evaluation enables `SKILLOPS_ACTIONS_PROGRESS=true` to group logs by project,
@@ -369,6 +512,66 @@ require running packaging code. Dynamic dependencies, undeclared legacy dependen
 and unsupported lockfiles still fail explicitly. The resolver never installs the
 project itself or executes its setup script, and wheel-only installation remains
 mandatory.
+Registry requirement strings are parsed in full by `packaging==26.2`, installed from
+the hash-pinned `requirements-evaluator.txt`. This parser dependency is included in
+the evaluator fingerprint and bootstrapped by the test/evaluation jobs; local users
+must install the same manifest in their virtual environment. Missing or different
+parser versions fail closed rather than selecting a weaker fallback.
+
+Supported inputs include registry names, extras, version constraints and environment
+markers accepted by that parser. This is not the full pip requirements-file language:
+direct URLs, requirement-file options/directives, environment-variable expansion,
+backslash continuation, control characters other than tab, and option-looking tokens
+even inside marker literals are rejected. Ordinary blank lines and trailing `#`
+comments in requirements files retain their existing handling; `#` is not accepted
+inside a declared requirement string. In particular, a string such as
+`pytest --no-binary=pytest` cannot override the resolver's wheel-only flags.
+This shared check also applies to retained runtime requirements and the default
+merged-dev path before model construction. Previously accepted unsafe or malformed
+strings are intentionally rejected; valid default dependency selection is unchanged.
+
+An explicit pytest-only dependency profile can opt out of the combined development
+toolchain without removing tests or weakening registry/wheel-only guards. Its complete
+declaration in the project's `pyproject.toml` is:
+
+```toml
+[tool.skillops]
+dependency-profile = "pytest"
+test-dependencies = ["pytest", "pytz"]
+```
+
+The `tool.skillops` table accepts exactly these two keys. The only supported profile
+name is `pytest`; `test-dependencies` must be a nonempty list of safe registry requirement
+strings. Empty/misspelled/unknown declarations, unsafe specifications and a non-pytest
+check plan fail closed before package resolution or model runtime construction.
+With the table absent, the existing merged dependency behavior is unchanged. With it
+present, `requirements.txt` and static `project.dependencies` remain included, while
+`requirements-dev.txt` and optional `test`/`tests`/`dev` groups are replaced by the declared
+test dependencies. Required runtime extras must therefore be declared explicitly
+(project-a includes `pytz` to retain timezone cases). Pytest is added if needed by the
+existing runner. Dynamic/legacy dependency restrictions and unsupported lockfiles still
+apply. There is no CLI override, source-build fallback or trusted-cache shortcut.
+
+This changes dependency selection, not pytest collection, test commands or required
+gates. All discovered pytest cases still run. The selected declaration is part of
+the existing configuration/plan, protected-file and project-tree hashes; the actually
+prepared immutable image binds the environment. Profile changes require fresh baseline
+and source/check/environment bindings, not reuse of a previous environment claim.
+The profile does not claim upstream formatting, mypy, documentation, packaging or
+multi-Python CI coverage.
+
+Project-a's declaration is a SkillOps preparation overlay on the imported upstream
+`pyproject.toml`, not upstream-authored configuration. Its original upstream hash in
+`.skillops-source.json` remains unchanged as provenance: this file is now an explicit
+local delta. The original `requirements-dev.txt` (including `black==20.8b1` and
+`click==8.0.4`), application source and Skill are unchanged. Historical reports and
+their original dependency failures are not reinterpreted under this profile.
+The strict `project_samples.py verify --project project-a` import check therefore
+returns `source_mismatch` for the prepared working copy. It has not been relaxed:
+fixture tests assert that rejection and verify the original import in a temporary
+copy with only the exact declared TOML suffix removed. Every other imported file,
+license, bootstrap binding and Skill remains subject to the original checks.
+
 Resolution uses a restricted proxy for PyPI and npm's official registries; test/build execution
 has no network and receives no model or deployment credentials.
 
@@ -382,10 +585,11 @@ Unsupported or failed dependency preparation is recorded as an explicit check-st
 It does not prevent independent Skill quality evaluation and candidate generation; execution
 remains unverified. This does not provide package-building or shell-harness support.
 
-Non-model preflight on the pinned samples found that project-a's declared
+Historical non-model preflight on the unmodified pinned samples found that project-a's declared
 `black==20.8b1` cannot be resolved by the wheel-only preparation path. Its dependency
-configuration remains intact, with execution unverified; Skill quality evaluation
-can continue independently. For project-b, pytest collected 19 passing Python cases.
+pin remains intact; the explicit profile above is a separate preparation context,
+not a retroactive execution result. Skill quality evaluation can continue independently.
+For project-b, pytest collected 19 passing Python cases.
 The observation remained blocked with 32 test-named shell scripts and one nested
 Node package explicitly unexecuted. These are scoped check results, not evidence of
 Skill improvement or complete project coverage.
@@ -777,6 +981,28 @@ the selected run's original-artifact commitment and decision are validated befor
 rendering; a historical baseline reference does not assert full-version equivalence.
 
 ## Validation
+
+### Read-only dashboard interpretation
+
+The bilingual **Self-Evolving Agent / 자가 진화** identity describes the future
+direction, not validated autonomous operation. The navy/teal dashboard keeps one
+five-stage trace: development, bounded iteration, separate confirmation, human
+approval, and observed next-task use. Each stage shows its recorded status and
+next action; quality completion, task success, confirmation, approval, and verified
+version use remain distinct. Missing evidence is not zero or an absent approval.
+
+Navigation follows document order (trace, quality, execution, changes, history).
+Mobile retains read-only context and accessible offline-example links and warnings.
+Offline/test and synthetic examples remain opt-in, never automatic live evidence.
+Summary tiles retain legacy-aggregate scope, sidecar adoption guidance and discovery
+warnings; they do not combine evaluator scores or infer productivity from identical
+code output.
+
+The existing local CLI documentation link describes **read-only
+`approval-preflight` first**, followed by a separately authorized, interactive
+`approve`. Neither preflight nor quality-only assessment is task confirmation.
+The dashboard cannot approve, run tasks, inspect private Active state, or consume
+private preflight output. Operational pilot preparation remains paused.
 
 The `dashboard` job in `SkillOps validation` runs the Playwright suite on
 Ubuntu 24.04 with Node 22, Python 3.12 and Chromium. It uses the existing locked

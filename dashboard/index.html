@@ -26,9 +26,17 @@
         <h2>프로젝트 <span id="project-count"></span><span class="project-scroll-hint" aria-hidden="true" hidden>옆으로 이동 →</span></h2>
         <div class="project-picker"><div id="projects"><p class="muted">목록을 불러오는 중입니다.</p></div></div>
         <div class="sample-entry">
-          <span class="eyebrow">화면 둘러보기</span>
-          <button id="demo-open" type="button" aria-pressed="false">샘플 화면 보기</button>
-          <p>가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
+        <details id="offline-examples">
+          <summary>오프라인 예제</summary>
+          <p>세션 1이 확정한 생산 모듈의 offline_test 기록입니다. 현재 실측 결과·승인 가능한 후보가 아닙니다. 명시적으로 선택한 예제만 열며, 게시 근거가 없으면 오류를 표시합니다.</p>
+          <p><a href="/?project=sample_repo&amp;run=local-20260918T094535Z-b9a681f6cfb2&amp;skill=path%3A90ae807bd3d394fc140a6df8">N=2 · 최종 확인 미검증</a></p>
+          <p><a href="/?project=sample_repo&amp;run=local-20260918T094533Z-f6297a587afc&amp;skill=path%3A90ae807bd3d394fc140a6df8">최종 확인 통과 · 승인 불가</a></p>
+          <p><a href="/?project=sample_repo&amp;run=local-20260918T094534Z-bcba9c0a589e&amp;skill=path%3A90ae807bd3d394fc140a6df8">최종 확인 실패</a></p>
+          <p>생산 근거: PR #38 · b8dade4. 실제 평가 이력·아래 합성 화면 예시와 구분합니다.</p>
+        </details>
+        <span class="eyebrow">화면 둘러보기</span>
+        <button id="demo-open" type="button" aria-pressed="false">샘플 화면 보기</button>
+        <p class="sample-description">가상의 Skill과 평가 결과로 상세 화면을 확인합니다. 실제 이력에는 포함되지 않습니다.</p>
         </div>
       </div>
     </aside>
@@ -41,6 +49,7 @@
       </div>
       <section class="intro">
         <p class="route">프로젝트 / 평가 결과</p>
+        <p class="dashboard-context"><span class="readonly-context">공개 기록 · 읽기 전용</span> · <span class="vision-context">자가 진화는 앞으로의 방향성이며 현재 검증된 성과를 뜻하지 않습니다.</span></p>
         <div class="title-line"><h1 id="project-title">프로젝트 평가</h1><span id="origin" class="badge">프로젝트 선택</span></div>
         <div class="selection-line">
           <label for="skill-select">대상 Skill</label>
@@ -52,11 +61,13 @@
       <section id="project-summary" class="panel project-summary" aria-labelledby="project-summary-title" hidden></section>
       <nav class="section-nav" aria-label="평가 영역">
         <span class="section-nav-label" aria-hidden="true">이 페이지</span>
-        <a href="#quality-section"><span aria-hidden="true">01</span>스킬 품질·개선 근거</a>
-        <a href="#execution-section"><span aria-hidden="true">02</span>프로젝트 실행</a>
-        <a href="#changes-section"><span aria-hidden="true">03</span>Skill 변경</a>
-        <a href="#history-section"><span aria-hidden="true">04</span>평가 이력</a>
+        <a href="#evidence-trace"><span aria-hidden="true">01</span>작업·승인·사용 근거</a>
+        <a href="#quality-section"><span aria-hidden="true">02</span>스킬 품질·개선 근거</a>
+        <a href="#execution-section"><span aria-hidden="true">03</span>프로젝트 실행</a>
+        <a href="#changes-section"><span aria-hidden="true">04</span>Skill 변경</a>
+        <a href="#history-section"><span aria-hidden="true">05</span>평가 이력</a>
       </nav>
+      <section id="evidence-trace" class="panel evaluation-section" aria-label="작업·승인·사용 근거"></section>
       <div id="detail" hidden>
         <section id="quality-section" class="evaluation-section" data-section="quality" aria-labelledby="quality-title">
           <div class="section-heading"><h2 id="quality-title">스킬 품질 및 개선 근거 평가</h2><span id="quality-summary"></span></div>
