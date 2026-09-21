@@ -1,11 +1,12 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
+const { test: koreanPublicTest, assertDashboardModules } = require('./dashboard-public-harness');
 
 // Official compiled assets, with test-only response fixtures; not publisher evidence.
 const assetRoot = process.env.SKILLOPS_DASHBOARD_BUILD || 'dashboard';
 const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/sample-data.json': 'sample-data.json' };
-for (const module of ['app', 'views', 'evolution', 'assessments', 'trace']) {
+for (const module of ['app', 'views', 'evolution', 'assessments', 'trace', 'i18n']) {
   const names = process.env.SKILLOPS_DASHBOARD_BUILD
     ? fs.readdirSync(assetRoot).filter(name => new RegExp(`^${module}\\.[a-f0-9]{12}\\.js$`).test(name))
     : [`${module}.js`];
@@ -15,6 +16,9 @@ for (const module of ['app', 'views', 'evolution', 'assessments', 'trace']) {
 const moduleUrl = module => '/' + Object.values(assets).find(name => name === `${module}.js` || name.startsWith(`${module}.`));
 
 async function pageWith(page, index, status = 200, origin = 'http://dashboard.test', pathname = '/') {
+  if (page.dashboardLocale !== 'default') {
+    await page.addInitScript(() => localStorage.setItem('skillops.dashboard.locale', 'ko'));
+  }
   await page.route(`${origin}/**`, route => {
     const name = new URL(route.request().url()).pathname;
     if (name === '/results/index.json') {
@@ -25,9 +29,260 @@ async function pageWith(page, index, status = 200, origin = 'http://dashboard.te
       name.endsWith('.json') ? 'application/json' : 'text/html';
     return route.fulfill({ contentType, body: fs.readFileSync(path.join(assetRoot, assets[name])) });
   });
+
   await page.goto(`${origin}${pathname}`);
 }
 
+koreanPublicTest('public harness explicitly selects Korean without changing the English-default fixture', async ({ page }) => {
+  page.dashboardLocale = 'default';
+  await pageWith(page, { schema_version: 1, projects: [] });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+  await expect(page.locator('#language-select')).toHaveValue('ko');
+  await page.reload();
+  await expect(page.locator('#project-title')).toHaveText('프로젝트 평가');
+});
+
+test('public harness verifies the localized asset graph and rejects invalid graphs', async () => {
+  const hash = bytes => require('node:crypto').createHash('sha256').update(bytes).digest('hex').slice(0, 12);
+  const files = new Map(), names = new Map();
+  for (const name of ['i18n', 'views', 'evolution', 'assessments', 'trace', 'app']) {
+    const source = fs.readFileSync(`dashboard/${name}.js`, 'utf8').replace(
+      /^(\s*import\b[^;]*?\bfrom\s*['"])\.\/([^'"]+\.js)(['"])/gm,
+      (_, prefix, dependency, suffix) => `${prefix}./${names.get(dependency)}${suffix}`);
+    const bytes = Buffer.from(source), filename = `${name}.${hash(bytes)}.js`;
+    names.set(`${name}.js`, filename);
+    files.set(`/${filename}`, bytes);
+  }
+  files.set('/', Buffer.from(`<script type="module" src="/${names.get('app.js')}"></script>`));
+  const requestFor = assets => ({ get: async url => {
+    const bytes = assets.get(new URL(url).pathname);
+    return { ok: () => bytes !== undefined, body: async () => bytes, text: async () => bytes.toString() };
+  } });
+  await assertDashboardModules(requestFor(files), 'http://dashboard.test');
+  const tampered = new Map(files);
+  tampered.set(`/${names.get('i18n.js')}`, Buffer.from('modified bytes'));
+  await expect(assertDashboardModules(requestFor(tampered), 'http://dashboard.test')).rejects.toThrow();
+  for (const source of ["import x from './rogue.0123456789ab.js';", "import x from './i18n.js';", 'export const incomplete = true;']) {
+    const bytes = Buffer.from(source), filename = `app.${hash(bytes)}.js`;
+    const invalid = new Map([[`/${filename}`, bytes], ['/', Buffer.from(`<script src="/${filename}"></script>`)]]);
+    await expect(assertDashboardModules(requestFor(invalid), 'http://dashboard.test')).rejects.toThrow();
+  }
+});
+
+test.describe('dashboard localization', () => {
+    test.use({ locale: 'ko-KR' });
+
+    test('static HTML is English and accessible before JavaScript runs', async ({ browser }) => {
+      const context = await browser.newContext({ javaScriptEnabled: false, locale: 'ko-KR' });
+      try {
+        const page = await context.newPage();
+        page.dashboardLocale = 'default';
+        await pageWith(page, { schema_version: 1, projects: [] });
+        await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+        await expect(page).toHaveTitle('Self-Evolving Agent SkillOps');
+        await expect(page.getByRole('link', { name: 'Self-Evolving Agent SkillOps', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Refresh', exact: true })).toBeVisible();
+        await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /^Self-Evolving Agent SkillOps:/);
+      } finally { await context.close(); }
+    });
+
+    test('English is the fresh default even in a Korean browser; selection persists without reload', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      await pageWith(page, { schema_version: 1, projects: [] });
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+      await expect(page).toHaveTitle('Self-Evolving Agent SkillOps');
+      await expect(page.locator('#project-title')).toHaveText('Project evaluation');
+      await expect(page.locator('#skill-progress li strong')).toHaveText([
+        'Development evaluation', 'Up to N improvement rounds', 'Separate confirmation', 'Human approval', 'Next-task use',
+      ]);
+      await expect(page.locator('#approval-guidance')).toContainText('read-only approval-preflight');
+      await expect(page.locator('#approval-guidance a')).toHaveAttribute('href',
+        'https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.md#separate-local-approval');
+      await page.locator('#language-select').selectOption('ko');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+      await expect(page.locator('#project-title')).toHaveText('프로젝트 평가');
+      await expect(page.locator('#approval-guidance a')).toHaveAttribute('href', /README\.ko\.md#별도의-로컬-승인$/);
+      await page.reload();
+      await expect(page.locator('#language-select')).toHaveValue('ko');
+      await expect(page.locator('#project-title')).toHaveText('프로젝트 평가');
+    });
+
+    test('language changes preserve sample, skill, history tab, expanded diff and original text', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      await pageWith(page, { schema_version: 1, projects: [] });
+      await page.locator('#demo-open').click();
+      await expect(page.locator('#detail')).toBeVisible();
+      await page.locator('#execution-history-tab').click();
+      await page.locator('.diff-toolbar button').click();
+      const original = await page.locator('.source-panel pre').allTextContents();
+      const selected = await page.locator('#skill-select').inputValue();
+      const url = page.url();
+      const requests = [];
+      page.on('request', request => requests.push(request.url()));
+      await page.locator('#language-select').focus();
+      await page.locator('#language-select').selectOption('ko');
+      await expect(page.locator('#language-select')).toBeFocused();
+      await expect(page.locator('#execution-history-tab')).toHaveAttribute('aria-selected', 'true');
+      await expect(page.locator('#skill-diff')).toBeVisible();
+      await expect(page.locator('#sample-banner')).toContainText('합성 데이터');
+      await page.locator('#language-select').selectOption('en');
+      await expect(page.locator('#sample-banner')).toContainText('Synthetic data');
+      await expect(page.locator('#quality-title')).toHaveText('Skill quality and improvement evidence');
+      await expect(page.locator('#execution-title')).toHaveText('Project execution evaluation');
+      expect(await page.locator('.source-panel pre').allTextContents()).toEqual(original);
+      await expect(page.locator('#skill-select')).toHaveValue(selected);
+      expect(page.url()).toBe(url);
+      expect(requests).toEqual([]);
+    });
+
+    for (const mode of ['offline_test', 'sample', 'live']) {
+      test(`translated ${mode} evidence preserves codes, deep links, metrics and adoption distinctions`, async ({ page }) => {
+        page.dashboardLocale = 'default';
+        await tracePage(page, traceFixture({ mode }));
+        await expect(page.locator('#trace-mode')).toContainText(mode);
+        await expect(page.locator('#evidence-trace')).toContainText('Version-use verification does not mean task success');
+        const approvalDate = await page.locator('#evidence-trace p').filter({ hasText: 'Approved at:' }).textContent();
+        const requests = [];
+        page.on('request', request => requests.push(request.url()));
+        const url = page.url(), source = await page.locator('.source-panel pre').allTextContents();
+        await page.locator('#execution-history-tab').click();
+        await page.locator('#language-select').selectOption('ko');
+        await expect(page.locator('#summary-adoptions')).toContainText('새 승인·사용은 선택 실행 근거에서 확인');
+        await expect(page.locator('#evidence-trace')).toContainText('작업 성공을 의미하지 않습니다');
+        await expect(page.locator('#evidence-trace p').filter({ hasText: '승인 시각:' })).not.toContainText('2026-09-17T12:01:00Z');
+        expect(await page.locator('#evidence-trace p').filter({ hasText: '승인 시각:' }).textContent()).not.toBe(approvalDate);
+        await page.locator('#language-select').selectOption('en');
+        await expect(page.locator('#summary-adoptions')).toContainText('selected run');
+        await expect(page.locator('#execution-history-tab')).toHaveAttribute('aria-selected', 'true');
+        await expect(page.locator('#trace-mode')).toContainText(mode);
+        expect(await page.locator('.source-panel pre').allTextContents()).toEqual(source);
+        expect(page.url()).toBe(url);
+        expect(requests).toEqual([]);
+      });
+    }
+
+    test('invalid preference falls back to English and inaccessible storage keeps the toggle usable', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      await page.addInitScript(() => localStorage.setItem('skillops.dashboard.locale', 'bogus'));
+      await pageWith(page, { schema_version: 1, projects: [] });
+      await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+      await page.addInitScript(() => {
+        Object.defineProperty(window, 'localStorage', { get() { throw new DOMException('Denied', 'SecurityError'); } });
+      });
+      await page.reload();
+      await expect(page.locator('#language-status')).toBeVisible();
+      await page.locator('#language-select').selectOption('ko');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+      await expect(page.locator('#language-status')).toContainText('저장');
+      await expect(page.locator('#project-title')).toHaveText('프로젝트 평가');
+    });
+
+    test('async responses and errors use the currently selected locale', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      await page.route('http://dashboard.test/results/sample_repo/index.json', async route => {
+        await gate;
+        await route.fulfill({ status: 503, body: 'Unavailable' });
+      });
+      await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active', history_count: 0, current_run: null }] });
+      await page.locator('#language-select').selectOption('ko');
+      release();
+      await expect(page.locator('#error')).toContainText('이력을 불러오지 못했습니다');
+      await page.locator('#language-select').selectOption('en');
+      await expect(page.locator('#error')).toContainText('Could not load history');
+      await expect(page.locator('#skill-progress .stage-status').first()).toContainText('Unverified');
+    });
+
+    test('English assessment summaries, unknown metrics and original findings remain distinct', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      const fixture = assessmentCatalog(1);
+      await projectSummaryPage(page, fixture);
+      await expect(page.locator('#summary-decisions')).toContainText('Improved');
+      await expect(page.locator('#execution')).toContainText('Selected Skill candidate decision');
+      await expect(page.locator('#task-results')).toContainText('Check identifier');
+      const date = await page.locator('#run-time').textContent();
+      await page.locator('#language-select').selectOption('ko');
+      await expect(page.locator('#run-time')).not.toHaveText(date);
+      await expect(page.locator('.project small').first()).toContainText(`${fixture.catalog.projects[0].history_count}건`);
+      await expect(page.locator('#summary-decisions')).toContainText('상승');
+      await page.locator('#language-select').selectOption('en');
+      await expect(page.locator('#run-time')).toHaveText(date);
+      await expect(page.locator('#summary-decisions')).toContainText('Improved');
+    });
+
+    test('recorded text matching translation keys is never translated', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      await pageWith(page, { schema_version: 1, projects: [] });
+      const sample = JSON.parse(fs.readFileSync('dashboard/sample-data.json', 'utf8'));
+      const literal = '미기록\n실패\n{0}\n<img src=x onerror="window.translatedEvidence=true">';
+      sample.skills[0].versions.v2.content += literal;
+      sample.skills[0].reports[0].details.improvement.hypothesis = literal;
+      await page.route('http://dashboard.test/sample-data.json', route => route.fulfill({ json: sample }));
+      await page.locator('#demo-open').click();
+      await expect(page.locator('#skill-changes pre').nth(1)).toContainText(literal);
+      for (const locale of ['ko', 'en']) {
+        await page.locator('#language-select').selectOption(locale);
+        await expect(page.locator('#skill-changes pre').nth(1)).toContainText(literal);
+        await expect(page.locator('#improvement-evidence')).toContainText(literal);
+        await expect(page.locator('#skill-changes img')).toHaveCount(0);
+      }
+      expect(await page.evaluate(() => window.translatedEvidence)).toBeUndefined();
+    });
+
+    test('rejected writes show a persistence warning without hiding unknown metrics', async ({ page }) => {
+      page.dashboardLocale = 'default';
+      await page.addInitScript(() => {
+        Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
+      });
+      await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+      await expect(page.locator('#language-status')).toBeHidden();
+      await expect(page.locator('#cost-card .decision-title')).toHaveText('Unrecorded');
+      await page.locator('#language-select').selectOption('ko');
+      await expect(page.locator('#language-status')).toBeVisible();
+      await expect(page.locator('#cost-card .decision-title')).toHaveText('미기록');
+      await page.locator('#language-select').selectOption('en');
+      await expect(page.locator('#language-status')).toContainText('Cannot save');
+      await expect(page.locator('#cost-card .decision-title')).toHaveText('Unrecorded');
+      await expect(page.locator('#execution .decision-title')).toHaveText('Blocked');
+    });
+
+    for (const width of [320, 390, 768, 1440]) {
+      test(`English and Korean visual states, language focus and layout at ${width}px`, async ({ page }, testInfo) => {
+        page.dashboardLocale = 'default';
+        await page.setViewportSize({ width, height: 844 });
+        const capture = async state => {
+          for (const locale of ['en', 'ko']) {
+            await page.locator('#language-select').selectOption(locale);
+            await expect(page.locator('html')).toHaveAttribute('lang', locale);
+            await page.locator('#language-select').focus();
+            await expect(page.locator('#language-select')).toBeFocused();
+            expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+            if (width <= 600) {
+              expect(await page.locator('.site-header').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(112);
+            }
+            if (width === 768) {
+              expect(await page.locator('.brand-description').evaluate(element => element.getBoundingClientRect().height)).toBeLessThanOrEqual(20);
+            }
+            await page.evaluate(() => scrollTo(0, 0));
+            await page.screenshot({ path: testInfo.outputPath(`${state}-${locale}-${width}.png`), fullPage: true });
+          }
+        };
+        await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+        await capture('public');
+        await page.locator('#demo-open').click();
+        await expect(page.locator('#sample-banner')).toBeVisible();
+        await capture('sample');
+        await tracePage(page, traceFixture());
+        await expect(page.locator('#trace-mode')).toContainText('offline_test');
+        await page.locator('#offline-examples summary').click();
+        await capture('offline');
+        await pageWith(page, { schema_version: 1, projects: [] });
+        await expect(page.locator('#detail')).toBeHidden();
+        await capture('empty');
+      });
+    }
+  });
 async function comparisonPage(page, snapshots = null, metrics = {}) {
   const run = {
     schema_version: 1, project_id: 'sample_repo', run_id: '123-1', purpose: 'comparison',
@@ -257,7 +512,7 @@ test('blocked execution and missing metrics retain visible states without expand
 test('dashboard branding uses the requested bilingual name without mobile overflow', async ({ page }) => {
   await pageWith(page, { schema_version: 1, projects: [] });
   await expect(page).toHaveTitle('Self-Evolving Agent SkillOps · 자가 진화 에이전트 스킬옵스');
-  await expect(page.getByRole('link', { name: 'Self-Evolving Agent SkillOps', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '자가 진화 에이전트 스킬옵스', exact: true })).toBeVisible();
   await expect(page.locator('.header-caption')).toHaveText('자가 진화 에이전트 스킬옵스');
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 844 });
@@ -1015,7 +1270,7 @@ for (const width of [1440, 320]) {
     const trace = page.locator('.section-nav a[href="#evidence-trace"]');
     const quality = page.locator('.section-nav a[href="#quality-section"]');
     await expect(page.locator('.section-nav a').first()).toHaveAttribute('href', '#evidence-trace');
-    await expect(page.locator('.section-nav a > span')).toHaveText(['01', '02', '03', '04', '05']);
+    await expect(page.locator('.section-nav a > span[aria-hidden]')).toHaveText(['01', '02', '03', '04', '05']);
     for (const target of ['#quality-section', '#evidence-trace', '#quality-section', '#evidence-trace']) {
       await page.locator(target).evaluate(element => element.scrollIntoView());
       await expect(target === '#evidence-trace' ? trace : quality).toHaveAttribute('aria-current', 'location');
@@ -1943,7 +2198,7 @@ test('projects without assessments show unevaluated decisions and no numeric can
   await expect(page.locator('#summary-decisions')).not.toHaveText(/\d/);
   await expect(page.locator('#summary-skills')).toHaveText('Skill 2개 · 버전 3개');
   await expect(page.locator('#summary-history')).toHaveText('평가 기록 6건 · 완료 1 · 차단 3 · 과거 가져오기 2 · 미평가 0');
-  const stamp = await page.evaluate(async ({ value, url }) => (await import(url)).stamp(value),
+  const stamp = await page.evaluate(async ({ value, url }) => String((await import(url)).stamp(value)),
     { value: fixture.completed.created_at, url: moduleUrl('views') });
   await expect(page.locator('#summary-completed')).toContainText(stamp);
   await expect(page.locator('#summary-completed code')).toHaveText(fixture.completed.source_commit.slice(0, 12));
@@ -2168,7 +2423,7 @@ test.describe('design regressions', () => {
         trace: document.querySelector('#evidence-trace').getBoundingClientRect().top,
       }));
       expect(layout.width).toBeLessThanOrEqual(width);
-      expect(layout.header).toBeLessThanOrEqual(72);
+      expect(layout.header).toBeLessThanOrEqual(width <= 600 ? 112 : 72);
       expect(layout.refresh).toBeLessThanOrEqual(48);
       expect(layout.summary).toBeLessThan(width <= 600 ? 410 : 320);
       expect(layout.trace).toBeLessThan(width <= 600 ? 1000 : 900);
@@ -2276,7 +2531,7 @@ test.describe('design regressions', () => {
 test.describe('visual identity', () => {
   test('the brand shell separates navigation without changing labels or empty outcomes', async ({ page }) => {
     await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
-    await expect(page.getByRole('link', { name: 'Self-Evolving Agent SkillOps', exact: true })).toBeVisible();
+    await expect(page.getByRole('link', { name: '자가 진화 에이전트 스킬옵스', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '새로고침', exact: true })).toBeVisible();
     await expect(page.locator('aside')).toHaveCSS('background-color', 'rgb(20, 43, 58)');
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(244, 246, 248)');

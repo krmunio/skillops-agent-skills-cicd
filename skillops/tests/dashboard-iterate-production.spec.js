@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect, assertDashboardModules } = require('./dashboard-public-harness');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -38,27 +38,8 @@ async function capture(page, name, section) {
   await page.locator(section).screenshot({ path: path.join(backup, `${name}.png`) });
 }
 
-test('official entrypoint resolves five content-hashed modules without unbundled fallbacks', async ({ request }) => {
-  const entry = await request.get(new URL('/', origin).href);
-  expect(entry.ok()).toBe(true);
-  const match = (await entry.text()).match(/src="\/(app\.[a-f0-9]{12}\.js)"/);
-  expect(match).not.toBeNull();
-  const pending = [match[1]], seen = new Set();
-  while (pending.length) {
-    const name = pending.pop();
-    if (seen.has(name)) continue;
-    expect(seen.size).toBeLessThan(5);
-    seen.add(name);
-    const response = await request.get(new URL(`/${name}`, origin).href);
-    expect(response.ok()).toBe(true);
-    const body = await response.body();
-    expect(name.split('.')[1]).toBe(digest(body).slice(0, 12));
-    for (const imported of body.toString('utf8').matchAll(/^import\b[^;]*?\bfrom\s*['"]\.\/([^'"]+)['"]/gm)) {
-      expect(imported[1]).toMatch(/^(views|evolution|assessments|trace)\.[a-f0-9]{12}\.js$/);
-      pending.push(imported[1]);
-    }
-  }
-  expect([...seen].map(name => name.split('.')[0]).sort()).toEqual(['app', 'assessments', 'evolution', 'trace', 'views']);
+test('official entrypoint resolves six content-hashed modules without unbundled fallbacks', async ({ request }) => {
+  await assertDashboardModules(request, origin);
 });
 
 test('PR34 N=2 serves the exact producer bytes and complete transitive references', async ({ request }) => {
