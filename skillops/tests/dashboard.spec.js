@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
+const { test: koreanPublicTest, assertDashboardModules } = require('./dashboard-public-harness');
 
 // Official compiled assets, with test-only response fixtures; not publisher evidence.
 const assetRoot = process.env.SKILLOPS_DASHBOARD_BUILD || 'dashboard';
@@ -31,6 +32,42 @@ async function pageWith(page, index, status = 200, origin = 'http://dashboard.te
 
   await page.goto(`${origin}${pathname}`);
 }
+
+koreanPublicTest('public harness explicitly selects Korean without changing the English-default fixture', async ({ page }) => {
+  page.dashboardLocale = 'default';
+  await pageWith(page, { schema_version: 1, projects: [] });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+  await expect(page.locator('#language-select')).toHaveValue('ko');
+  await page.reload();
+  await expect(page.locator('#project-title')).toHaveText('프로젝트 평가');
+});
+
+test('public harness verifies the localized asset graph and rejects invalid graphs', async () => {
+  const hash = bytes => require('node:crypto').createHash('sha256').update(bytes).digest('hex').slice(0, 12);
+  const files = new Map(), names = new Map();
+  for (const name of ['i18n', 'views', 'evolution', 'assessments', 'trace', 'app']) {
+    const source = fs.readFileSync(`dashboard/${name}.js`, 'utf8').replace(
+      /^(\s*import\b[^;]*?\bfrom\s*['"])\.\/([^'"]+\.js)(['"])/gm,
+      (_, prefix, dependency, suffix) => `${prefix}./${names.get(dependency)}${suffix}`);
+    const bytes = Buffer.from(source), filename = `${name}.${hash(bytes)}.js`;
+    names.set(`${name}.js`, filename);
+    files.set(`/${filename}`, bytes);
+  }
+  files.set('/', Buffer.from(`<script type="module" src="/${names.get('app.js')}"></script>`));
+  const requestFor = assets => ({ get: async url => {
+    const bytes = assets.get(new URL(url).pathname);
+    return { ok: () => bytes !== undefined, body: async () => bytes, text: async () => bytes.toString() };
+  } });
+  await assertDashboardModules(requestFor(files), 'http://dashboard.test');
+  const tampered = new Map(files);
+  tampered.set(`/${names.get('i18n.js')}`, Buffer.from('modified bytes'));
+  await expect(assertDashboardModules(requestFor(tampered), 'http://dashboard.test')).rejects.toThrow();
+  for (const source of ["import x from './rogue.0123456789ab.js';", "import x from './i18n.js';", 'export const incomplete = true;']) {
+    const bytes = Buffer.from(source), filename = `app.${hash(bytes)}.js`;
+    const invalid = new Map([[`/${filename}`, bytes], ['/', Buffer.from(`<script src="/${filename}"></script>`)]]);
+    await expect(assertDashboardModules(requestFor(invalid), 'http://dashboard.test')).rejects.toThrow();
+  }
+});
 
 test.describe('dashboard localization', () => {
     test.use({ locale: 'ko-KR' });

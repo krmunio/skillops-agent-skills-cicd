@@ -1007,6 +1007,12 @@ The existing asset builder fingerprints this module before its importers; the
 publication allowlist admits only its fingerprinted filename alongside existing
 modules. No translation service, dependency, model call or private data is involved.
 
+Existing public-snapshot, workflow, iteration and demo browser checks explicitly
+select Korean through `skillops/tests/dashboard-public-harness.js`; fresh English
+defaults remain separate tests. Both production asset checks share an exact
+six-module allowlist, including fingerprinted `i18n`, and still verify content
+hashes. Their reviewed-packet manifest and immutable-evidence checks are unchanged.
+
 The bilingual **Self-Evolving Agent / 자가 진화** identity describes the future
 direction, not validated autonomous operation. The navy/teal dashboard keeps one
 five-stage trace: development, bounded iteration, separate confirmation, human
