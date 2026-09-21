@@ -2,6 +2,7 @@ import copy
 import base64
 import importlib
 import importlib.util
+import inspect
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -9,9 +10,16 @@ import re
 import tempfile
 import unittest
 from unittest import mock
+from publication_fixtures import dashboard_fixture
 
 
 class ProjectResultsTests(unittest.TestCase):
+    def build_root(self):
+        root = dashboard_fixture(self.enterContext(tempfile.TemporaryDirectory()))
+        (root / "projects/sample_repo").mkdir(parents=True)
+        self.module().store(root / "results", self.fixture())
+        return root
+
     def module(self):
         self.assertIsNotNone(importlib.util.find_spec("project_results"), "results module is not implemented")
         return importlib.import_module("project_results")
@@ -144,6 +152,34 @@ class ProjectResultsTests(unittest.TestCase):
             self.assertEqual(entry.get("detected_skills", [{}])[0].get("skill_key"),
                              assessment["skills"][0]["skill_key"])
 
+    def test_inventory_external_identity_history_does_not_publish_old_evidence(self):
+        from test_skill_assessments import fixture
+        m = self.module()
+        self.assertIn("identity_history", inspect.signature(m.reindex).parameters)
+        report, lifecycle, assessment = fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "projects/sample_repo" / assessment["skills"][0]["source_path"]
+            path.mkdir(parents=True)
+            (path / "SKILL.md").write_text("---\nname: example\n---\nInstructions\n")
+            history, output = root / "history", root / "output"
+            m.store(history, report)
+            m.store_evolution(history, lifecycle)
+            m.store_assessments(history, assessment)
+            original = {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")}
+            validated = m.load_assessments(history, m.load_reports(history))
+            identities = {"sample_repo": list(validated.values())}
+            before = copy.deepcopy(identities)
+            entry = m.reindex(root, output, identity_history=identities)["projects"][0]
+            self.assertEqual(entry["detected_skills"][0]["skill_key"], assessment["skills"][0]["skill_key"])
+            self.assertEqual(entry["history_count"], 0)
+            self.assertIsNone(entry["current_run"])
+            self.assertEqual(m.read_json(output / "sample_repo/index.json")["history"], [])
+            self.assertEqual(m.load_reports(output), [])
+            self.assertEqual(m.load_assessments(output), {})
+            self.assertEqual(identities, before)
+            self.assertEqual(original, {p.relative_to(history): p.read_bytes() for p in history.rglob("*.json")})
+
     def test_inventory_discovery_failure_is_explicit(self):
         import skill_guide
         m = self.module()
@@ -205,7 +241,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_build_includes_sample_assets_without_importing_synthetic_history(self):
         m = self.module()
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "site"
             real = m.load_reports(root / "results")
@@ -221,8 +257,8 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_build_hashes_final_modules_and_resolves_entrypoint_and_imports(self):
         module = self.module()
-        root = Path(__file__).resolve().parents[1]
-        names = ("app", "views", "evolution", "assessments")
+        root = self.build_root()
+        names = ("app", "views", "evolution", "assessments", "trace")
         originals = {name: (root / "dashboard" / f"{name}.js").read_bytes() for name in names}
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "site"
@@ -230,7 +266,7 @@ class ProjectResultsTests(unittest.TestCase):
             scripts = list(output.glob("*.js"))
             self.assertEqual(len(scripts), len(names))
             for script in scripts:
-                self.assertRegex(script.name, r"^(app|views|evolution|assessments)\.[a-f0-9]{12}\.js$")
+                self.assertRegex(script.name, r"^(app|views|evolution|assessments|trace)\.[a-f0-9]{12}\.js$")
                 self.assertEqual(script.name.split(".")[1], sha256(script.read_bytes()).hexdigest()[:12])
                 source = script.read_text(encoding="utf-8")
                 for imported in re.findall(r"\bfrom\s+['\"]\./([^'\"]+)['\"]", source):
@@ -255,7 +291,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_build_dependency_changes_invalidate_importers_without_changing_source_files(self):
         module = self.module()
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         read_bytes = module.read_bytes
 
         def changed_dependency(path, *args):
@@ -270,7 +306,7 @@ class ProjectResultsTests(unittest.TestCase):
                              sorted(path.name for path in repeated.glob("*.js")))
             with mock.patch.object(module, "read_bytes", side_effect=changed_dependency):
                 module.build(root, root / "results", changed)
-            for name in ("app", "views", "evolution", "assessments"):
+            for name in ("app", "views", "evolution", "assessments", "trace"):
                 self.assertNotEqual(next(original.glob(f"{name}.*.js")).name,
                                     next(changed.glob(f"{name}.*.js")).name)
 
@@ -335,7 +371,7 @@ class ProjectResultsTests(unittest.TestCase):
     def test_evolution_store_merge_index_build_and_dual_conflicts(self):
         m = self.module()
         self.assertTrue(hasattr(m, "store_evolution"), "evolution persistence is not implemented")
-        source = Path(__file__).resolve().parents[1]
+        source = self.build_root()
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             incoming, target = root / "incoming", root / "target"
@@ -371,7 +407,7 @@ class ProjectResultsTests(unittest.TestCase):
 
     def test_large_evolution_roundtrips_without_raising_other_result_limits(self):
         m = self.module()
-        source = Path(__file__).resolve().parents[1]
+        source = self.build_root()
         report = self.fixture()
         data = self.evolution(report, files={"SKILL.md": b"x" * m.LIMIT})
         self.assertGreater(len(m.encoded(data)), m.LIMIT)
@@ -570,7 +606,7 @@ class ProjectResultsTests(unittest.TestCase):
     def test_snapshot_index_build_and_merge_preserve_optional_skill_evidence(self):
         m = self.module()
         self.assertTrue(hasattr(m, "store_snapshots"), "public Skill snapshots are not implemented")
-        root = Path(__file__).resolve().parents[1]
+        root = self.build_root()
         with tempfile.TemporaryDirectory() as temp:
             incoming, durable, output = (Path(temp) / name for name in ("incoming", "durable", "site"))
             report = self.fixture()

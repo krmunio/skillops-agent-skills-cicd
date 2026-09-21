@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-09-18T09:45:34.665168+00:00",
+  "evaluator_sha256": "248ce117eac1f3c790570fe26967fc7c2836d5b17b3b72fdecad9b03f787b87b",
+  "execution": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "assessment_unverified",
+    "status": "blocked"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "assessment_unverified",
+    "status": "blocked"
+  },
+  "origin": "local",
+  "project_id": "sample_repo",
+  "project_tree_sha256": "7afd2ea5d76613f63f605bd5a7c6d3e671413bd700131dcc803dafea2f57e89f",
+  "purpose": "project_assessment",
+  "run_id": "local-20260918T094533Z-f6297a587afc",
+  "schema_version": 1,
+  "source_commit": "9b045737c4e958dc7576c94e99f2a12cdaae1841",
+  "source_report_sha256": null,
+  "source_schema_version": null
+}

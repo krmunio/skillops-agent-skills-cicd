@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+from publication_fixtures import dashboard_fixture
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
@@ -201,8 +202,8 @@ class EvaluationTelemetryTests(unittest.TestCase):
 
     def test_static_build_preserves_validated_telemetry_with_hashed_assets(self):
         self.module()
-        root = Path(project_results.__file__).parent
         with tempfile.TemporaryDirectory() as folder:
+            root = dashboard_fixture(Path(folder) / "publisher")
             incoming, site = Path(folder) / "incoming", Path(folder) / "site"
             self.store(incoming)
             project_results.build(root, incoming, site)
@@ -225,7 +226,8 @@ class EvaluationTelemetryTests(unittest.TestCase):
                 root = Path(folder)
                 skill = root / "projects/sample_repo/.github/skills/develop/SKILL.md"
                 skill.parent.mkdir(parents=True)
-                skill.write_text("---\nname: develop\ndescription: Check code.\n---\nRead code.\n")
+                skill.write_text("---\nname: develop\ndescription: Check code.\n---\n"
+                                 "Read code and inspect all existing tests before changing the requested behavior.\n")
                 (root / "eval").mkdir()
                 (root / "eval/skill-guide-rubric.json").write_text("{}")
                 raw = Mock(env={})

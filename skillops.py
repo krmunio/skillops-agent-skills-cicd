@@ -4,6 +4,7 @@ import argparse
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -479,6 +480,60 @@ def baseline(runtime, model, judge_work, repository=None):
             **report["aggregate"]}, 0 if report["status"] == "completed" else 2
 
 
+def approve_local(root, args):
+    """Human-only boundary; the owner module revalidates evidence and Active under its lock."""
+    import evolution_records as evolution
+    import project_results
+    import skill_approvals
+
+    project_results.require(not any(os.environ.get(key) for key in ("CI", "GITHUB_ACTIONS")), "local_approval_only")
+    project_results.require(sys.stdin.isatty() and sys.stderr.isatty(), "interactive_approval_required")
+    version = None if args.expected_active_version == "none" else args.expected_active_version
+    receipt_hash = None if args.expected_active_execution_sha256 == "none" else args.expected_active_execution_sha256
+    project_results.require(
+        (version is None and receipt_hash is None)
+        or (evolution.matches(evolution.VERSION_ID, version) and evolution.matches(evolution.DIGEST, receipt_hash)),
+        "invalid_active_pair")
+    project_results.require(evolution.matches(evolution.VERSION_ID, args.candidate_version)
+                            and evolution.matches(evolution.DIGEST, args.evidence_sha256)
+                            and project_results.matches(project_results.RUN, args.cycle), "invalid_approval")
+    observed = repositories.active_snapshot(root, project_id=args.project, skill_key=args.skill_key)
+    project_results.require(observed == {"version_id": version, "execution_sha256": receipt_hash}, "active_conflict")
+    binding = {
+        "project_id": args.project, "skill_key": args.skill_key, "candidate_version_id": args.candidate_version,
+        "cycle_id": args.cycle, "evidence_sha256": args.evidence_sha256,
+        "previous_active_version_id": version, "previous_active_execution_sha256": receipt_hash,
+    }
+    print("Review this exact local approval. Approval does not change Active or authorize model execution.",
+          file=sys.stderr)
+    print(json.dumps(binding, indent=2), file=sys.stderr)
+    expected = "approve " + args.candidate_version
+    print(f"Type exactly '{expected}' to approve, or anything else to cancel:", file=sys.stderr)
+    try:
+        answer = input()
+    except (EOFError, KeyboardInterrupt) as error:
+        raise RuntimeFailure("approval_cancelled", "No approval was recorded.") from error
+    project_results.require(answer == expected, "approval_cancelled")
+    approved = skill_approvals.approve(
+        root, project_id=args.project, skill_key=args.skill_key, candidate_version_id=args.candidate_version,
+        cycle_id=args.cycle, evidence_sha256=args.evidence_sha256, expected_active_version_id=version,
+        expected_active_execution_sha256=receipt_hash, results=args.results)
+    publication = None
+    if args.publish_reviewed:
+        from project_evaluation import persist_adoption
+        try:
+            publication = persist_adoption(args.results, approval=approved, reviewed=True)
+        except (RuntimeFailure, OSError) as error:
+            raise RuntimeFailure(
+                "approval_publication_failed",
+                f"Private approval {approved['approval_id']} was retained; public projection failed.") from error
+    return {"status": "approved", "approval_id": approved["approval_id"],
+            "project_id": approved["project_id"], "skill_key": approved["skill_key"],
+            "candidate_version_id": approved["candidate_version_id"], "evidence_sha256": approved["evidence_sha256"],
+            "approved_at": approved["approved_at"], "active_changed": False, "model_calls": 0,
+            "adoption_ref": publication, "publication_status": "stored_locally" if publication else "not_requested"}
+
+
 def main():
     parser = argparse.ArgumentParser(description="SkillOps skill generation and coding-task evaluation.")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -505,9 +560,87 @@ def main():
     gate_parser = commands.add_parser("eligibility", help="Check recorded comparison eligibility; never deploy.")
     gate_parser.add_argument("--repository", required=True)
     gate_parser.add_argument("--comparison", required=True)
+    preflight_parser = commands.add_parser(
+        "approval-preflight", help="Read exact local approval eligibility without initializing or authorizing anything.")
+    for option in ("project", "skill-key", "candidate-version", "cycle", "evidence-sha256", "results"):
+        preflight_parser.add_argument("--" + option, required=True)
+    approval_parser = commands.add_parser("approve", help="Separately confirm one exact local candidate; never execute it.")
+    for option in ("project", "skill-key", "candidate-version", "cycle", "evidence-sha256",
+                   "expected-active-version", "expected-active-execution-sha256", "results"):
+        approval_parser.add_argument("--" + option, required=True)
+    approval_parser.add_argument("--publish-reviewed", action="store_true",
+                                 help="Store an explicitly reviewed public-safe projection locally; never deploy.")
+    use_parser = commands.add_parser("run-approved", help="Use one exact local approval with a new separately authorized task.")
+    for option in ("project", "skill-key", "approval", "candidate-version", "evidence-sha256", "work-item", "results"):
+        use_parser.add_argument("--" + option, required=True)
+    use_parser.add_argument("--model", default="gpt-6-astra")
+    use_parser.add_argument("--live", action="store_true")
+    use_parser.add_argument("--publish-reviewed", action="store_true",
+                            help="Store an explicitly reviewed public-safe projection locally; never deploy.")
+    for name in ("replay", "iterate"):
+        replay_parser = commands.add_parser(name, help="Run explicitly authorized recorded development work; never approve.")
+        replay_parser.add_argument("--project", required=True)
+        replay_parser.add_argument("--skill-key", required=True)
+        replay_parser.add_argument("--work-item", required=True)
+        replay_parser.add_argument("--results", required=True)
+        replay_parser.add_argument("--model", default="gpt-6-astra")
+        replay_parser.add_argument("--live", action="store_true",
+                                   help="Opt in; authentication and approved limits are also required.")
+        if name == "iterate":
+            replay_parser.add_argument("--max-rounds", type=int, choices=range(1, 11), default=1)
+            replay_parser.add_argument("--confirmation-work-item", help="Private precommitted confirmation WorkItem JSON.")
+            replay_parser.add_argument("--confirmation-disclosure", help="Operator-reviewed private disclosure JSON; requires confirmation WorkItem.")
     args = parser.parse_args()
     try:
         root = Path(__file__).resolve().parent
+        if args.command == "approval-preflight":
+            import skill_approvals
+            report = skill_approvals.preflight(
+                root, project_id=args.project, skill_key=args.skill_key, candidate_version_id=args.candidate_version,
+                cycle_id=args.cycle, evidence_sha256=args.evidence_sha256, results=args.results)
+            if report["status"] == "eligible":
+                command = [sys.executable, "-B", str(root / "skillops.py"), "approve"]
+                for option, value in (
+                    ("project", args.project), ("skill-key", args.skill_key),
+                    ("candidate-version", args.candidate_version), ("cycle", args.cycle),
+                    ("evidence-sha256", args.evidence_sha256), ("results", report["results_path"]),
+                    ("expected-active-version", report["active"]["version_id"]),
+                    ("expected-active-execution-sha256", report["active"]["execution_sha256"]),
+                ):
+                    command.extend(["--" + option, "none" if value is None else value])
+                report["approval_argv"] = command
+            print(json.dumps(report, indent=2))
+            return 0 if report["status"] == "eligible" else 2
+        if args.command == "approve":
+            print(json.dumps(approve_local(root, args), indent=2))
+            return 0
+        if args.command == "run-approved":
+            from project_evaluation import policy_from_environment, run_approved
+            policy = policy_from_environment()
+            policy["enabled"] = policy["enabled"] and args.live
+            report = run_approved(
+                root, project_id=args.project, skill_key=args.skill_key, approval_id=args.approval,
+                candidate_version_id=args.candidate_version, evidence_sha256=args.evidence_sha256,
+                work_item=args.work_item, output=args.results, model=args.model, policy=policy,
+                publish_reviewed=args.publish_reviewed)
+            print(json.dumps(report, indent=2))
+            return 0 if report["task_outcome"] == "satisfied" else 2
+        if args.command in ("replay", "iterate"):
+            from project_evaluation import policy_from_environment, run_iterations, run_replay
+            policy = policy_from_environment()
+            policy["enabled"] = policy["enabled"] and args.live
+            options = dict(project_id=args.project, skill_key=args.skill_key, work_item=args.work_item,
+                           output=args.results, model=args.model, execution_mode="live", policy=policy)
+            if args.command == "iterate":
+                report = run_iterations(root, **options, max_rounds=args.max_rounds,
+                                        confirmation_work_item=args.confirmation_work_item,
+                                        confirmation_disclosure=args.confirmation_disclosure)
+                exit_code = 0 if report["status"] in ("improved", "max_rounds", "no_change") else 2
+            else:
+                report = run_replay(root, **options)
+                exit_code = 2 if report["status"] == "unverified" else 0
+            print(json.dumps(report, indent=2))
+            return exit_code
         if args.command in ("register", "repositories", "eligibility"):
             exit_code = 0
             if args.command == "register":

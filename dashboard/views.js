@@ -219,8 +219,8 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
   }
   const adoptions = evidence.flatMap(item => item.bundle?.lifecycle?.data.records.adoptions || [])
     .filter(row => row.state !== 'unknown');
-  entry('summary-adoptions', '채택 기록', adoptions.length ? `${adoptions.length}건` :
-    evidence.some(item => item.error) ? '기록 없음' : 'SkillOps에 채택 기록 없음', highlights);
+  entry('summary-adoptions', '채택 기록', runs.some(run => run.adoption) ? '새 승인·사용은 선택 실행 근거에서 확인' :
+    adoptions.length ? `${adoptions.length}건` : '기록 없음', highlights);
   const latest = newestAssessment(evidence);
   const changes = ['cost_nano_aiu', 'elapsed_seconds'].map(key => measurementChange(
     latest.skill?.applications.base?.measurement?.[key], latest.skill?.applications.candidate?.measurement?.[key]));
@@ -232,7 +232,10 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
   explanation.append(node('summary', '최근 평가·비용·집계 상세'), metadata,
     node('p', '공개 이력의 식별자와 평가 상태를 세며, 후보 판정과 채택은 불러와 검증한 공개 근거만 집계합니다. 품질 점수는 평균하지 않으며 비용·시간은 최근 평가의 Skill 한 건만 비교합니다.'));
   container.append(highlights, list, node('p', `후보·채택 집계는 근거를 확인한 실행 ${evidence.filter(item => item.bundle).length}건 기준입니다. 완료·차단·과거 가져오기 집계는 서로 겹칠 수 있습니다.`, 'summary-scope'), explanation);
-  if (evidence.some(item => item.error) || completedReport?.error) {
+  if (runs.some(run => run.replay_evaluation || run.cycle || run.adoption)) {
+    container.append(node('p', '새 replay·반복 평가·승인·사용은 아래 선택 실행의 근거에서 별도로 확인합니다. 위 후보·비용 집계는 기존 평가 형식이며 새 실행의 실측 성과를 추정하지 않습니다.', 'summary-scope'));
+  }
+  if (evidence.some(item => item.error) || completedReport?.error || runs.some(run => run.trace_discovery_error)) {
     container.append(node('p', '일부 공개 근거를 확인하지 못해 요약이 불완전합니다. 새로고침으로 다시 확인할 수 있습니다.', 'summary-warning'));
   }
 }

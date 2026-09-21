@@ -2,21 +2,30 @@ const { test, expect } = require('@playwright/test');
 const fs = require('node:fs');
 const path = require('node:path');
 
-async function pageWith(page, index, status = 200, origin = 'http://dashboard.test') {
+// Official compiled assets, with test-only response fixtures; not publisher evidence.
+const assetRoot = process.env.SKILLOPS_DASHBOARD_BUILD || 'dashboard';
+const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/sample-data.json': 'sample-data.json' };
+for (const module of ['app', 'views', 'evolution', 'assessments', 'trace']) {
+  const names = process.env.SKILLOPS_DASHBOARD_BUILD
+    ? fs.readdirSync(assetRoot).filter(name => new RegExp(`^${module}\\.[a-f0-9]{12}\\.js$`).test(name))
+    : [`${module}.js`];
+  if (names.length !== 1) throw new Error(`Expected exactly one ${module} module in ${assetRoot}`);
+  assets[`/${names[0]}`] = names[0];
+}
+const moduleUrl = module => '/' + Object.values(assets).find(name => name === `${module}.js` || name.startsWith(`${module}.`));
+
+async function pageWith(page, index, status = 200, origin = 'http://dashboard.test', pathname = '/') {
   await page.route(`${origin}/**`, route => {
     const name = new URL(route.request().url()).pathname;
     if (name === '/results/index.json') {
       return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(index) });
     }
-    const assets = { '/': 'index.html', '/styles.css': 'styles.css', '/app.js': 'app.js',
-      '/views.js': 'views.js', '/evolution.js': 'evolution.js', '/assessments.js': 'assessments.js',
-      '/sample-data.json': 'sample-data.json' };
     if (!assets[name]) return route.fallback();
     const contentType = name.endsWith('.js') ? 'text/javascript' : name.endsWith('.css') ? 'text/css' :
       name.endsWith('.json') ? 'application/json' : 'text/html';
-    return route.fulfill({ contentType, body: fs.readFileSync(path.join('dashboard', assets[name])) });
+    return route.fulfill({ contentType, body: fs.readFileSync(path.join(assetRoot, assets[name])) });
   });
-  await page.goto(`${origin}/`);
+  await page.goto(`${origin}${pathname}`);
 }
 
 async function comparisonPage(page, snapshots = null, metrics = {}) {
@@ -106,6 +115,21 @@ test('detected Skills are selectable before any evaluation and do not invent his
   await expect(page.locator('#project-summary')).toBeVisible();
   await expect(page.locator('#summary-history')).toContainText('평가 기록 0건');
   await expect(page.locator('#error')).toBeHidden();
+  await expect(page.locator('#evidence-trace')).toBeVisible();
+  await expect(page.locator('#skill-progress li strong')).toHaveText([
+    '개발 평가', '최대 N회 개선', '별도 최종 확인', '사람 승인', '다음 작업 사용',
+  ]);
+  await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+  await expect(page.locator('#skill-progress li .stage-next')).toHaveCount(5);
+  await expect(page.locator('#approval-guidance')).toContainText('승인은 로컬 CLI에서 수행합니다');
+  await expect(page.locator('#approval-guidance')).toContainText('공개 기록만으로 실제 승인 여부를 단정하지 않습니다');
+  await expect(page.getByRole('link', { name: '로컬 CLI 사용 안내' })).toHaveAttribute('href',
+    'https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.ko.md#별도의-로컬-승인');
+  await page.reload();
+  await expect(page.locator('#skill-select')).toHaveValue(skills[1].skill_key);
+  await expect(page.locator('#skill-progress li')).toHaveCount(5);
+  await page.setViewportSize({ width: 320, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
 });
 
 test('choosing an unevaluated detected Skill clears a previously visible run', async ({ page }) => {
@@ -127,6 +151,8 @@ test('choosing an unevaluated detected Skill clears a previously visible run', a
   await expect(page.locator('#selection-summary')).toContainText('unassessed');
   await expect(page.locator('#origin')).toHaveText('미평가');
   await expect(page.locator('#error')).toBeHidden();
+  await expect(page.locator('#evidence-trace')).toBeVisible();
+  await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
 });
 
 test('project selection opens the newest fully completed run before historical comparisons or partial runs', async ({ page }) => {
@@ -347,7 +373,7 @@ test('sample skill and run selection keep baseline and candidate evidence separa
   await expect(page.locator('#cost-card')).not.toContainText('1.64%');
 });
 
-async function nativeExamplePage(page) {
+async function nativeExamplePage(page, pathname = '/') {
   const projects = [];
   for (const id of ['project-a', 'project-b']) {
     const stored = JSON.parse(fs.readFileSync(`results/${id}/index.json`, 'utf8'));
@@ -364,8 +390,34 @@ async function nativeExamplePage(page) {
       }
     }
   }
-  await pageWith(page, { schema_version: 1, projects }, 200, 'https://dashboard.test');
+  await pageWith(page, { schema_version: 1, projects }, 200, 'https://dashboard.test', pathname);
   return projects;
+}
+
+for (const entry of ['exact Skill link', 'Skill dropdown']) {
+  test(`legacy sample history stays opt-in for an unevaluated ${entry}`, async ({ page }) => {
+    const key = 'path:096d1d195c864df34280ab5e';
+    const query = `?project=project-b&skill=${encodeURIComponent(key)}`;
+    await nativeExamplePage(page, entry === 'exact Skill link' ? `/${query}` : '/?project=project-b');
+    if (entry === 'Skill dropdown') await page.locator('#skill-select').selectOption(key);
+    for (const reload of [false, true]) {
+      if (reload) await page.reload();
+      await expect(page.locator('#selection-summary')).toContainText('별도');
+      await expect(page.locator('#detail')).toBeHidden();
+      await expect(page.locator('#skill-select')).toHaveValue(key);
+      await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+      expect(new URL(page.url()).search).toBe(query);
+      await expect(page.locator('#skill-history-runs .skill-run')).toHaveCount(3);
+    }
+    const run = await page.locator('#skill-history-runs .skill-run').first().getAttribute('data-run');
+    await page.locator('#skill-history-runs .skill-run').first().click();
+    await expect(page.locator('#detail')).toBeVisible();
+    await expect(page.locator('#provenance')).toContainText('sample');
+    expect(new URL(page.url()).searchParams.get('run')).toBe(run);
+    await page.reload();
+    await expect(page.locator('#detail')).toBeVisible();
+    await expect(page.locator('#report-link')).toHaveAttribute('href', `/results/project-b/${run}/report.json`);
+  });
 }
 
 test('native result examples show baseline project evaluation and all45 candidates without sample mode', async ({ page }) => {
@@ -373,6 +425,8 @@ test('native result examples show baseline project evaluation and all45 candidat
   const decisions = ['품질 점수 상승', '개선 미확인', '후보 거절'];
   for (const project of projects) {
     await page.locator(`.project[data-project="${project.id}"]`).click();
+    await expect(page.locator('#detail')).toBeHidden();
+    await page.locator('#skill-history-runs .skill-run').first().click();
     await expect(page.locator('#detail')).toBeVisible();
     await expect(page.locator('#skill-select option')).toHaveCount(project.detected_skills.length);
     await expect(page.locator('#project-summary')).toBeVisible();
@@ -405,6 +459,8 @@ test('native result examples remain usable on mobile', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await nativeExamplePage(page);
   await page.locator('.project[data-project="project-b"]').click();
+  await expect(page.locator('#detail')).toBeHidden();
+  await page.locator('#skill-history-runs .skill-run').first().click();
   await expect(page.locator('#detail')).toBeVisible();
   await expect(page.locator('#skill-select option')).toHaveCount(14);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -618,6 +674,35 @@ function sortKeys(value) {
   if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map(key => [key, sortKeys(value[key])]));
   return value;
 }
+
+test('exact deep link survives refresh without selecting a newer successful run', async ({ page }) => {
+  await historyPage(page, [historyRun(2, 'baseline', 'completed'), historyRun(1, 'baseline', 'blocked')], true);
+  const query = '?project=sample_repo&run=1-1&skill=legacy%3Asample_repo%3Adevelop';
+  await page.goto(`http://dashboard.test/${query}`);
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/1-1/report.json');
+  await page.getByRole('button', { name: '새로고침', exact: true }).click();
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/1-1/report.json');
+  await page.reload();
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/1-1/report.json');
+  await page.locator('#skill-history-runs [data-run="2-1"]').click();
+  await expect(page).toHaveURL(/run=2-1/);
+  await page.reload();
+  await expect(page.locator('#report-link')).toHaveAttribute('href', '/results/sample_repo/2-1/report.json');
+});
+
+for (const query of [
+  '?project=missing&run=1-1', '?project=sample_repo&run=999-1',
+  '?project=sample_repo&run=1-1&skill=other%3Askill', '?run=1-1',
+  '?project=sample_repo&run=1-1&run=2-1', '?project=sample_repo&run=..%2Freport.json',
+]) {
+  test(`invalid deep link does not fall back: ${query}`, async ({ page }) => {
+    await historyPage(page, [historyRun(1, 'baseline', 'completed')], true);
+    await page.goto(`http://dashboard.test/${query}`);
+    await expect(page.locator('#error')).toBeVisible();
+    await expect(page.locator('#detail')).toBeHidden();
+    await expect(page.locator('#report-link')).not.toHaveAttribute('href', /report.json/);
+  });
+}
 function evolutionFixture({ full = false, baseFull = full, candidateFull = full, omitBaseFiles = [],
   dual = false, twins = false, baseText = 'AS-IS\n', candidateText = 'TO-BE\n' } = {}) {
   const baseRun = '20260914T072451Z-50354146d951', candidateRun = '20260915T005404Z-611d681b8bf7';
@@ -737,6 +822,666 @@ function assessmentFixture({ legacy = true } = {}) {
     return { report, envelope, details, summary };
   }
 
+// Contract fixtures only: never published as model measurements or adoption evidence.
+const publicBytes = value => JSON.stringify(sortKeys(value), null, 2).replace(/[\u007f-\uffff]/g,
+  char => `\\u${char.charCodeAt(0).toString(16).padStart(4, '0')}`) + '\n';
+const H = value => hash(publicBytes(value));
+const replayPolicyHash = require('node:child_process').execFileSync('python3', ['-c',
+  'from candidates import POLICY; from project_results import encoded; from hashlib import sha256; print(sha256(encoded({"policy": POLICY, "rule": "replay-v1"})).hexdigest())',
+], { encoding: 'utf8' }).trim();
+function traceFixture({ mode = 'offline_test', use = 'verified', unchangedSecond = false, policyHash = replayPolicyHash } = {}) {
+  const key = 'skillops:develop', project = 'sample_repo', source = '.github/skills/develop';
+  const cycleId = '104-1';
+  const items = [];
+  const make = (run, body) => {
+    const item = evolutionFixture({ full: true, candidateText: body });
+    Object.assign(item.report, { run_id: run, purpose: 'project_assessment', origin: mode === 'sample' ? 'sample' : 'local',
+      created_at: `2026-09-17T12:00:${run.slice(1, 3)}Z`, source_commit: mode === 'sample' ? null : 'a'.repeat(40),
+      evaluator_sha256: mode === 'sample' ? null : hash('evaluator'), project_tree_sha256: mode === 'sample' ? null : hash('project'),
+      source_report_sha256: null, source_schema_version: null,
+      guide: { status: 'completed', reason_code: 'evaluation_completed', metrics: null, decision: null },
+      execution: { status: 'completed', reason_code: 'evaluation_completed', metrics: null, decision: null } });
+    Object.assign(item.envelope, { run_id: run, report_sha256: H(item.report) });
+    item.envelope.records.generations = [];
+    item.envelope.records.comparisons = [];
+    item.envelope.records.adoptions = [];
+    item.summary = { ...item.report, guide_status: 'completed', execution_status: 'completed',
+      skill_evolution: `${run}/skill-evolution.json`,
+      evolution_skills: item.envelope.bindings.map(({ legacy_skill_id, ...binding }) => ({ ...binding, display_name: 'Develop' })) };
+    items.push(item);
+    return item;
+  };
+  const original = evolutionFixture({ full: true }).envelope.bindings[0].base_version_id;
+  const checks = { plan_sha256: hash('plan'), environment_sha256: hash('images'), protected_sha256: hash('protected'),
+    status: 'completed', cases: [{ id: 'development', status: 'passed' }, { id: 'confirmation', status: 'passed' }],
+    gates: [], elapsed_seconds: 1.25 };
+  const quality = score => ({ status: 'completed', rubric_sha256: hash('rubric'), context_sha256: hash('context'),
+    dimensions: [{ id: 'instruction_quality', score }], findings: [] });
+  const reference = (input) => {
+    const value = { schema_version: 1, project_id: project, skill_key: key, source_path: source,
+      source_commit: mode === 'sample' ? null : 'a'.repeat(40), project_tree_sha256: mode === 'sample' ? null : hash('project'), input_sha256: input,
+      original_version_id: original, rubric_sha256: hash('rubric'), quality_context_sha256: hash('context'),
+      evaluator_sha256: mode === 'sample' ? null : hash('evaluator'), policy_sha256: policyHash, plan_sha256: hash('plan'),
+      environment_sha256: hash('images'), protected_sha256: hash('protected'),
+      original_checks: checks, base_quality: quality(2) };
+    return { ...value, reference_sha256: H(value) };
+  };
+  const artifact = (item, name) => ({ project_id: project, run_id: item.report.run_id,
+    path: name === 'replay' ? 'replay-evaluation.json' : `${name}.json`, sha256: H(item[name]) });
+  let parent = original;
+  for (const [i, split, score] of [[1, 'development', 2], [2, 'development', 3], [3, 'confirmation', 3]]) {
+    const item = make(`${100 + i}-1`, i === 1 || unchangedSecond ? 'Round one\n' : 'Round two\n');
+    const version = item.envelope.bindings[0].candidate_version_id, input = hash(split);
+    const ref = reference(input);
+    const application = id => ({ version_id: id, staged_version_id: id, work_sha256: input,
+      output_sha256: hash('output'), activated: true, changed: true, task_outcome: 'satisfied',
+      measurement: { cost_nano_aiu: 12.25, elapsed_seconds: 2.25 } });
+    item.replay = { schema_version: 1, project_id: project, run_id: item.report.run_id,
+      report_sha256: H(item.report), execution_mode: mode, reference: ref,
+      generation: i === 3 ? null : { parent_version_id: parent, feedback_sha256: hash(`feedback-${i}`),
+        addressed_findings: ['instruction_quality'], hypothesis: '<img src=x onerror="window.traceXss=true">' },
+      evaluation: { skill_key: key, source_path: source, base_version_id: original, candidate_version_id: version,
+        work: { task_id: split, input_sha256: input, split, provenance: 'recorded',
+          checks: { plan_sha256: hash('plan'), protected_sha256: hash('protected'),
+            required_case_ids: [split], required_gate_ids: [] } },
+        reference_sha256: ref.reference_sha256, quality: { base: quality(2), candidate: quality(score) },
+        applications: { base: application(original), candidate: application(version) },
+        checks: { original: checks, base: checks, candidate: checks },
+        decision: { policy_id: 'replay-v1', status: i === 1 ? 'not_improved' : 'improved',
+          reasons: [], regression: { status: 'passed', reasons: [], regressions: [] } }, errors: [] } };
+    item.summary.replay_evaluation = `${item.report.run_id}/replay-evaluation.json`;
+    parent = version;
+  }
+  const cycle = make(cycleId, unchangedSecond ? 'Round one\n' : 'Round two\n');
+  cycle.cycle = { schema_version: 1, project_id: project, run_id: cycleId, report_sha256: H(cycle.report),
+    execution_mode: mode, cycle_id: cycleId, skill_key: key, source_path: source,
+    input_sha256: hash('development'), reference_sha256: items[0].replay.reference.reference_sha256,
+    original_version_id: original, max_rounds: 2,
+    budget: { max_invocations: 30, max_seconds: 600, max_ai_credits_per_session: null },
+    rounds: items.slice(0, 2).map((item, i) => ({ round_id: `${cycleId}-r${i + 1}`, round_number: i + 1,
+      run_id: item.report.run_id, parent_version_id: item.replay.generation.parent_version_id,
+      candidate_version_id: item.replay.evaluation.candidate_version_id, input_sha256: hash('development'),
+      reference_sha256: item.replay.reference.reference_sha256, feedback_source_round_id: i ? `${cycleId}-r1` : null,
+      feedback_sha256: item.replay.generation.feedback_sha256, evaluation_ref: artifact(item, 'replay'),
+      decision: item.replay.evaluation.decision, stop_reason: i ? 'improved' : null })),
+    stop_reason: 'improved', selected_candidate_version_id: parent, confirmation_ref: artifact(items[2], 'replay'),
+    confirmation_status: 'passed' };
+  cycle.summary.cycle = `${cycleId}/cycle.json`;
+  const adopted = make('105-1', unchangedSecond ? 'Round one\n' : 'Round two\n');
+  const approval = { approval_id: 'approval-one', project_id: project, skill_key: key,
+    candidate_version_id: parent, cycle_id: cycleId, evidence_sha256: H(cycle.cycle),
+    approved_at: '2026-09-17T12:01:00Z', approved_by: 'local_operator', trust_scope: 'local_environment',
+    previous_active_version_id: null };
+  const receipt = { execution_id: 'execution-one', run_id: '105-1', project_id: project, skill_key: key,
+    approval_id: approval.approval_id, evidence_sha256: approval.evidence_sha256, work_input_sha256: hash('next work'),
+    approved_version_id: parent, loaded_version_id: use === 'failed' ? original : parent,
+    skill_version_verified: use !== 'failed', observed_at: '2026-09-17T12:02:00Z',
+    status: use === 'failed' ? 'failed' : 'verified', reason_code: use === 'failed' ? 'skill_version_mismatch' : null };
+  adopted.adoption = { schema_version: 1, project_id: project, run_id: '105-1',
+    report_sha256: H(adopted.report), execution_mode: mode, approvals: [approval],
+    executions: use === 'none' ? [] : [receipt] };
+  adopted.summary.adoption = '105-1/adoption.json';
+  return { items, cycle, adopted, key };
+}
+function rebindTraceFixture(fixture) {
+  for (const item of fixture.items) {
+    if (item.envelope) item.envelope.report_sha256 = H(item.report);
+    for (const name of ['replay', 'cycle', 'adoption']) if (item[name]) item[name].report_sha256 = H(item.report);
+  }
+  for (const round of fixture.cycle.cycle.rounds) {
+    if (round.evaluation_ref) {
+      round.evaluation_ref.sha256 = H(fixture.items.find(item => item.report.run_id === round.run_id).replay);
+    }
+  }
+  const ref = fixture.cycle.cycle.confirmation_ref;
+  if (ref) ref.sha256 = H(fixture.items.find(item => item.report.run_id === ref.run_id).replay);
+  for (const item of fixture.items) for (const row of [...(item.adoption?.approvals || []), ...(item.adoption?.executions || [])]) {
+    row.evidence_sha256 = H(fixture.cycle.cycle);
+  }
+}
+async function tracePage(page, fixture, run = '104-1') {
+  const origin = 'https://dashboard.test';
+  await page.route(`${origin}/results/sample_repo/index.json`, route => route.fulfill({
+    json: { schema_version: 1, history: fixture.items.map(item => item.summary) },
+  }));
+  for (const item of fixture.items) {
+    for (const [field, file] of Object.entries({ report: 'report.json', envelope: 'skill-evolution.json',
+      replay: 'replay-evaluation.json', cycle: 'cycle.json', adoption: 'adoption.json' })) {
+      if (item[field]) await page.route(`${origin}/results/sample_repo/${item.report.run_id}/${file}`,
+        route => route.fulfill({ contentType: 'application/json', body: publicBytes(item[field]) }));
+    }
+  }
+  await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
+    history_count: fixture.items.length, current_run: null }] }, 200, origin,
+  `/?project=sample_repo${run ? `&run=${run}` : ''}&skill=${encodeURIComponent(fixture.key)}`);
+}
+
+test('offline examples have explicit confirmed links and are never the automatic Skill selection', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture, null);
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  expect(new URL(page.url()).searchParams.has('run')).toBe(false);
+  await expect(page.locator('#skill-progress')).toBeVisible();
+  await expect(page.locator('#skill-progress')).not.toContainText('승인 관측');
+  await page.locator('#offline-examples summary').click();
+  await expect(page.locator('#offline-examples')).toContainText('실측 결과·승인 가능한 후보가 아닙니다');
+  const links = page.locator('#offline-examples a');
+  await expect(links).toHaveCount(3);
+  for (const [i, run] of [
+    'local-20260918T094535Z-b9a681f6cfb2',
+    'local-20260918T094533Z-f6297a587afc',
+    'local-20260918T094534Z-bcba9c0a589e',
+  ].entries()) {
+    await expect(links.nth(i)).toHaveAttribute('href',
+      `/?project=sample_repo&run=${run}&skill=path%3A90ae807bd3d394fc140a6df8`);
+  }
+  await links.first().click();
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#skill-progress')).toContainText('미검증');
+  expect(new URL(page.url()).searchParams.get('run')).toBe('local-20260918T094535Z-b9a681f6cfb2');
+});
+
+for (const width of [1440, 768, 390, 320]) {
+  test(`UI32 offline links, read-only context and next actions remain usable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await tracePage(page, traceFixture(), null);
+    await page.locator('#offline-examples summary').click();
+    await expect(page.locator('#offline-examples p').first()).toBeVisible();
+    for (const link of await page.locator('#offline-examples a').all()) await expect(link).toBeVisible();
+    await expect(page.locator('.readonly-context')).toBeVisible();
+    await expect(page.locator('.readonly-context')).toContainText('읽기 전용');
+    await expect(page.locator('.vision-context')).toContainText('방향성');
+    await expect(page.locator('#approval-guidance')).toContainText('읽기 전용 approval-preflight');
+    await expect(page.locator('#approval-guidance')).toContainText('대화형 approve');
+    await expect(page.locator('#skill-progress')).toHaveCSS('list-style-type', 'none');
+    await page.locator('#offline-examples a').first().focus();
+    await expect(page.locator('#offline-examples a').first()).toHaveCSS('color', 'rgb(118, 228, 207)');
+    await expect(page.locator('#offline-examples a').first()).toHaveCSS('outline-color', 'rgb(118, 228, 207)');
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.locator('#offline-examples summary')).toBeFocused();
+    await expect(page.locator('#offline-examples summary')).toHaveCSS('outline-color', 'rgb(118, 228, 207)');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  });
+}
+
+for (const width of [1440, 320]) {
+  test(`UI32 trace and quality navigation follows document order both ways at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await tracePage(page, traceFixture());
+    await expect(page.locator('#trace-mode')).toContainText('offline_test');
+    await expect(page.locator('#detail')).toBeVisible();
+    const trace = page.locator('.section-nav a[href="#evidence-trace"]');
+    const quality = page.locator('.section-nav a[href="#quality-section"]');
+    await expect(page.locator('.section-nav a').first()).toHaveAttribute('href', '#evidence-trace');
+    await expect(page.locator('.section-nav a > span')).toHaveText(['01', '02', '03', '04', '05']);
+    for (const target of ['#quality-section', '#evidence-trace', '#quality-section', '#evidence-trace']) {
+      await page.locator(target).evaluate(element => element.scrollIntoView());
+      await expect(target === '#evidence-trace' ? trace : quality).toHaveAttribute('aria-current', 'location');
+      await expect(page.locator('.section-nav [aria-current]')).toHaveCount(1);
+    }
+    await quality.focus();
+    await expect(quality).toBeFocused();
+    await quality.press('Enter');
+    await expect(quality).toHaveAttribute('aria-current', 'location');
+    await expect(page).toHaveURL(/#quality-section$/);
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelector('#quality-title').getBoundingClientRect().top >=
+      document.querySelector('.section-nav').getBoundingClientRect().bottom)).toBe(true);
+    await page.locator('#history-section').evaluate(element => element.scrollIntoView());
+    await expect(page.locator('.section-nav a[href="#history-section"]')).toHaveAttribute('aria-current', 'location');
+  });
+}
+
+test('UI32 sidecar discovery warning survives summary tiles without asserting absent adoption', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture);
+  await page.route('https://dashboard.test/results/sample_repo/104-1/cycle.json', route => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.reload();
+  await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
+  await expect(page.locator('.summary-highlights #summary-adoptions')).toContainText('새 승인·사용은 선택 실행 근거에서 확인');
+  await expect(page.locator('#project-summary')).toContainText('새 실행의 실측 성과를 추정하지 않습니다');
+});
+
+for (const width of [1440, 768, 390, 320]) {
+  test(`UI32 visual review of public, sample, offline and empty states at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    const capture = async state => {
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: testInfo.outputPath(`${state}-${width}.png`), fullPage: true });
+    };
+    await comparisonPage(page);
+    await capture('public-fixture');
+    await page.locator('#demo-open').click();
+    await expect(page.locator('#sample-banner')).toBeVisible();
+    await capture('synthetic-sample');
+    await tracePage(page, traceFixture());
+    await expect(page.locator('#trace-mode')).toContainText('offline_test');
+    await page.locator('#offline-examples summary').click();
+    await expect(page.locator('#offline-examples a').first()).toBeVisible();
+    await capture('offline-example');
+    await pageWith(page, { schema_version: 1, projects: [] });
+    await expect(page.locator('#origin')).toHaveText('프로젝트 없음');
+    await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+    await capture('empty');
+  });
+}
+
+test('switching from observed use to an unevaluated Skill clears all progression claims', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture);
+  await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('사용 관측');
+  const key = 'path:111111111111111111111111';
+  await page.route('https://dashboard.test/results/index.json', route => route.fulfill({
+    json: { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active', history_count: fixture.items.length,
+      current_run: null, detected_skills: [{ skill_key: key, display_name: 'unassessed', source_path: 'skills/unassessed' }] }] },
+  }));
+  await page.reload();
+  await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('사용 관측');
+  await page.locator('#skill-select').selectOption(key);
+  await expect(page.locator('#detail')).toBeHidden();
+  await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+  await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+});
+
+test('trace links original, two parents, feedback, confirmation and verified use without claiming task success or Active', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture);
+  const panel = page.locator('#evidence-trace');
+  await expect(panel).toContainText('최초 원본');
+  await expect(panel.locator('[data-round]')).toHaveCount(2);
+  await expect(panel).toContainText('104-1-r1');
+  await expect(panel).toContainText('confirmation: passed');
+  await expect(panel).toContainText('검증된 사용');
+  await expect(panel).toContainText('작업 성공을 의미하지 않습니다');
+  await expect(panel).toContainText('현재 로컬 Active: 공개 근거로 확인 불가');
+  await expect(panel).toContainText('GitHub 운영 적용 권한');
+  await expect(page.locator('#summary-adoptions')).toContainText('선택 실행 근거에서 확인');
+  await panel.locator('a[data-trace-run="102-1"]').first().click();
+  await expect(page).toHaveURL(/run=102-1/);
+  await expect(page.locator('#guide')).toContainText('2 → 3');
+  await expect(page.locator('#task-results')).toContainText('development');
+  await expect(page.locator('#improvement-evidence')).toContainText('<img');
+  expect(await page.evaluate(() => window.traceXss)).toBeUndefined();
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  }
+});
+for (const mode of ['offline_test', 'sample']) {
+  for (const [use, label] of [['none', '승인됐지만 사용 미기록'], ['failed', '사용 실패']]) {
+    test(`trace distinguishes local approval/use: ${mode} ${use}`, async ({ page }) => {
+      await tracePage(page, traceFixture({ mode, use }), '105-1');
+      await expect(page.locator('#evidence-trace')).toContainText(label);
+      await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+      await expect(page.locator('#trace-mode')).toContainText(mode);
+      await expect(page.locator('#skill-progress [data-stage="approval"]')).toContainText('승인 관측');
+      await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText(use === 'none' ? '공개 기록 없음' : '실패');
+    });
+  }
+}
+for (const mode of ['offline_test', 'sample']) {
+  test(`trace labels ${mode} separately from live adoption and measured improvement`, async ({ page }) => {
+    await tracePage(page, traceFixture({ mode }), '102-1');
+    await expect(page.locator('#trace-mode')).toContainText(mode);
+    await expect(page.locator('#trace-mode')).toContainText('실측 성과·실제 채택 근거 아님');
+    await expect(page.locator('#quality-summary')).not.toContainText('실제 버전 평가');
+  });
+}
+for (const [name, mutate] of [
+  ['sample mode on a non-sample report', f => {
+    for (const item of f.items) for (const field of ['replay', 'cycle', 'adoption']) {
+      if (item[field]) item[field].execution_mode = 'sample';
+    }
+  }],
+  ['replay attached to a comparison report', f => {
+    f.items[0].report.purpose = f.items[0].summary.purpose = 'comparison';
+  }],
+]) {
+  test(`public trace rejects ${name} even with rebound artifact hashes`, async ({ page }) => {
+    const fixture = traceFixture();
+    mutate(fixture);
+    rebindTraceFixture(fixture);
+    await tracePage(page, fixture);
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+  });
+}
+test('legacy missing sidecars stay unrecorded, not N=1 or no approval', async ({ page }) => {
+  await evolutionPage(page, evolutionFixture());
+  await expect(page.locator('#evidence-trace')).toContainText('반복 평가: 미기록');
+  await expect(page.locator('#evidence-trace')).toContainText('승인·사용: 미기록');
+  await expect(page.locator('#evidence-trace')).not.toContainText('승인 없음');
+  await expect(page.locator('#summary-adoptions')).not.toContainText('채택 기록 없음');
+});
+for (const [name, mutate] of [
+  ['report hash', f => { f.cycle.cycle.report_sha256 = hash('tamper'); }],
+  ['foreign project', f => { f.cycle.cycle.rounds[0].evaluation_ref.project_id = 'other'; }],
+  ['unsafe path', f => { f.cycle.cycle.rounds[0].evaluation_ref.path = '../replay-evaluation.json'; }],
+  ['orphan round', f => { f.cycle.cycle.rounds[0].evaluation_ref.run_id = '999-1'; }],
+  ['round hash', f => { f.cycle.cycle.rounds[0].evaluation_ref.sha256 = hash('tamper'); }],
+  ['changed parent', f => { f.cycle.cycle.rounds[1].parent_version_id = f.cycle.cycle.original_version_id; }],
+  ['false confirmation', f => { f.cycle.cycle.confirmation_status = 'failed'; }],
+  ['local identity leak', f => { f.adopted.adoption.approvals[0].approved_by = 'private-user'; }],
+  ['private extra field', f => { f.adopted.adoption.environment_id = 'private-environment'; }],
+  ['private approval CAS field', f => { f.adopted.adoption.approvals[0].previous_active_execution_sha256 = hash('private receipt'); }],
+  ['private execution CAS field', f => { f.adopted.adoption.executions[0].previous_active_execution_sha256 = hash('private receipt'); }],
+  ['forged verified mismatch', f => { f.adopted.adoption.executions[0].loaded_version_id = f.cycle.cycle.original_version_id; }],
+  ['boolean round cap', f => { f.cycle.cycle.max_rounds = true; }],
+  ['array execution identity', f => { f.adopted.adoption.executions[0].execution_id = ['execution-one']; }],
+  ['invalid observation date', f => { f.adopted.adoption.executions[0].observed_at = '2026-02-30T12:00:00Z'; }],
+]) {
+  test(`trace rejects ${name} without falling back`, async ({ page }) => {
+    const fixture = traceFixture();
+    mutate(fixture);
+    await tracePage(page, fixture);
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+    await expect(page.locator('#trace-error')).not.toContainText('private-user');
+  });
+}
+
+test('public parser rejects duplicate keys, nonfinite numbers and fractional integer metadata but preserves Python hash encoding', async ({ page }) => {
+  await evolutionPage(page, evolutionFixture());
+  const result = await page.evaluate(async url => {
+    const { parsePublic } = await import(url);
+    const rejected = [];
+    for (const raw of ['{"schema_version":1,"schema_version":1}\n',
+      '{\n  "schema_version": 1.0\n}\n', '{\n  "max_rounds": 1e0\n}\n', '{\n  "cost": 1e999\n}\n']) {
+      try { parsePublic(raw); rejected.push(false); } catch { rejected.push(true); }
+    }
+    const raw = '{\n  "cost": 1.0,\n  "label": "\\ud55c\\uae00",\n  "reference_sha256": "omit"\n}\n';
+    const parsed = parsePublic(raw);
+    return { rejected, hash: await parsed.hashObject(parsed.value, 'reference_sha256') };
+  }, moduleUrl('trace'));
+  expect(result.rejected).toEqual([true, true, true, true]);
+  expect(result.hash).toBe(hash('{\n  "cost": 1.0,\n  "label": "\\ud55c\\uae00"\n}\n'));
+});
+
+for (const bad of ['missing', 'oversize', 'duplicate']) {
+  test(`trace ${bad} attachment cannot become a successful older run`, async ({ page }) => {
+    const fixture = traceFixture();
+    await tracePage(page, fixture);
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(2);
+    await page.route('https://dashboard.test/results/sample_repo/104-1/cycle.json', route =>
+      route.fulfill({ status: bad === 'missing' ? 404 : 200, contentType: 'application/json',
+        body: bad === 'oversize' ? ' '.repeat(1048576) + publicBytes(fixture.cycle.cycle) :
+          bad === 'duplicate' ? publicBytes(fixture.cycle.cycle).replace('"max_rounds": 2,', '"max_rounds": 1,\n  "max_rounds": 2,') : '{}' }));
+    await page.reload();
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page).toHaveURL(/run=104-1/);
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+    await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('근거 확인 실패 · 미검증'));
+  });
+}
+
+for (const mode of ['offline_test', 'sample', 'live']) {
+  test(`passed ${mode} confirmation gates approval readiness by execution mode`, async ({ page }) => {
+    // The live case is a rendering-only control, never operational approval evidence.
+    const fixture = traceFixture({ mode });
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted);
+    await tracePage(page, fixture);
+    for (const reload of [false, true]) {
+      if (reload) await page.reload();
+      const panel = page.locator('#evidence-trace');
+      await expect(panel).toContainText('confirmation: passed');
+      await expect(panel).toContainText(mode === 'live' ? '승인 대기' : '테스트/샘플 · 승인 불가');
+      if (mode !== 'live') await expect(panel).not.toContainText('승인 대기');
+      await expect(panel).toContainText('승인·사용: 미기록');
+      await expect(panel).not.toContainText('승인 없음');
+      await expect(page.locator('#approval-guidance')).toContainText('공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다');
+      await expect(page.locator('#skill-progress [data-stage="confirmation"]')).toContainText(
+        mode === 'live' ? '공개 live 근거' : mode);
+      await expect(page.locator('#skill-progress [data-stage="approval"]')).toContainText(
+        mode === 'live' ? '로컬 승인 자격 재검증 필요' : '승인 불가');
+      await expect(page.locator('#trace-error')).toHaveCount(0);
+      await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+      await expect(page).toHaveURL(/run=104-1/);
+    }
+  });
+}
+
+test('alternate replay policy is rejected even when all reference digests and lineage match', async ({ page }) => {
+  await tracePage(page, traceFixture({ policyHash: hash('different policy') }));
+  await expect(page.locator('#trace-error')).toBeVisible();
+  await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+});
+
+test('trace fixture opens the requested run without a speculative default navigation', async ({ page }) => {
+  const navigations = [];
+  page.on('framenavigated', frame => { if (frame === page.mainFrame()) navigations.push(frame.url()); });
+  await tracePage(page, traceFixture());
+  expect(navigations).toEqual(['https://dashboard.test/?project=sample_repo&run=104-1&skill=skillops%3Adevelop']);
+});
+
+for (const status of ['not_run', 'unverified']) {
+  test(`confirmation without an artifact preserves ${status} and does not permit approval`, async ({ page }) => {
+    const fixture = traceFixture();
+    fixture.cycle.cycle.confirmation_ref = null;
+    fixture.cycle.cycle.confirmation_status = status;
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted && item.report.run_id !== '103-1');
+    await tracePage(page, fixture);
+    await expect(page.locator('#evidence-trace')).toContainText(`confirmation: ${status}`);
+    await expect(page.locator('#evidence-trace')).toContainText('최종 확인 미완료');
+    await expect(page.locator('#evidence-trace')).not.toContainText('승인 대기');
+    await expect(page.locator('#trace-error')).toHaveCount(0);
+  });
+}
+
+for (const [decision, confirmation] of [['not_improved', 'passed'], ['rejected', 'failed'], ['unverified', 'unverified']]) {
+  test(`offline confirmation ${decision} remains ${confirmation} through its exact link and reload`, async ({ page }) => {
+    const fixture = traceFixture(), final = fixture.items.find(item => item.report.run_id === '103-1');
+    fixture.items = fixture.items.filter(item => item !== fixture.adopted);
+    final.replay.evaluation.decision.status = decision;
+    if (decision === 'unverified') final.replay.evaluation.applications.candidate = null;
+    else final.replay.evaluation.quality.candidate.dimensions[0].score = decision === 'rejected' ? 1 : 2;
+    fixture.cycle.cycle.confirmation_status = confirmation;
+    rebindTraceFixture(fixture);
+    await tracePage(page, fixture);
+    const panel = page.locator('#evidence-trace');
+    await expect(panel).toContainText(`confirmation: ${confirmation}`);
+    await expect(panel).toContainText(confirmation === 'passed' ? '테스트/샘플 · 승인 불가' : '최종 확인 미완료');
+    await expect(panel).not.toContainText('승인 대기');
+    await expect(panel).toContainText('승인·사용: 미기록');
+    await panel.getByRole('link', { name: '별도 최종 확인 근거' }).click();
+    await expect(page).toHaveURL(/run=103-1/);
+    await expect(page.locator('#quality-summary')).toContainText('offline_test');
+    await expect(page.locator('#improvement-evidence')).toContainText('추가 생성 없음');
+    await page.reload();
+    await expect(panel).toContainText(`confirmation: ${confirmation}`);
+    await expect(panel).not.toContainText('승인 대기');
+    await expect(page.locator('#trace-error')).toHaveCount(0);
+    await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  });
+}
+
+for (const [status, label] of [['blocked', '차단'], ['failed', '실패']]) {
+  test(`offline verified use remains distinct from a ${status} task report and unknown Active`, async ({ page }) => {
+    const fixture = traceFixture();
+    fixture.adopted.report.execution = { status,
+      reason_code: status === 'failed' ? 'runtime_error' : 'assessment_unverified', metrics: null, decision: null };
+    fixture.adopted.summary.execution_status = status;
+    rebindTraceFixture(fixture);
+    await tracePage(page, fixture, '105-1');
+    const panel = page.locator('#evidence-trace');
+    await expect(panel).toContainText('테스트/샘플의 검증된 사용');
+    await expect(page.locator('#execution')).toContainText(label);
+    await expect(panel).toContainText('작업 성공을 의미하지 않습니다');
+    await expect(panel).toContainText('현재 로컬 Active: 공개 근거로 확인 불가');
+    await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('사용 관측');
+    await expect(page.locator('#skill-progress [data-stage="use"]')).toContainText('작업 성공과 별개');
+    await panel.getByRole('link', { name: '다음 실행의 작업 결과 확인' }).click();
+    await page.reload();
+    await expect(panel).toContainText('테스트/샘플의 검증된 사용');
+    await expect(page.locator('#execution')).toContainText(label);
+  });
+}
+
+test('offline blocked use keeps loaded version unrecorded without becoming verified', async ({ page }) => {
+  const fixture = traceFixture();
+  Object.assign(fixture.adopted.adoption.executions[0], { status: 'blocked', reason_code: 'activation_unverified',
+    loaded_version_id: null, skill_version_verified: false });
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#evidence-trace')).toContainText('테스트/샘플의 사용 차단');
+  await expect(page.locator('#evidence-trace')).toContainText('실제 사용 버전: 미기록');
+  await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+for (const [name, mutate] of [
+  ['missing approval', f => { f.adopted.adoption.approvals = []; }],
+  ['cycle evidence hash mismatch', f => { f.adopted.adoption.approvals[0].evidence_sha256 = hash('wrong cycle'); }],
+  ['use approval binding mismatch', f => { f.adopted.adoption.executions[0].approval_id = 'another-approval'; }],
+  ['use predating approval', f => { f.adopted.adoption.executions[0].observed_at = '2026-09-17T12:00:00Z'; }],
+  ['private execution authority', f => { f.adopted.adoption.executions[0].environment_id = 'private-environment'; }],
+]) {
+  test(`offline adoption rejects ${name}`, async ({ page }) => {
+    const fixture = traceFixture();
+    mutate(fixture);
+    await tracePage(page, fixture, '105-1');
+    await expect(page.locator('#trace-error')).toBeVisible();
+    await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+    await expect(page.locator('#evidence-trace')).not.toContainText('private-environment');
+    await expect(page).toHaveURL(/run=105-1/);
+  });
+}
+
+test('offline adoption exceeding one MiB fails without changing the exact selection', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#evidence-trace')).toContainText('테스트/샘플의 검증된 사용');
+  await page.route('https://dashboard.test/results/sample_repo/105-1/adoption.json', route =>
+    route.fulfill({ contentType: 'application/json', body: ' '.repeat(1048576) + publicBytes(fixture.adopted.adoption) }));
+  await page.reload();
+  await expect(page.locator('#trace-error')).toBeVisible();
+  await expect(page).toHaveURL(/run=105-1/);
+  await expect(page.locator('#evidence-trace')).not.toContainText('검증된 사용');
+});
+
+test('cycle and later use projections remain selectable without redundant local captures or approval copies', async ({ page }) => {
+  const fixture = traceFixture();
+  const approvalRun = structuredClone(fixture.adopted);
+  approvalRun.report.run_id = '106-1';
+  approvalRun.report.created_at = '2026-09-17T12:03:00Z';
+  approvalRun.adoption.run_id = '106-1';
+  approvalRun.adoption.report_sha256 = H(approvalRun.report);
+  approvalRun.adoption.executions = [];
+  approvalRun.summary = { ...approvalRun.report, guide_status: 'completed', execution_status: 'completed', adoption: '106-1/adoption.json' };
+  delete approvalRun.envelope;
+  fixture.adopted.adoption.approvals = [];
+  for (const item of [fixture.cycle, fixture.adopted]) {
+    delete item.envelope;
+    delete item.summary.skill_evolution;
+    delete item.summary.evolution_skills;
+  }
+  fixture.items.push(approvalRun);
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#evidence-trace')).toContainText('검증된 사용');
+  await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(2);
+  await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+test('same parent bytes cannot become a newly generated improved round even when every digest matches', async ({ page }) => {
+  await tracePage(page, traceFixture({ unchangedSecond: true }));
+  await expect(page.locator('#trace-error')).toBeVisible();
+  await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(0);
+});
+
+test('approval-only Skill remains selectable alongside an unrelated captured Skill', async ({ page }) => {
+  const fixture = traceFixture(), item = fixture.adopted;
+  const other = 'other:captured';
+  for (const row of [...item.envelope.records.identities, ...item.envelope.records.sources,
+    ...item.envelope.records.skill_versions, ...item.envelope.bindings, ...item.summary.evolution_skills]) row.skill_key = other;
+  await tracePage(page, fixture, '105-1');
+  await expect(page.locator('#skill-select')).toHaveValue(fixture.key);
+  await expect(page.locator('#evidence-trace')).toContainText('검증된 사용');
+  await expect(page.locator('#evolution-metadata')).toBeHidden();
+  await expect(page.locator('#skill-changes')).not.toContainText('Round two');
+  await expect(page.locator('#error')).toBeHidden();
+});
+
+test('interrupted generation retains round and cap without inventing a candidate or confirmation', async ({ page }) => {
+  const fixture = traceFixture();
+  const cycle = fixture.cycle.cycle;
+  cycle.rounds = [{ ...cycle.rounds[0], run_id: null, candidate_version_id: null, evaluation_ref: null, decision: null, stop_reason: 'call_limit' }];
+  Object.assign(cycle, { stop_reason: 'call_limit', selected_candidate_version_id: null, confirmation_ref: null, confirmation_status: 'not_run' });
+  fixture.items = [fixture.cycle];
+  await tracePage(page, fixture);
+  await expect(page.locator('#evidence-trace')).toContainText('종료 사유: call_limit');
+  await expect(page.locator('#evidence-trace')).toContainText('후보: 미기록');
+  await expect(page.locator('#evidence-trace')).toContainText('confirmation: not_run');
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+test('unsaved generated candidate keeps its identity without inventing a run link', async ({ page }) => {
+  const fixture = traceFixture(), cycle = fixture.cycle.cycle;
+  cycle.rounds = [{ ...cycle.rounds[0], run_id: null, evaluation_ref: null, decision: null, stop_reason: 'time_limit' }];
+  Object.assign(cycle, { stop_reason: 'time_limit', selected_candidate_version_id: null,
+    confirmation_ref: null, confirmation_status: 'not_run' });
+  fixture.items = [fixture.cycle];
+  await tracePage(page, fixture);
+  await expect(page.locator('#evidence-trace')).toContainText(cycle.rounds[0].candidate_version_id);
+  await expect(page.locator('#evidence-trace')).toContainText('재평가: 미기록');
+  await expect(page.locator('#evidence-trace [data-round] a')).toHaveCount(0);
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+});
+
+test('a non-null unsaved run ID is rejected by the revision 1.3 contract', async ({ page }) => {
+  const fixture = traceFixture(), cycle = fixture.cycle.cycle;
+  cycle.rounds = [{ ...cycle.rounds[0], candidate_version_id: null, evaluation_ref: null, decision: null, stop_reason: 'call_limit' }];
+  Object.assign(cycle, { stop_reason: 'call_limit', selected_candidate_version_id: null,
+    confirmation_ref: null, confirmation_status: 'not_run' });
+  fixture.items = [fixture.cycle];
+  await tracePage(page, fixture);
+  await expect(page.locator('#trace-error')).toBeVisible();
+});
+
+test('a null run ID cannot refer to a saved evaluation', async ({ page }) => {
+  const fixture = traceFixture();
+  fixture.cycle.cycle.rounds[0].run_id = null;
+  await tracePage(page, fixture);
+  await expect(page.locator('#trace-error')).toBeVisible();
+});
+
+for (const target of ['project', 'skill']) {
+  test(`late cycle response cannot replace a different ${target} selection`, async ({ page }) => {
+    const fixture = traceFixture();
+    await tracePage(page, fixture);
+    await expect(page.locator('#evidence-trace [data-round]')).toHaveCount(2);
+    const other = 'other:skill';
+    await page.route('https://dashboard.test/results/index.json', route => route.fulfill({ json: {
+      schema_version: 1, projects: [
+        { id: 'sample_repo', state: 'active', history_count: 5, current_run: null,
+          detected_skills: [{ skill_key: other, display_name: 'Other', source_path: 'skills/other' }] },
+        { id: 'other-project', state: 'active', history_count: 0, current_run: null },
+      ],
+    } }));
+    await page.route('https://dashboard.test/results/other-project/index.json', route => route.fulfill({
+      json: { schema_version: 1, history: [] },
+    }));
+    let release, started;
+    const waiting = new Promise(resolve => { started = resolve; });
+    const gate = new Promise(resolve => { release = resolve; });
+    await page.route('https://dashboard.test/results/sample_repo/104-1/cycle.json', async route => {
+      started(); await gate; await route.fulfill({ contentType: 'application/json', body: publicBytes(fixture.cycle.cycle) });
+    });
+    await page.getByRole('button', { name: '새로고침', exact: true }).click();
+    await waiting;
+    if (target === 'project') await page.locator('[data-project="other-project"]').click();
+    else await page.locator('#skill-select').selectOption(other);
+    await expect(page.locator('#detail')).toBeHidden();
+    const response = page.waitForResponse('**/104-1/cycle.json');
+    release(); await response;
+    await expect(page.locator('#detail')).toBeHidden();
+    if (target === 'project') await expect(page.locator('#project-title')).toHaveText('other-project');
+    else await expect(page.locator('#skill-select')).toHaveValue(other);
+    await expect(page.locator('#error')).toBeHidden();
+  });
+}
+
 function pythonDecisionCases() {
   return JSON.parse(require('node:child_process').execFileSync('python3', ['-c',
     'import sys,json; sys.path.insert(0,"tests"); from test_skill_assessments import decision_cases; print(json.dumps(decision_cases()))',
@@ -746,10 +1491,10 @@ function pythonDecisionCases() {
 test('Python and JavaScript decisions agree on efficiency boundaries, missing measurements, rejections and legacy policy', async ({ page }) => {
   const cases = pythonDecisionCases();
   await pageWith(page, { schema_version: 1, projects: [] }, 200, 'https://dashboard.test');
-  const decisions = await page.evaluate(async cases => {
-    const { decide } = await import('/assessments.js');
+  const decisions = await page.evaluate(async ({ cases, url }) => {
+    const { decide } = await import(url);
     return cases.map(item => decide(item.row, item.legacy ? null : undefined));
-  }, cases);
+  }, { cases, url: moduleUrl('assessments') });
   for (const [index, item] of cases.entries()) expect(decisions[index], item.name).toEqual(item.expected);
 });
 
@@ -819,6 +1564,17 @@ test('completed assessment selection preselects its Skill and renders evidence w
   await expect(page.locator('#skill-select')).toHaveValue(assessed.details.skills[0].skill_key);
   await expect(page.locator('#quality-summary')).toHaveText('선택 Skill · 실제 버전 평가');
   await expect(page.locator('#execution .decision-title')).toHaveText('품질 점수 상승 (회귀 없음)');
+});
+
+test('equal code outputs do not present a quality score increase as developer productivity', async ({ page }) => {
+  const fixture = assessmentFixture();
+  const row = fixture.details.skills[0];
+  row.applications.candidate.output_sha256 = row.applications.base.output_sha256;
+  await page.route(`https://dashboard.test/results/sample_repo/${fixture.report.run_id}/skill-assessments.json`,
+    route => route.fulfill({ json: fixture.details }));
+  await evolutionPage(page, fixture);
+  await expect(page.locator('#task-results')).toContainText('코드 출력 해시 동일');
+  await expect(page.locator('#task-results')).toContainText('생산성 향상의 증거가 아닙니다');
 });
 
 test('assessment dimensions use Korean labels with recorded IDs and hypotheses stay collapsed and inert', async ({ page }) => {
@@ -1187,11 +1943,12 @@ test('projects without assessments show unevaluated decisions and no numeric can
   await expect(page.locator('#summary-decisions')).not.toHaveText(/\d/);
   await expect(page.locator('#summary-skills')).toHaveText('Skill 2개 · 버전 3개');
   await expect(page.locator('#summary-history')).toHaveText('평가 기록 6건 · 완료 1 · 차단 3 · 과거 가져오기 2 · 미평가 0');
-  const stamp = await page.evaluate(async value => (await import('/views.js')).stamp(value), fixture.completed.created_at);
+  const stamp = await page.evaluate(async ({ value, url }) => (await import(url)).stamp(value),
+    { value: fixture.completed.created_at, url: moduleUrl('views') });
   await expect(page.locator('#summary-completed')).toContainText(stamp);
   await expect(page.locator('#summary-completed code')).toHaveText(fixture.completed.source_commit.slice(0, 12));
   await expect(page.locator('#summary-completed code')).toHaveAttribute('title', fixture.completed.source_commit);
-  await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+  await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
   await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
   await expect(page.locator('#project-summary details')).toHaveJSProperty('open', false);
   await expect(page.locator('#project-summary details summary')).toHaveText('최근 평가·비용·집계 상세');
@@ -1370,7 +2127,7 @@ test('project assessment summaries count stored decisions and compare only the n
   await expect(page.locator('#summary-usage')).not.toContainText('합계');
   await expect(page.locator('#cost-card .big-number')).toHaveText('+16%');
   await expect(page.locator('#time-card .big-number')).toHaveText('+32%');
-  await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+  await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
 });
 
 test('project assessment summary changes stay missing for absent measurements or a zero baseline', async ({ page }) => {
@@ -1408,13 +2165,13 @@ test.describe('design regressions', () => {
         header: document.querySelector('.site-header').getBoundingClientRect().height,
         refresh: document.querySelector('#refresh').getBoundingClientRect().height,
         summary: document.querySelector('#project-summary').getBoundingClientRect().height,
-        quality: document.querySelector('#quality-section').getBoundingClientRect().top,
+        trace: document.querySelector('#evidence-trace').getBoundingClientRect().top,
       }));
       expect(layout.width).toBeLessThanOrEqual(width);
       expect(layout.header).toBeLessThanOrEqual(72);
       expect(layout.refresh).toBeLessThanOrEqual(48);
       expect(layout.summary).toBeLessThan(width <= 600 ? 410 : 320);
-      expect(layout.quality).toBeLessThan(width <= 600 ? 920 : 820);
+      expect(layout.trace).toBeLessThan(width <= 600 ? 1000 : 900);
       if (width <= 600) {
         expect(layout.refresh).toBeGreaterThanOrEqual(44);
         await expect(page.locator('.brand-short')).toBeVisible();
@@ -1440,7 +2197,7 @@ test.describe('design regressions', () => {
       await expect(page.locator('#execution-history-panel')).toBeVisible();
       await page.getByRole('button', { name: '실제 기록으로 돌아가기', exact: true }).click();
       await expect(page.locator('#sample-banner')).toBeHidden();
-      await expect(page.locator('.section-nav a:visible')).toHaveCount(1);
+      await expect(page.locator('.section-nav a:visible')).toHaveCount(2);
     });
   }
 
@@ -1451,7 +2208,7 @@ test.describe('design regressions', () => {
       const quality = page.locator('.section-nav a[href="#quality-section"]');
       const execution = page.locator('.section-nav a[href="#execution-section"]');
       const history = page.locator('.section-nav a[href="#history-section"]');
-      await expect(quality).toHaveAttribute('aria-current', 'location');
+      await expect(page.locator('.section-nav a[href="#evidence-trace"]')).toHaveAttribute('aria-current', 'location');
       await history.click();
       await expect(history).toHaveAttribute('aria-current', 'location');
       await expect(page.locator('.section-nav [aria-current]')).toHaveCount(1);
@@ -1527,7 +2284,7 @@ test.describe('visual identity', () => {
     await expect(page.locator('.summary-heading')).toContainText('프로젝트 평가 요약');
     await expect(page.locator('#summary-decisions')).toHaveText('후보 판정 없음');
     await expect(page.locator('.summary-decision')).toHaveCount(0);
-    await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+    await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
     await expect(page.locator('#execution .decision-title')).toHaveText('차단');
     await expect(page.locator('#cost-card .decision-title')).toHaveText('미기록');
   });
@@ -1589,7 +2346,7 @@ test.describe('visual identity', () => {
     await expect(page.locator('#summary-decisions')).toHaveText('상승 2 · 변화 없음 1 · 검증 불충분 1 · 거절 1');
     await expect(page.locator('.summary-decision')).toHaveCount(4);
     await expect(page.locator('.summary-decision-count')).toHaveText(['2', '1', '1', '1']);
-    await expect(page.locator('#summary-adoptions')).toHaveText('SkillOps에 채택 기록 없음');
+    await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 844 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
