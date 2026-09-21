@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONPATH: ${{ github.workspace }}/skillops
+
 concurrency:
   group: baseline-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -26,15 +29,16 @@ jobs:
         with:
           node-version: '22'
           cache: npm
+          cache-dependency-path: skillops/package-lock.json
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.12'
       - name: Install hash-pinned evaluator parser
         run: |
-          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
-      - run: npm ci --no-audit --no-fund
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:dashboard
+          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r skillops/requirements-evaluator.txt
+      - run: npm --prefix skillops ci --no-audit --no-fund
+      - run: skillops/node_modules/.bin/playwright install --with-deps chromium
+      - run: npm --prefix skillops run test:dashboard
   offline-and-container:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -51,7 +55,7 @@ jobs:
           python-version: "3.12"
       - name: Install hash-pinned evaluator parser
         run: |
-          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r requirements-evaluator.txt
+          python -m pip --isolated install --disable-pip-version-check --only-binary=:all: --require-hashes --index-url https://pypi.org/simple -r skillops/requirements-evaluator.txt
       - name: Record execution identity
         shell: bash
         run: |
@@ -81,7 +85,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          python -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee ci-artifacts/tests.log
+          python -m unittest discover -s skillops/tests -p 'test_*.py' -v 2>&1 | tee ci-artifacts/tests.log
       - name: Record validation boundary
         if: always()
         shell: bash

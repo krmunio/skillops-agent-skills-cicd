@@ -1,5 +1,10 @@
 # Hackathon contracts: replay, bounded improvement, explicit adoption
 
+Current filesystem layout: application modules, `dashboard/` and `tests/` below
+are under `skillops/` unless a historical baseline is explicitly being quoted.
+Commands use repository-root paths. Original commits, recorded evidence and
+historical commands are not rewritten by the relocation.
+
 Contract revision: **1.4** (reviewed confirmation admission and runtime boundary;
 public schema version 1 and revision 1.3 persistence semantics retained).
 Original code baseline: `3a6a2a3`.
@@ -60,7 +65,7 @@ commits, not completion of every target API in this contract.
 | Sections 7-9: public trace | Replay/cycle integrated; adoption consumer only | `dashboard/trace.js` has read-only approval/use validation and labels, but no official Python-produced adoption graph is published. PR #31 follow-up `1433c554a5ca7aabeda29200ed8be528a9e0d47f` adds browser tests only and is not in this main. |
 | Section 9: no fake production path / integrated acceptance | Development acceptance only | Common integration tests call actual provider/loop/validators/storage with external boundaries simulated. Synthetic confirmation fixtures and owner module tests are not a real provider confirmation or operational approval. The complete CLI chain is not integrated. |
 
-Scoped baseline command:
+Historical pre-relocation scoped baseline command (retained as recorded):
 `PYTHONPATH=tests:. python3 -m unittest test_hackathon_contracts test_hackathon_integration -q`
 ran 57 tests successfully with no skips. This is not a new full-suite, container,
 live-model, approval, deployment or exact-final-HEAD CI result.
@@ -405,7 +410,7 @@ feature is not authorization to approve a candidate.
 Replace every angle-bracket placeholder with the exact local evidence binding:
 
 ```text
-python3 -B skillops.py approval-preflight \
+python3 -B skillops/skillops.py approval-preflight \
   --project <project-id> --skill-key <skill-key> \
   --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
   --evidence-sha256 <cycle-file-sha256> --results <local-results-directory>
@@ -472,7 +477,7 @@ interactive boundary delegates all evidence/state validation to session 4's
 next-use and public publication integration.
 
 ```text
-python3 skillops.py approve --project <project> --skill-key <key> \
+python3 skillops/skillops.py approve --project <project> --skill-key <key> \
   --candidate-version sha256:<complete-bundle-hash> \
   --evidence-sha256 <cycle-file-hash> --cycle <cycle-id> \
   --expected-active-version <version-or-none> \
@@ -532,7 +537,7 @@ or prove application. It makes those exact bytes selectable for a subsequent
 explicit local run:
 
 ```text
-python3 skillops.py run-approved --project <project> --skill-key <key> \
+python3 skillops/skillops.py run-approved --project <project> --skill-key <key> \
   --approval <approval-id> --candidate-version sha256:<complete-bundle-hash> \
   --evidence-sha256 <cycle-file-hash> --work-item <next-work-json> \
   --results <results-directory>
@@ -719,17 +724,17 @@ production import path while a provider is missing.
 
 | Session | Owned files | Provides / consumes |
 | --- | --- | --- |
-| 1: contract/integration | This document, `project_evaluation.py`, `project_results.py`, `skill_assessments.py`, `evolution_records.py`, `skillops.py`, `.github/workflows/project-evaluation.yml`; common tests/docs | Work/evidence validation, storage/index/build, CLI and Actions adapters |
-| 2: work replay | `skill_pipeline.py`, `project_checks.py`, `tests/test_skill_pipeline.py`, `tests/test_project_checks.py` | Frozen work execution, one-candidate generation/evaluation helpers, protected context isolation |
-| 3: iteration | New `skill_iterations.py`, `tests/test_skill_iterations.py` | Bounded loop and feedback lineage; calls session 2, never approval |
-| 4: approval | New `skill_approvals.py`, `repositories.py`, `tests/test_skill_approvals.py`, `tests/test_repositories.py` | Local approval store, exact selection, next-use receipts and Active state |
-| 5: public UI | `dashboard/`, `tests/dashboard.spec.js` and new browser tests under `tests/` | Read-only contracts, explicit sample/measurement and approval/use distinctions, exact run links |
+| 1: contract/integration | This document, `skillops/project_evaluation.py`, `skillops/project_results.py`, `skillops/skill_assessments.py`, `skillops/evolution_records.py`, `skillops/skillops.py`, `.github/workflows/project-evaluation.yml`; common tests/docs | Work/evidence validation, storage/index/build, CLI and Actions adapters |
+| 2: work replay | `skillops/skill_pipeline.py`, `skillops/project_checks.py`, `skillops/tests/test_skill_pipeline.py`, `skillops/tests/test_project_checks.py` | Frozen work execution, one-candidate generation/evaluation helpers, protected context isolation |
+| 3: iteration | New `skillops/skill_iterations.py`, `skillops/tests/test_skill_iterations.py` | Bounded loop and feedback lineage; calls session 2, never approval |
+| 4: approval | New `skillops/skill_approvals.py`, `skillops/repositories.py`, `skillops/tests/test_skill_approvals.py`, `skillops/tests/test_repositories.py` | Local approval store, exact selection, next-use receipts and Active state |
+| 5: public UI | `skillops/dashboard/`, `skillops/tests/dashboard.spec.js` and new browser tests under `skillops/tests/` | Read-only contracts, explicit sample/measurement and approval/use distinctions, exact run links |
 
-Existing common tests are owned by session 1: `tests/test_project_evaluation.py`,
-`tests/test_project_results.py`, `tests/test_skill_assessments.py`,
-`tests/test_evolution_records.py`, `tests/test_skillops.py`,
-`tests/test_project_workflow.py`, and new `tests/test_hackathon_contracts.py` /
-`tests/test_hackathon_integration.py`. Session 5 requests publisher changes from
+Existing common tests are owned by session 1: `skillops/tests/test_project_evaluation.py`,
+`skillops/tests/test_project_results.py`, `skillops/tests/test_skill_assessments.py`,
+`skillops/tests/test_evolution_records.py`, `skillops/tests/test_skillops.py`,
+`skillops/tests/test_project_workflow.py`, and new `skillops/tests/test_hackathon_contracts.py` /
+`skillops/tests/test_hackathon_integration.py`. Session 5 requests publisher changes from
 session 1; session 3 requests replay helper changes from session 2. File ownership
 does not authorize touching someone else's worktree or staging their changes.
 
@@ -774,14 +779,14 @@ The foundation implements `validate_work_item`, `validate_replay`,
 `decide_replay`, `validate_development_feedback`, `load_replays`, `load_cycles`,
 `validate_cycle` and `budget_limits`. These are validators/readers/cap snapshots,
 not the replay provider, local approval implementation or operational adapters.
-`project_results.py validate` also checks replay/cycle sidecars.
+`skillops/project_results.py validate` also checks replay/cycle sidecars.
 At the foundation stage, publishers rejected new sidecars until lossless
 publication was connected. The final demo integration supports validated replay
 and cycle graphs; unsupported adoption evidence still fails closed with
 `adoption_publication_pending`. Legacy report bytes remain unchanged.
 
 The reusable fixture is `tests/hackathon_fixtures.py`; invariant tests are
-`tests/test_hackathon_contracts.py`. Every generated fixture is `offline_test`,
+`skillops/tests/test_hackathon_contracts.py`. Every generated fixture is `offline_test`,
 including its synthetic confirmation result. No provider issuance, model
 execution or semantic confirmation isolation is established by these fixtures.
 `validate_work_item` checks the supplied full commit against the WorkItem and
@@ -790,7 +795,7 @@ that the supplied commit identifies its checkout. It does not execute Git or tes
 `validate_development_feedback` is pure validation, never the private issuance
 registry described below.
 
-Minimal offline calls from the repository root with `PYTHONPATH=tests:.`:
+Minimal offline calls from the repository root with `PYTHONPATH=skillops/tests:skillops`:
 
 ```python
 from pathlib import Path
@@ -812,7 +817,7 @@ with TemporaryDirectory() as folder:
 
 #### Single-replay adapter implementation handoff
 
-The opt-in `skillops.py replay` adapter uses the actual session 2 provider, not
+The opt-in `skillops/skillops.py replay` adapter uses the actual session 2 provider, not
 the legacy generated-work assessment path. Its entry point is:
 
 ```python
@@ -871,7 +876,7 @@ integrations. The original handoff added those two pieces only. Revision 1.4 com
 also connects adoption, human approval/next-use and recorded-development Actions;
 the historical main audit in section 1 remains a snapshot, not current status.
 
-`tests/test_hackathon_integration.py` exercises real provider/guide evaluator,
+`skillops/tests/test_hackathon_integration.py` exercises real provider/guide evaluator,
 common validation, staged-bundle verification and storage with explicitly
 simulated model/container boundaries. Its two development evaluations prove
 feedback lineage and shared budget wiring, not completion of session 3's loop,
@@ -935,7 +940,7 @@ attempted on failure.
 The opt-in CLI is:
 
 ```text
-python3 skillops.py iterate --project <project> --skill-key <key> \
+python3 skillops/skillops.py iterate --project <project> --skill-key <key> \
   --work-item <development-json> --confirmation-work-item <confirmation-json> \
   --confirmation-disclosure <reviewed-private-disclosure-json> \
   --max-rounds 2 --results <results-directory>
@@ -953,11 +958,11 @@ with passed final confirmation, a selected complete candidate and its final
 reference. This is evidence eligibility, not an approval or an Active update.
 Offline/sample or unverified/failed/not-run confirmation remains ineligible.
 
-`tests/test_hackathon_integration.py` exercises the actual loop, provider,
+`skillops/tests/test_hackathon_integration.py` exercises the actual loop, provider,
 validators, writer, loader and CLI dispatch. Only external transport/IO boundaries
 are simulated; the CLI test boundary explicitly labels simulated execution
 `offline_test`. Both pre-storage termination and callback failure are checked
-through the same implementation. `tests/export_iteration_evidence.py` generates
+through the same implementation. `skillops/tests/export_iteration_evidence.py` generates
 fresh records directly into a new output directory through those production
 modules, not by copying a saved result fixture. Its manifest records the clean
 integration SHA, scenario paths, call counts, cycle/run IDs and canonical hashes.
@@ -1188,7 +1193,7 @@ mismatch/failure, missing attachments, sample data and unchanged legacy records.
 The development iteration CLI is opt-in (see the implemented handoff above):
 
 ```text
-python3 skillops.py iterate --project <project> --skill-key <key> \
+python3 skillops/skillops.py iterate --project <project> --skill-key <key> \
   --work-item <development-work-json> --confirmation-work-item <confirmation-json> \
   --confirmation-disclosure <reviewed-private-disclosure-json> \
   --max-rounds 2 --results <results-directory>
@@ -1252,9 +1257,9 @@ by the integration exporter with unchanged pre-run public reports, using the
 official commands:
 
 ```text
-python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
-python3 project_results.py merge --incoming <offline-package>/n2-feedback --results <demo-results>
-python3 project_results.py build --results <demo-results> --output <new-site>
+python3 skillops/project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 skillops/project_results.py merge --incoming <offline-package>/n2-feedback --results <demo-results>
+python3 skillops/project_results.py build --results <demo-results> --output <new-site>
 python3 -m http.server <port> --bind 127.0.0.1 --directory <new-site>
 ```
 
@@ -1320,7 +1325,7 @@ Development-only calls without registration retain their existing behavior.
 next-use APIs and session 3 selected-Capture callback are wired through the CLI,
 shared runtime/budget and actual immutable stores/loaders. Actual non-model
 runtime probes are distinct from synthetic model/container transport tests.
-`tests/test_approval_flow.py` creates new temporary synthetic live-shaped inputs
+`skillops/tests/test_approval_flow.py` creates new temporary synthetic live-shaped inputs
 for the whole CLI chain and copies the exact evaluator files; it does not
 relabel offline results or export authorization fixtures. No paid evaluation,
 operational approval/use, main merge or public deployment is implied.
@@ -1454,7 +1459,7 @@ keep confirmation blocked. No paid execution is authorized by these declarations
 
 **Runtime implementation checkpoint (September 18, 2026):** these two runtime
 methods and isolated invocation transport are implemented in `copilot_runtime.py`.
-`tests/test_confirmation_runtime.py` exercises actual Docker filesystem denial
+`skillops/tests/test_confirmation_runtime.py` exercises actual Docker filesystem denial
 and native CLI inventories without model calls when
 `SKILLOPS_ISOLATION_TESTS=1`; the `contracts` job explicitly enables them and
 installs the locked native CLI. Linux, a non-root caller, the local pinned image

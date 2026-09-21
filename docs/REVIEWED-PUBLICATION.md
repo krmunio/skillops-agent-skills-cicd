@@ -52,7 +52,7 @@ The bundled candidate data commit is
 
 ```bash
 CODE_SHA="$(git rev-parse HEAD)"
-python3 reviewed_publication.py \
+python3 skillops/reviewed_publication.py \
   --code-sha "$CODE_SHA" \
   --data-sha 0712005982eeeb4f3837c526831222d65b564c62 \
   --bundle publication-candidates/hackathon-offline-v1 \
@@ -137,14 +137,14 @@ binds the 47 public payload files only. Neither manifest is modified
 to mimic the other. The older efdd68a demo packet is not an input.
 
 Session 5 UI HEAD is `9dd81096a11912c1ff466375179a5ddf02390531` (PR #41).
-Its `tests/dashboard-workflow-production.spec.js` also checks fourteen retained
+Its `skillops/tests/dashboard-workflow-production.spec.js` also checks fourteen retained
 historical payloads, for 47 bytes-preserved files in total. Six were already in
 results commit `5d812c69d5cb4300e9ee2576add629c98a0e2e5d`; eight historical
 offline files were absent there and are explicitly included, not regenerated.
 Validate the full packet plus the existing data branch when testing deployment.
 
 Use local stage mode above, then
-`python3 project_results.py validate --results /tmp/reviewed-publication/results`.
+`python3 skillops/project_results.py validate --results /tmp/reviewed-publication/results`.
 The `site/` directory comes from the existing official hashed-asset builder.
 Serve that directory locally for browser checks and compare each manifest file
 with both `results/` and `site/results/`; no payload hash may change.

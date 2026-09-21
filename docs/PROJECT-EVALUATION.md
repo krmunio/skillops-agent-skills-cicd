@@ -1,16 +1,23 @@
 # Projects, results and public dashboard
 
+Current commands below run from the repository root. Application modules,
+dashboard assets, tests and dependency manifests live in `skillops/`; project,
+public-result, private-state and protected benchmark roots remain unchanged.
+See the README's repository layout section for application-directory invocation.
+Relocation changes the evaluator fingerprint, so old evaluations remain history,
+not fresh authorization for the current evaluator. Public URLs are unchanged.
+
 ## Current foundation
 
 - The owner-operated public dashboard was reachable on September 16, 2026.
   The automatic-evaluation changes require their own release and live verification.
 - The controlled sample lives in `projects/sample_repo/`; its deliberately defective application
   modules are unchanged. A project-local Skill and conventional tests exercise automatic onboarding.
-- `project_profiles.json` retains compatibility with the legacy `issue-management-v2` adapter;
+- `skillops/project_profiles.json` retains compatibility with the legacy `issue-management-v2` adapter;
   a profile entry is not required for the automatic path.
-- `project_results.py` validates public records, imports reviewed historical summaries,
+- `skillops/project_results.py` validates public records, imports reviewed historical summaries,
   appends immutable reports, rebuilds indices and builds an allowlisted static site.
-- `project_evaluation.py` emits independent guide/execution states. Live execution
+- `skillops/project_evaluation.py` emits independent guide/execution states. Live execution
   is disabled until explicit settings and authentication are provided.
 - The project workflow validates PRs without model/deployment secrets. Trusted main
   pushes and main-only manual dispatch record assessments or explicit blocked states.
@@ -79,7 +86,7 @@ Manual dispatch retains its explicit project selector; omitting it selects the c
 For a checked-out Git revision, the corresponding local command is:
 
 ```bash
-python3 project_evaluation.py --root . --output ci-results --run-id <run-id> \
+python3 skillops/project_evaluation.py --root . --output ci-results --run-id <run-id> \
   --source-commit <full-head-sha> --changed-since <full-before-sha>
 ```
 
@@ -115,7 +122,7 @@ After **separate paid-execution authorization**, local
 shared call/time/per-session Credit limits, a local assessment can use:
 
 ```bash
-python3 project_evaluation.py --root . --output new-results \
+python3 skillops/project_evaluation.py --root . --output new-results \
   --run-id <unique-run-id> --source-commit "$(git rev-parse HEAD)" \
   --project project-b --assessment-skill-key <canonical-current-skill-key> \
   --history <validated-history-results>
@@ -249,7 +256,7 @@ public artifact if the summary reaches its size bound.
 To inspect an existing run without model calls:
 
 ```bash
-python3 evaluation_reporting.py --results results --run-id <saved-run-id>
+python3 skillops/evaluation_reporting.py --results results --run-id <saved-run-id>
 ```
 
 ### Durable stage measurements
@@ -323,12 +330,12 @@ preservation. They are source exports, not nested Git checkouts or submodules.
 Verify the existing snapshots, or prepare a **new, unused** project ID:
 
 ```bash
-python3 project_samples.py verify --project project-a
-python3 project_samples.py verify --project project-b
-python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
-python3 project_samples.py import --project schedule-demo --repository dbader/schedule \
+python3 skillops/project_samples.py verify --project project-a
+python3 skillops/project_samples.py verify --project project-b
+python3 skillops/project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
+python3 skillops/project_samples.py import --project schedule-demo --repository dbader/schedule \
   --commit 82a43db1b938d8fdf60103bd41f329e06c8d3651 \
-  --skill project_templates/schedule-development/SKILL.md
+  --skill skillops/project_templates/schedule-development/SKILL.md
 ```
 
 The standalone helper uses Python 3.12+ standard-library modules on Windows or
@@ -464,12 +471,12 @@ evaluation or authorize activation; the automatic pipeline uses the additive evi
 ## Local commands
 
 ```bash
-python3 project_results.py catalog
-python3 project_results.py index --results results
-python3 project_results.py validate --results results
-python3 project_results.py import-history --source runs --project sample_repo \
+python3 skillops/project_results.py catalog
+python3 skillops/project_results.py index --results results
+python3 skillops/project_results.py validate --results results
+python3 skillops/project_results.py import-history --source runs --project sample_repo \
   --results .dashboard-public/reviewed-results
-python3 project_results.py build --results .dashboard-public/reviewed-results \
+python3 skillops/project_results.py build --results .dashboard-public/reviewed-results \
   --output .dashboard-public/site
 ```
 
@@ -513,7 +520,7 @@ and unsupported lockfiles still fail explicitly. The resolver never installs the
 project itself or executes its setup script, and wheel-only installation remains
 mandatory.
 Registry requirement strings are parsed in full by `packaging==26.2`, installed from
-the hash-pinned `requirements-evaluator.txt`. This parser dependency is included in
+the hash-pinned `skillops/requirements-evaluator.txt`. This parser dependency is included in
 the evaluator fingerprint and bootstrapped by the test/evaluation jobs; local users
 must install the same manifest in their virtual environment. Missing or different
 parser versions fail closed rather than selecting a weaker fallback.
@@ -566,7 +573,7 @@ Project-a's declaration is a SkillOps preparation overlay on the imported upstre
 local delta. The original `requirements-dev.txt` (including `black==20.8b1` and
 `click==8.0.4`), application source and Skill are unchanged. Historical reports and
 their original dependency failures are not reinterpreted under this profile.
-The strict `project_samples.py verify --project project-a` import check therefore
+The strict `skillops/project_samples.py verify --project project-a` import check therefore
 returns `source_mismatch` for the prepared working copy. It has not been relaxed:
 fixture tests assert that rejection and verify the original import in a temporary
 copy with only the exact declared TOML suffix removed. Every other imported file,
@@ -835,7 +842,7 @@ to publish raw prompts, logs, generator rationales or arbitrary repository files
 Review the exact archived texts for secrets and private information first:
 
 ```bash
-python3 project_results.py import-skill-snapshots \
+python3 skillops/project_results.py import-skill-snapshots \
   --source runs --results .dashboard-public/reviewed-results \
   --project sample_repo --candidate-run 20260915T005404Z-611d681b8bf7 \
   --skill-id develop --reviewed
@@ -870,10 +877,10 @@ Samples never become the catalog's current measured run or enter live assessment
 history. Qualification within a fixture describes its scenario, not evidence
 that a real Skill improved. Candidate qualification is never adoption.
 
-`python3 dashboard_samples.py --results <directory>` deterministically generates
+`python3 skillops/dashboard_samples.py --results <directory>` deterministically generates
 the fixture set through normal immutable stores. Changes to its content produce
 new content-derived run IDs rather than rewriting existing results.
-`python3 project_results.py merge-samples --results <directory>` validates and
+`python3 skillops/project_results.py merge-samples --results <directory>` validates and
 appends only checked-in sample-origin records. The trusted publisher runs this
 before appending Actions reports, so `evaluation-results` and the deployed
 dashboard retain the same result files. Build remains a read-only projection
@@ -935,7 +942,7 @@ need no legacy snapshot. Legacy-only names remain visibly unregistered.
 After the reviewed snapshot import, attach saved evolution evidence:
 
 ```bash
-python3 project_results.py import-skill-evolution \
+python3 skillops/project_results.py import-skill-evolution \
   --source runs --results .dashboard-public/reviewed-results \
   --project sample_repo --candidate-run 20260915T005404Z-611d681b8bf7 \
   --skill-key skillops:develop --legacy-skill-id develop --reviewed
@@ -1010,10 +1017,10 @@ dependencies and pinned actions, without model/deployment secrets. Adding this
 job does not change branch protection or make it a required check.
 
 ```bash
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-npm ci --no-audit --no-fund
-npx playwright install --with-deps chromium
-npm run test:dashboard
+PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
+npm --prefix skillops ci --no-audit --no-fund
+skillops/node_modules/.bin/playwright install --with-deps chromium
+npm --prefix skillops run test:dashboard
 az bicep build --file infra/public-dashboard.bicep
 ```
 
