@@ -1,4 +1,4 @@
-const { test, expect } = require('@playwright/test');
+const { test, expect, assertDashboardModules } = require('./dashboard-public-harness');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
@@ -24,26 +24,7 @@ test.beforeEach(() => {
 });
 
 test('official workflow entry uses hashed modules and preserves every reviewed public payload byte', async ({ request }) => {
-  const entry = await request.get(new URL('/', origin).href);
-  expect(entry.ok()).toBe(true);
-  const match = (await entry.text()).match(/src="\/(app\.[a-f0-9]{12}\.js)"/);
-  expect(match).not.toBeNull();
-  const pending = [match[1]], modules = new Set();
-  while (pending.length) {
-    const name = pending.pop();
-    if (modules.has(name)) continue;
-    modules.add(name);
-    expect(modules.size).toBeLessThanOrEqual(5);
-    const response = await request.get(new URL(`/${name}`, origin).href);
-    expect(response.ok()).toBe(true);
-    const bytes = await response.body();
-    expect(name.split('.')[1]).toBe(hash(bytes).slice(0, 12));
-    for (const imported of bytes.toString().matchAll(/^import\b[^;]*?\bfrom\s*['"]\.\/([^'"]+)['"]/gm)) {
-      expect(imported[1]).toMatch(/^(views|evolution|assessments|trace)\.[a-f0-9]{12}\.js$/);
-      pending.push(imported[1]);
-    }
-  }
-  expect([...modules].map(name => name.split('.')[0]).sort()).toEqual(['app', 'assessments', 'evolution', 'trace', 'views']);
+  await assertDashboardModules(request, origin);
   const root = path.join(evidence, 'public-results');
   for (const project of fs.readdirSync(root, { withFileTypes: true }).filter(item => item.isDirectory())) {
     const directory = path.join(root, project.name);
