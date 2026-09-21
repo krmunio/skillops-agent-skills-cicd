@@ -274,7 +274,7 @@ def verify_url(site, url):
         if path.name == "staticwebapp.config.json" or path.name == "results":
             continue
         results.require(path.name in ("index.html", "styles.css", "sample-data.json") or results.matches(
-            r"(?:views|evolution|assessments|trace|app)\.[a-f0-9]{12}\.js", path.name), "non_public_entry")
+            r"(?:views|evolution|assessments|trace|app|i18n)\.[a-f0-9]{12}\.js", path.name), "non_public_entry")
         files[path.name] = results.read_bytes(path)
     results.require("index.html" in files and "results/index.json" in files, "incomplete_public_site")
     for name, raw in files.items():

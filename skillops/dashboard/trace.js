@@ -1,4 +1,5 @@
-import { $, node, table, renderMetric } from './views.js';
+import { t, setText, setAttribute, join } from './i18n.js';
+import { $, node, table, renderMetric, stamp } from './views.js';
 import { check, exact, canonical, safePath, digest } from './evolution.js';
 import { quality, observation, regression, exceedsEfficiencyLimit } from './assessments.js';
 
@@ -12,7 +13,7 @@ const replayPolicyHash = 'd6efd14169aab7830b99a03d28f85282aeb04644d54df4d876fb02
 const modes = ['live', 'offline_test', 'sample'];
 const stops = ['improved', 'max_rounds', 'no_change', 'call_limit', 'time_limit', 'credit_limit',
   'input_changed', 'evaluation_unverified', 'runtime_error', 'cancelled'];
-const states = { improved: '지침 품질 개선 판정', not_improved: '개선 미확인', rejected: '후보 거절', unverified: '검증 불충분' };
+const states = { improved: t('지침 품질 개선 판정'), not_improved: t('개선 미확인'), rejected: t('후보 거절'), unverified: t('검증 불충분') };
 const files = { replay_evaluation: 'replay-evaluation.json', cycle: 'cycle.json', adoption: 'adoption.json' };
 const cycleFields = 'cycle_id skill_key source_path input_sha256 reference_sha256 original_version_id ' +
   'max_rounds budget rounds stop_reason selected_candidate_version_id confirmation_ref confirmation_status';
@@ -459,178 +460,178 @@ function link(project, run, skill, label) {
   anchor.dataset.traceRun = run;
   return anchor;
 }
-function paragraph(panel, label, value) { panel.append(node('p', `${label}: ${value ?? '미기록'}`)); }
-export function clearTrace(status = '공개 기록 없음') {
+function paragraph(panel, label, value) { panel.append(node('p', t`${label}: ${value ?? t('미기록')}`)); }
+export function clearTrace(status = t('공개 기록 없음')) {
   const panel = $('evidence-trace'), steps = node('ol');
   steps.id = 'skill-progress';
   for (const [id, label, next] of [
-    ['development', '개발 평가', '다음 행동: 기록된 개발 작업과 선택 Skill의 평가 근거를 확인하세요. 새 평가는 별도 실행 허가가 필요합니다.'],
-    ['iteration', '최대 N회 개선', '다음 행동: 승인된 반복 한도와 라운드별 부모·후보·피드백·종료 사유를 확인하세요.'],
-    ['confirmation', '별도 최종 확인', '다음 행동: 개발 평가와 분리된 최종 작업의 확인 결과를 확인하세요. 개발 개선만으로 통과하지 않습니다.'],
-    ['approval', '사람 승인', '다음 행동: 로컬의 읽기 전용 approval-preflight로 자격을 확인한 뒤, 사람이 대화형 approve를 별도로 수행하세요.'],
-    ['use', '다음 작업 사용', '다음 행동: 별도 실행 허가 후 다음 작업의 실제 버전 사용 관측과 작업 결과를 각각 확인하세요.'],
+    ['development', t('개발 평가'), t('다음 행동: 기록된 개발 작업과 선택 Skill의 평가 근거를 확인하세요. 새 평가는 별도 실행 허가가 필요합니다.')],
+    ['iteration', t('최대 N회 개선'), t('다음 행동: 승인된 반복 한도와 라운드별 부모·후보·피드백·종료 사유를 확인하세요.')],
+    ['confirmation', t('별도 최종 확인'), t('다음 행동: 개발 평가와 분리된 최종 작업의 확인 결과를 확인하세요. 개발 개선만으로 통과하지 않습니다.')],
+    ['approval', t('사람 승인'), t('다음 행동: 로컬의 읽기 전용 approval-preflight로 자격을 확인한 뒤, 사람이 대화형 approve를 별도로 수행하세요.')],
+    ['use', t('다음 작업 사용'), t('다음 행동: 별도 실행 허가 후 다음 작업의 실제 버전 사용 관측과 작업 결과를 각각 확인하세요.')],
   ]) {
     const item = node('li'); item.dataset.stage = id;
     item.append(node('strong', label), node('p', status, 'stage-status'), node('p', next, 'stage-next'));
     steps.append(item);
   }
   const guide = node('div'); guide.id = 'approval-guidance';
-  const help = node('a', '로컬 CLI 사용 안내');
-  help.href = 'https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.ko.md#별도의-로컬-승인';
-  guide.append(node('p', '승인은 로컬 CLI에서 수행합니다. 먼저 읽기 전용 approval-preflight로 대상·버전·근거·승인 자격을 재검증한 뒤, 사람이 대화형 approve를 별도로 수행합니다. preflight는 승인이나 작업 실행이 아닙니다. 공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다. 웹에서는 승인하거나 실행 권한을 부여하지 않습니다.'),
-    help, node('p', '공개 기록만으로 실제 승인 여부를 단정하지 않습니다. 현재 private Active와 이전 영수증 hash는 웹에서 추정하지 않습니다.'));
-  panel.replaceChildren(node('h2', '개발 작업에서 다음 Skill 사용까지'), steps, guide);
+  const help = node('a', t('로컬 CLI 사용 안내'));
+  setAttribute(help, 'href', t('https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.ko.md#별도의-로컬-승인'));
+  guide.append(node('p', t('승인은 로컬 CLI에서 수행합니다. 먼저 읽기 전용 approval-preflight로 대상·버전·근거·승인 자격을 재검증한 뒤, 사람이 대화형 approve를 별도로 수행합니다. preflight는 승인이나 작업 실행이 아닙니다. 공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다. 웹에서는 승인하거나 실행 권한을 부여하지 않습니다.')),
+    help, node('p', t('공개 기록만으로 실제 승인 여부를 단정하지 않습니다. 현재 private Active와 이전 영수증 hash는 웹에서 추정하지 않습니다.')));
+  panel.replaceChildren(node('h2', t('개발 작업에서 다음 Skill 사용까지')), steps, guide);
 }
 function renderProgress(trace) {
-  const mode = value => value === 'live' ? '공개 live 근거' : `${value} · 실측·승인 근거 아님`;
+  const mode = value => value === 'live' ? t('공개 live 근거') : t`${value} · 실측·승인 근거 아님`;
   const set = (stage, values) => {
-    if (values.length) $('skill-progress').querySelector(`[data-stage="${stage}"] .stage-status`).textContent =
-      [...new Set(values)].join(' / ');
+    if (values.length) setText($('skill-progress').querySelector(`[data-stage="${stage}"] .stage-status`),
+      join([...new Map(values.map(value => [String(value), value])).values()], ' / '));
   };
-  const decision = status => status === 'rejected' ? '실패 · 후보 거절' :
-    status === 'unverified' ? '미검증' : states[status];
+  const decision = status => status === 'rejected' ? t('실패 · 후보 거절') :
+    status === 'unverified' ? t('미검증') : states[status];
   const development = trace.replay?.evaluation.work.split === 'development' ? trace.replay : null;
-  set('development', development ? [`${mode(development.execution_mode)} · 진행 근거 있음 · ${decision(development.evaluation.decision.status)}`] :
+  set('development', development ? [t`${mode(development.execution_mode)} · 진행 근거 있음 · ${decision(development.evaluation.decision.status)}`] :
     trace.cycles.filter(cycle => cycle.rounds.some(round => round.decision)).map(cycle =>
-      `${mode(cycle.execution_mode)} · 진행 근거 있음 · 라운드별 판정 확인`));
+      t`${mode(cycle.execution_mode)} · 진행 근거 있음 · 라운드별 판정 확인`));
   set('iteration', trace.cycles.map(cycle => {
     const last = cycle.rounds.at(-1)?.decision?.status;
-    const outcome = last === 'rejected' ? '실패 · 후보 거절' :
-      cycle.stop_reason === 'evaluation_unverified' ? '미검증' :
-      ['runtime_error', 'input_changed', 'cancelled'].includes(cycle.stop_reason) ? '실패·중단' : '진행 근거 있음';
-    return `${mode(cycle.execution_mode)} · ${outcome} · ${cycle.rounds.length}/${cycle.max_rounds}회 · ${cycle.stop_reason}`;
+    const outcome = last === 'rejected' ? t('실패 · 후보 거절') :
+      cycle.stop_reason === 'evaluation_unverified' ? t('미검증') :
+      ['runtime_error', 'input_changed', 'cancelled'].includes(cycle.stop_reason) ? t('실패·중단') : t('진행 근거 있음');
+    return t`${mode(cycle.execution_mode)} · ${outcome} · ${cycle.rounds.length}/${cycle.max_rounds}회 · ${cycle.stop_reason}`;
   }));
-  set('confirmation', trace.cycles.map(cycle => `${mode(cycle.execution_mode)} · ${
-    { passed: '통과', failed: '실패', unverified: '미검증', not_run: '미실행' }[cycle.confirmation_status]}`));
+  set('confirmation', trace.cycles.map(cycle => t`${mode(cycle.execution_mode)} · ${
+    { passed: t('통과'), failed: t('실패'), unverified: t('미검증'), not_run: t('미실행') }[cycle.confirmation_status]}`));
   if (!trace.cycles.length && trace.replay?.evaluation.work.split === 'confirmation') {
-    set('confirmation', [`${mode(trace.replay.execution_mode)} · 진행 근거 있음 · cycle 최종 판정 미기록`]);
+    set('confirmation', [t`${mode(trace.replay.execution_mode)} · 진행 근거 있음 · cycle 최종 판정 미기록`]);
   }
-  set('approval', trace.approvals.length ? trace.approvals.map(item => `${mode(item.mode)} · 승인 관측 · ${
-    trace.executions.some(use => use.row.approval_id === item.row.approval_id) ? '사용 관측은 다음 단계에서 확인' : '승인됐지만 사용 미기록'}`) :
+  set('approval', trace.approvals.length ? trace.approvals.map(item => t`${mode(item.mode)} · 승인 관측 · ${
+    trace.executions.some(use => use.row.approval_id === item.row.approval_id) ? t('사용 관측은 다음 단계에서 확인') : t('승인됐지만 사용 미기록')}`) :
     trace.cycles.filter(cycle => cycle.confirmation_status === 'passed').map(cycle =>
-      `${mode(cycle.execution_mode)} · 공개 승인 기록 없음 · ${
-        cycle.execution_mode === 'live' ? '로컬 승인 자격 재검증 필요' : '테스트/샘플 · 승인 불가'}`));
-  set('use', trace.executions.map(item => `${mode(item.mode)} · 사용 관측 · ${
-    { verified: '검증된 사용 · 작업 성공과 별개', failed: '실패', blocked: '차단' }[item.row.status]}`));
+      t`${mode(cycle.execution_mode)} · 공개 승인 기록 없음 · ${
+        cycle.execution_mode === 'live' ? t('로컬 승인 자격 재검증 필요') : t('테스트/샘플 · 승인 불가')}`));
+  set('use', trace.executions.map(item => t`${mode(item.mode)} · 사용 관측 · ${
+    { verified: t('검증된 사용 · 작업 성공과 별개'), failed: t('실패'), blocked: t('차단') }[item.row.status]}`));
 }
 export function traceError() {
-  clearTrace('근거 확인 실패 · 미검증');
-  const error = node('p', '근거 누락 또는 검증 실패 · 다른 실행으로 대체하지 않습니다.', 'summary-warning');
+  clearTrace(t('근거 확인 실패 · 미검증'));
+  const error = node('p', t('근거 누락 또는 검증 실패 · 다른 실행으로 대체하지 않습니다.'), 'summary-warning');
   error.id = 'trace-error'; error.setAttribute('role', 'alert'); $('evidence-trace').append(error);
 }
 export function renderTrace(trace) {
   clearTrace();
   renderProgress(trace);
   const panel = $('evidence-trace');
-  const badge = node('p', trace.mode === 'live' ? 'live · 공개 실행 근거' :
-    trace.mode ? `${trace.mode} · 실측 성과·실제 채택 근거 아님` : '새 실행 방식: 미기록', 'reason');
+  const badge = node('p', trace.mode === 'live' ? t('live · 공개 실행 근거') :
+    trace.mode ? t`${trace.mode} · 실측 성과·실제 채택 근거 아님` : t('새 실행 방식: 미기록'), 'reason');
   badge.id = 'trace-mode'; panel.append(badge);
   if (trace.mode && trace.mode !== 'live') {
-    $('origin').textContent = `${trace.mode} · 비실측`;
-    $('quality-summary').textContent = `${trace.mode} · 테스트/샘플 평가`;
+    setText($('origin'), t`${trace.mode} · 비실측`);
+    setText($('quality-summary'), t`${trace.mode} · 테스트/샘플 평가`);
   }
-  paragraph(panel, '선택 실행', trace.run);
+  paragraph(panel, t('선택 실행'), trace.run);
   if (trace.replay) renderReplay(trace.replay);
-  else paragraph(panel, '기록된 개발 작업 replay', '미기록');
-  if (!trace.cycles.length) paragraph(panel, '반복 평가', '미기록');
+  else paragraph(panel, t('기록된 개발 작업 replay'), t('미기록'));
+  if (!trace.cycles.length) paragraph(panel, t('반복 평가'), t('미기록'));
   for (const cycle of trace.cycles) {
     const section = node('section');
-    section.append(node('h3', `반복 평가 · ${cycle.cycle_id} · ${cycle.execution_mode}`));
-    paragraph(section, '최초 원본', cycle.original_version_id);
-    paragraph(section, '승인된 한도', `최대 ${cycle.max_rounds}회 · 호출 ${cycle.budget.max_invocations} · ${cycle.budget.max_seconds}초`);
-    paragraph(section, '세션별 Credit soft cap', cycle.budget.max_ai_credits_per_session);
+    section.append(node('h3', t`반복 평가 · ${cycle.cycle_id} · ${cycle.execution_mode}`));
+    paragraph(section, t('최초 원본'), cycle.original_version_id);
+    paragraph(section, t('승인된 한도'), t`최대 ${cycle.max_rounds}회 · 호출 ${cycle.budget.max_invocations} · ${cycle.budget.max_seconds}초`);
+    paragraph(section, t('세션별 Credit soft cap'), cycle.budget.max_ai_credits_per_session);
     for (const round of cycle.rounds) {
       const article = node('article', undefined, 'trace-round'); article.dataset.round = round.round_number;
-      article.append(node('h3', `라운드 ${round.round_number} · ${round.round_id}`));
-      paragraph(article, '부모', round.parent_version_id);
-      paragraph(article, '후보', round.candidate_version_id);
-      paragraph(article, '피드백 연결', round.feedback_source_round_id ?? '최초 원본 관측');
-      paragraph(article, '피드백 SHA-256', round.feedback_sha256);
-      paragraph(article, '판정', round.decision ? `${round.decision.status} · ${states[round.decision.status]}` : null);
-      paragraph(article, '종료 사유', round.stop_reason ?? '계속');
-      if (round.evaluation_ref) article.append(link(trace.project, round.run_id, trace.skill, '이 라운드의 작업·품질·회귀·비용·변경 보기'));
-      else paragraph(article, '재평가', '미기록');
+      article.append(node('h3', t`라운드 ${round.round_number} · ${round.round_id}`));
+      paragraph(article, t('부모'), round.parent_version_id);
+      paragraph(article, t('후보'), round.candidate_version_id);
+      paragraph(article, t('피드백 연결'), round.feedback_source_round_id ?? t('최초 원본 관측'));
+      paragraph(article, t('피드백 SHA-256'), round.feedback_sha256);
+      paragraph(article, t('판정'), round.decision ? t`${round.decision.status} · ${states[round.decision.status]}` : null);
+      paragraph(article, t('종료 사유'), round.stop_reason ?? t('계속'));
+      if (round.evaluation_ref) article.append(link(trace.project, round.run_id, trace.skill, t('이 라운드의 작업·품질·회귀·비용·변경 보기')));
+      else paragraph(article, t('재평가'), t('미기록'));
       section.append(article);
     }
-    paragraph(section, '종료 사유', cycle.stop_reason);
+    paragraph(section, t('종료 사유'), cycle.stop_reason);
     paragraph(section, 'confirmation', cycle.confirmation_status);
-    if (cycle.confirmation_ref) section.append(link(trace.project, cycle.confirmation_ref.run_id, trace.skill, '별도 최종 확인 근거'));
-    paragraph(section, '선택 후보', cycle.selected_candidate_version_id);
+    if (cycle.confirmation_ref) section.append(link(trace.project, cycle.confirmation_ref.run_id, trace.skill, t('별도 최종 확인 근거')));
+    paragraph(section, t('선택 후보'), cycle.selected_candidate_version_id);
     if (!trace.approvals.some(item => item.row.cycle_id === cycle.cycle_id)) {
-      paragraph(section, '채택 단계', cycle.confirmation_status === 'passed' ?
-        (cycle.execution_mode === 'live' ? '승인 대기 · 로컬 승인 자격 재검증 필요 · 이 공개 연결에 승인 기록 미기록' :
-          '테스트/샘플 · 승인 불가 · 실제 승인에는 live 최종 확인 근거 필요') :
-        '최종 확인 미완료 · 승인 가능으로 간주하지 않음');
+      paragraph(section, t('채택 단계'), cycle.confirmation_status === 'passed' ?
+        (cycle.execution_mode === 'live' ? t('승인 대기 · 로컬 승인 자격 재검증 필요 · 이 공개 연결에 승인 기록 미기록') :
+          t('테스트/샘플 · 승인 불가 · 실제 승인에는 live 최종 확인 근거 필요')) :
+        t('최종 확인 미완료 · 승인 가능으로 간주하지 않음'));
     }
     panel.append(section);
   }
-  paragraph(panel, '승인·사용', trace.adoptionRecorded ? '공개 관측 기록' : '미기록');
+  paragraph(panel, t('승인·사용'), trace.adoptionRecorded ? t('공개 관측 기록') : t('미기록'));
   for (const approval of trace.approvals) {
     const section = node('section'), uses = trace.executions.filter(item => item.row.approval_id === approval.row.approval_id)
       .sort((a, b) => Date.parse(a.row.observed_at) - Date.parse(b.row.observed_at));
-    section.append(node('h3', `로컬 승인 관측 · ${approval.row.approval_id} · ${approval.mode}`));
-    paragraph(section, '승인 시각', approval.row.approved_at);
-    paragraph(section, '승인된 버전', approval.row.candidate_version_id);
-    if (!uses.length) paragraph(section, '상태', '승인됐지만 사용 미기록');
+    section.append(node('h3', t`로컬 승인 관측 · ${approval.row.approval_id} · ${approval.mode}`));
+    paragraph(section, t('승인 시각'), stamp(approval.row.approved_at));
+    paragraph(section, t('승인된 버전'), approval.row.candidate_version_id);
+    if (!uses.length) paragraph(section, t('상태'), t('승인됐지만 사용 미기록'));
     for (const use of uses) {
-      paragraph(section, '상태', `${use.mode !== 'live' ? '테스트/샘플의 ' : ''}${
-        use.row.status === 'verified' ? '검증된 사용' : use.row.status === 'failed' ? '사용 실패' : '사용 차단'}`);
-      paragraph(section, '관측 시각', use.row.observed_at);
-      paragraph(section, '다음 실행', use.row.run_id);
-      paragraph(section, '실제 사용 버전', use.row.loaded_version_id);
-      if (use.row.reason_code) paragraph(section, '실패 코드', use.row.reason_code);
-      section.append(link(trace.project, use.row.run_id, trace.skill, '다음 실행의 작업 결과 확인'));
+      paragraph(section, t('상태'), t`${use.mode !== 'live' ? t('테스트/샘플의 ') : ''}${
+        use.row.status === 'verified' ? t('검증된 사용') : use.row.status === 'failed' ? t('사용 실패') : t('사용 차단')}`);
+      paragraph(section, t('관측 시각'), stamp(use.row.observed_at));
+      paragraph(section, t('다음 실행'), use.row.run_id);
+      paragraph(section, t('실제 사용 버전'), use.row.loaded_version_id);
+      if (use.row.reason_code) paragraph(section, t('실패 코드'), use.row.reason_code);
+      section.append(link(trace.project, use.row.run_id, trace.skill, t('다음 실행의 작업 결과 확인')));
     }
-    section.append(link(trace.project, approval.run, trace.skill, '승인·사용 공개 근거'));
+    section.append(link(trace.project, approval.run, trace.skill, t('승인·사용 공개 근거')));
     panel.append(section);
   }
-  panel.append(node('p', '버전 사용 검증은 작업 성공을 의미하지 않습니다. 작업 결과는 해당 실행 보고서에서 별도로 확인합니다.', 'reason'),
-    node('p', '현재 로컬 Active: 공개 근거로 확인 불가', 'reason'),
-    node('p', 'local_operator / local_environment는 로컬 승인 관측입니다. 인증된 GitHub 신원이나 GitHub 운영 적용 권한이 아닙니다.', 'reason'),
-    node('p', '공개 해시·교차 참조만 검증합니다. 비공개 요청·피드백의 진실성이나 현재 로컬 상태를 증명하지 않습니다.', 'reason'));
+  panel.append(node('p', t('버전 사용 검증은 작업 성공을 의미하지 않습니다. 작업 결과는 해당 실행 보고서에서 별도로 확인합니다.'), 'reason'),
+    node('p', t('현재 로컬 Active: 공개 근거로 확인 불가'), 'reason'),
+    node('p', t('local_operator / local_environment는 로컬 승인 관측입니다. 인증된 GitHub 신원이나 GitHub 운영 적용 권한이 아닙니다.'), 'reason'),
+    node('p', t('공개 해시·교차 참조만 검증합니다. 비공개 요청·피드백의 진실성이나 현재 로컬 상태를 증명하지 않습니다.'), 'reason'));
 }
 function renderReplay(data) {
   const row = data.evaluation, { base, candidate } = row.quality;
-  $('quality-summary').textContent = data.execution_mode === 'live' ? '선택 Skill · 기록된 replay 품질' :
-    `${data.execution_mode} · 테스트/샘플 평가`;
+  setText($('quality-summary'), data.execution_mode === 'live' ? t('선택 Skill · 기록된 replay 품질') :
+    t`${data.execution_mode} · 테스트/샘플 평가`);
   const ids = new Set([...(base?.dimensions || []), ...(candidate?.dimensions || [])].map(item => item.id));
-  const score = (value, id) => value?.dimensions.find(item => item.id === id)?.score ?? '미평가';
-  $('guide').replaceChildren(table(['지침 품질', '최초 원본 → 후보'],
-    [...ids].map(id => [id, `${score(base, id)} → ${score(candidate, id)}`])));
-  for (const [label, value] of [['원본', base], ['후보', candidate]]) {
+  const score = (value, id) => value?.dimensions.find(item => item.id === id)?.score ?? t('미평가');
+  $('guide').replaceChildren(table([t('지침 품질'), t('최초 원본 → 후보')],
+    [...ids].map(id => [id, t`${score(base, id)} → ${score(candidate, id)}`])));
+  for (const [label, value] of [[t('원본'), base], [t('후보'), candidate]]) {
     paragraph($('guide'), label, value?.status);
     for (const finding of value?.findings || []) paragraph($('guide'), finding.severity, finding.message);
   }
-  $('improvement-evidence').replaceChildren(node('strong', '관측된 문제 · 공개 품질/검사 근거'));
+  $('improvement-evidence').replaceChildren(node('strong', t('관측된 문제 · 공개 품질/검사 근거')));
   for (const finding of base?.findings || []) paragraph($('improvement-evidence'), finding.id, finding.message);
-  paragraph($('improvement-evidence'), '개발 작업', `${row.work.task_id} · ${row.work.split} · recorded`);
-  paragraph($('improvement-evidence'), '작업 입력 SHA-256', row.work.input_sha256);
+  paragraph($('improvement-evidence'), t('개발 작업'), `${row.work.task_id} · ${row.work.split} · recorded`);
+  paragraph($('improvement-evidence'), t('작업 입력 SHA-256'), row.work.input_sha256);
   if (data.generation) {
-    paragraph($('improvement-evidence'), '피드백 SHA-256', data.generation.feedback_sha256);
-    paragraph($('improvement-evidence'), '연결한 항목', data.generation.addressed_findings.join(', ') || '없음');
-    paragraph($('improvement-evidence'), '미검증 생성 가설', data.generation.hypothesis);
-  } else paragraph($('improvement-evidence'), '최종 확인', '고정된 후보 재평가 · 추가 생성 없음');
-  $('execution').replaceChildren(node('h3', '후보 판정 · 채택 아님'),
-    node('strong', `${data.execution_mode !== 'live' ? '테스트/샘플 · ' : ''}${states[row.decision.status]}`, 'decision-title'));
-  $('execution-scope').textContent = `기록된 작업 ${row.work.task_id} · ${row.work.split} · 원본 프로젝트와 동일한 고정 검사 범위`;
-  $('decision-reasons').replaceChildren(node('p', `회귀: ${row.decision.regression.status}`));
+    paragraph($('improvement-evidence'), t('피드백 SHA-256'), data.generation.feedback_sha256);
+    paragraph($('improvement-evidence'), t('연결한 항목'), data.generation.addressed_findings.join(', ') || t('없음'));
+    paragraph($('improvement-evidence'), t('미검증 생성 가설'), data.generation.hypothesis);
+  } else paragraph($('improvement-evidence'), t('최종 확인'), t('고정된 후보 재평가 · 추가 생성 없음'));
+  $('execution').replaceChildren(node('h3', t('후보 판정 · 채택 아님')),
+    node('strong', t`${data.execution_mode !== 'live' ? t('테스트/샘플 · ') : ''}${states[row.decision.status]}`, 'decision-title'));
+  setText($('execution-scope'), t`기록된 작업 ${row.work.task_id} · ${row.work.split} · 원본 프로젝트와 동일한 고정 검사 범위`);
+  $('decision-reasons').replaceChildren(node('p', t`회귀: ${row.decision.regression.status}`));
   for (const value of [...row.decision.reasons, ...row.decision.regression.reasons,
     ...row.decision.regression.regressions, ...row.errors.map(item => `${item.stage}: ${item.code}`)]) {
-    paragraph($('decision-reasons'), '근거', value);
+    paragraph($('decision-reasons'), t('근거'), value);
   }
   const tasks = [];
-  for (const [collection, label] of [['cases', '검사'], ['gates', '필수 단계']]) {
+  for (const [collection, label] of [['cases', t('검사')], ['gates', t('필수 단계')]]) {
     const observations = ['original', 'base', 'candidate'].map(arm => new Map((row.checks[arm]?.[collection] || []).map(item => [item.id, item.status])));
     const ids = new Set(observations.flatMap(map => [...map.keys()]));
-    for (const id of ids) tasks.push([`${label}: ${id}`, ...observations.map(map => map.get(id) ?? '미관측')]);
+    for (const id of ids) tasks.push([t`${label}: ${id}`, ...observations.map(map => map.get(id) ?? t('미관측'))]);
   }
-  $('task-results').replaceChildren(node('p', `실제 작업 결과(고정된 필수 검사): ${taskState(row)}`),
-    table(['검사', '원본 프로젝트', '기존 적용', '후보 적용'], tasks));
-  paragraph($('task-results'), '필수 작업 검사', row.work.checks.required_case_ids.join(', '));
+  $('task-results').replaceChildren(node('p', t`실제 작업 결과(고정된 필수 검사): ${taskState(row)}`),
+    table([t('검사'), t('원본 프로젝트'), t('기존 적용'), t('후보 적용')], tasks));
+  paragraph($('task-results'), t('필수 작업 검사'), row.work.checks.required_case_ids.join(', '));
   const metrics = {};
   for (const arm of ['base', 'candidate']) {
     for (const name of ['cost_nano_aiu', 'elapsed_seconds']) metrics[`${arm}_${name}`] = row.applications[arm]?.measurement?.[name] ?? null;
   }
-  renderMetric($('cost-card'), 'Skill 적용 비용 · 기존 → 후보', 'cost_nano_aiu', metrics, data.execution_mode === 'live' ? 'github_actions' : 'sample');
-  renderMetric($('time-card'), 'Skill 적용 시간 · 기존 → 후보', 'elapsed_seconds', metrics, data.execution_mode === 'live' ? 'github_actions' : 'sample');
+  renderMetric($('cost-card'), t('Skill 적용 비용 · 기존 → 후보'), 'cost_nano_aiu', metrics, data.execution_mode === 'live' ? 'github_actions' : 'sample');
+  renderMetric($('time-card'), t('Skill 적용 시간 · 기존 → 후보'), 'elapsed_seconds', metrics, data.execution_mode === 'live' ? 'github_actions' : 'sample');
 }
