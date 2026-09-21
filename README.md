@@ -19,6 +19,14 @@ From the application directory, use `python3 skillops.py --help` or
 Run browser tests with `npm --prefix skillops run test:dashboard` from the root,
 or `npm run test:dashboard` from `skillops/`.
 
+The dashboard starts in English, regardless of browser language. Use the native
+**Language** selector for **English / 한국어**. An explicit choice is saved locally;
+if browser storage is unavailable, switching still works for the current visit
+and a small notice explains that it cannot be saved. Switching languages preserves
+the selected project, run, Skill, history tab and sample view without fetching or
+running evaluations. Original Skill text, findings, requests, IDs and public JSON
+remain unchanged; only dashboard-owned labels and formatting are localized.
+
 `projects/`, `results/`, `.skillops/`, `.skillops-private/` and `runs/` remain
 repository-root resources regardless of the invocation directory. Explicit
 relative CLI paths still resolve from the caller's working directory; from

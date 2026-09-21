@@ -261,7 +261,7 @@ class ProjectResultsTests(unittest.TestCase):
     def test_build_hashes_final_modules_and_resolves_entrypoint_and_imports(self):
         module = self.module()
         root = self.build_root()
-        names = ("app", "views", "evolution", "assessments", "trace")
+        names = ("app", "views", "evolution", "assessments", "trace", "i18n")
         originals = {name: (root / "skillops/dashboard" / f"{name}.js").read_bytes() for name in names}
         with tempfile.TemporaryDirectory() as temp:
             output = Path(temp) / "site"
@@ -269,7 +269,7 @@ class ProjectResultsTests(unittest.TestCase):
             scripts = list(output.glob("*.js"))
             self.assertEqual(len(scripts), len(names))
             for script in scripts:
-                self.assertRegex(script.name, r"^(app|views|evolution|assessments|trace)\.[a-f0-9]{12}\.js$")
+                self.assertRegex(script.name, r"^(app|views|evolution|assessments|trace|i18n)\.[a-f0-9]{12}\.js$")
                 self.assertEqual(script.name.split(".")[1], sha256(script.read_bytes()).hexdigest()[:12])
                 source = script.read_text(encoding="utf-8")
                 for imported in re.findall(r"\bfrom\s+['\"]\./([^'\"]+)['\"]", source):

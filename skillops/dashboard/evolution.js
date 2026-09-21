@@ -1,12 +1,13 @@
+import { t } from './i18n.js';
 import { $, node, stamp, renderSkill, hashValue } from './views.js';
 
 const keyPattern = /^[a-z0-9][a-z0-9-]{0,63}:[a-z0-9][a-z0-9-]{0,63}$/;
 const versionPattern = /^sha256:[a-f0-9]{64}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
 const encoder = new TextEncoder();
-const scopes = { entrypoint_only: 'SKILL.md만 보관 · 전체 번들 미확인', complete_bundle: '전체 번들 보관' };
-const sourceScopes = { project: '프로젝트', shared: '공유', personal: '개인', plugin: '플러그인', unknown: '출처 범위 미기록' };
-const decisions = { rejected: '후보 거절', blocked: '판정 차단', eligible_for_canary: 'Canary 검토 후보 · 배포 승인 아님' };
+const scopes = { entrypoint_only: t('SKILL.md만 보관 · 전체 번들 미확인'), complete_bundle: t('전체 번들 보관') };
+const sourceScopes = { project: t('프로젝트'), shared: t('공유'), personal: t('개인'), plugin: t('플러그인'), unknown: t('출처 범위 미기록') };
+const decisions = { rejected: t('후보 거절'), blocked: t('판정 차단'), eligible_for_canary: t('Canary 검토 후보 · 배포 승인 아님') };
 
 export { check, exact, canonical, safePath, digest };
 
@@ -239,43 +240,43 @@ export function renderEvolution(model, key, history, onSelectRun) {
   const rows = data.records, identity = identities.get(key);
   const panel = $('evolution-metadata');
   panel.hidden = false;
-  panel.replaceChildren(node('h3', identity.display_name || key), node('p', `고정 Skill ID · ${key}`, 'source-hash'));
+  panel.replaceChildren(node('h3', identity.display_name || key), node('p', t`고정 Skill ID · ${key}`, 'source-hash'));
   const sources = rows.sources.filter(item => item.skill_key === key);
-  if (!sources.length || !sources.some(item => item.kind === 'workspace')) panel.append(node('p', '정의 경로 미기록', 'reason'));
+  if (!sources.length || !sources.some(item => item.kind === 'workspace')) panel.append(node('p', t('정의 경로 미기록'), 'reason'));
   for (const source of sources) {
-    panel.append(node('p', `${source.kind === 'run_archive' ? '보관 위치 · 정의 경로 아님' : '정의 경로'}: ${source.path ?? '미기록'}`, 'evolution-path'));
-    panel.append(node('p', `출처 범위 · ${sourceScopes[source.scope]} · 관측 시각 ${source.observed_at ? stamp(source.observed_at) : '미기록'}`, 'reason'));
+    panel.append(node('p', t`${source.kind === 'run_archive' ? t('보관 위치 · 정의 경로 아님') : t('정의 경로')}: ${source.path ?? t('미기록')}`, 'evolution-path'));
+    panel.append(node('p', t`출처 범위 · ${sourceScopes[source.scope]} · 관측 시각 ${source.observed_at ? stamp(source.observed_at) : t('미기록')}`, 'reason'));
   }
   const captured = ['base', 'candidate'].map(arm => versions.get(binding[`${arm}_version_id`]));
   for (let i = 0; i < captured.length; i++) {
     const version = captured[i];
-    panel.append(node('p', `${i ? 'To-Be' : 'As-Is'} · ${version ? scopes[version.capture_scope] : '캡처 미기록'}`, 'reason'));
+    panel.append(node('p', t`${i ? 'To-Be' : 'As-Is'} · ${version ? scopes[version.capture_scope] : t('캡처 미기록')}`, 'reason'));
     if (version) {
       const summary = node('p', undefined, 'source-hash');
-      summary.append(hashValue(version.version_id), node('span', ` · ${version.files.length}개 파일`));
+      summary.append(hashValue(version.version_id), node('span', t` · ${version.files.length}개 파일`));
       panel.append(summary);
     }
   }
   const adoptions = rows.adoptions.filter(item => item.skill_key === key);
-  if (!adoptions.length) panel.append(node('p', '채택 상태 미기록', 'reason'));
+  if (!adoptions.length) panel.append(node('p', t('채택 상태 미기록'), 'reason'));
   for (const observation of adoptions) {
-    const summary = node('p', observation.state === 'unknown' ? '채택 상태 미기록' :
-      `설정된 진입점 pin 관측 · ${stamp(observation.observed_at)} · `, 'evolution-path');
+    const summary = node('p', observation.state === 'unknown' ? t('채택 상태 미기록') :
+      t`설정된 진입점 pin 관측 · ${stamp(observation.observed_at)} · `, 'evolution-path');
     if (observation.entrypoint_sha256) summary.append(hashValue(observation.entrypoint_sha256));
     panel.append(summary);
     if (observation.registry_sha256) {
-      const registry = node('p', '관측 근거 registry SHA-256 ', 'source-hash');
+      const registry = node('p', t('관측 근거 registry SHA-256 '), 'source-hash');
       registry.append(hashValue(observation.registry_sha256));
       panel.append(registry);
     }
   }
-  panel.append(node('p', '캡처와 과거 설정 관측은 현재 설치·실행 또는 전체 번들 배포의 증거가 아닙니다.', 'reason'));
+  panel.append(node('p', t('캡처와 과거 설정 관측은 현재 설치·실행 또는 전체 번들 배포의 증거가 아닙니다.'), 'reason'));
   const files = [...new Set(captured.flatMap(version => version?.files.map(file => file.path) || []))].sort(pathOrder);
   renderSkill(null, false);
   if (files.length) {
     const select = node('select');
     select.id = 'evolution-file';
-    const label = node('label', '보관 파일 ');
+    const label = node('label', t('보관 파일 '));
     label.htmlFor = select.id;
     for (const path of files) { const option = node('option', path); option.value = path; select.append(option); }
     label.append(select); panel.append(label);
@@ -312,28 +313,28 @@ export function renderEvolution(model, key, history, onSelectRun) {
   const reference = (ref, label) => {
     check(ref && /^(?:\d{8}T\d{6}Z-[a-f0-9]{12})$/.test(ref.run_id));
     const run = history.find(item => item.run_id.replace(/^(import-|local-)/, '') === ref.run_id && item.purpose === ref.kind);
-    const state = ref.availability === 'verified' ? '원본 해시 확인' : '참조만 기록';
-    const row = node('p', `${label} · ${state} · `, 'evolution-path');
+    const state = ref.availability === 'verified' ? t('원본 해시 확인') : t('참조만 기록');
+    const row = node('p', t`${label} · ${state} · `, 'evolution-path');
     if (run) {
       const button = node('button', ref.run_id);
       button.type = 'button'; button.addEventListener('click', () => onSelectRun(run));
       row.append(button);
-    } else row.append(node('span', `${ref.run_id} · 공개 이력 미연결`));
+    } else row.append(node('span', t`${ref.run_id} · 공개 이력 미연결`));
     evidencePanel.append(row);
   };
   for (const item of generation) {
-    evidencePanel.append(node('p', item.observed_failure_count === null ? '관측 실패 수 미기록' :
-      `관측 실패 ${item.observed_failure_count}건`, 'reason'));
-    evidencePanel.append(node('p', item.hypothesis_kind === 'unknown' ? '개선 가설 미기록 · 원본 설명에서 추정하지 않음' :
-      `검토된 개선 가설 · ${item.hypothesis_kind === 'efficiency' ? '효율' : '품질'}`, 'reason'));
-    reference(item.baseline_ref, '개선 근거 기준 평가');
-    reference(item.candidate_ref, '후보 생성');
+    evidencePanel.append(node('p', item.observed_failure_count === null ? t('관측 실패 수 미기록') :
+      t`관측 실패 ${item.observed_failure_count}건`, 'reason'));
+    evidencePanel.append(node('p', item.hypothesis_kind === 'unknown' ? t('개선 가설 미기록 · 원본 설명에서 추정하지 않음') :
+      t`검토된 개선 가설 · ${item.hypothesis_kind === 'efficiency' ? t('효율') : t('품질')}`, 'reason'));
+    reference(item.baseline_ref, t('개선 근거 기준 평가'));
+    reference(item.candidate_ref, t('후보 생성'));
   }
   for (const item of comparisons) {
     check(Object.hasOwn(decisions, item.decision));
     evidencePanel.append(node('p', decisions[item.decision], 'conclusion'));
-    reference(item.comparison_ref, '비교 검증');
-    reference(item.candidate_ref, '비교의 후보 메타데이터 연결');
+    reference(item.comparison_ref, t('비교 검증'));
+    reference(item.candidate_ref, t('비교의 후보 메타데이터 연결'));
   }
-  evidencePanel.append(node('p', '후보 생성, 비교 결론, 프로젝트 채택은 별개입니다. 지표·임계값은 아래 저장된 실행 평가에서 확인합니다.', 'reason'));
+  evidencePanel.append(node('p', t('후보 생성, 비교 결론, 프로젝트 채택은 별개입니다. 지표·임계값은 아래 저장된 실행 평가에서 확인합니다.'), 'reason'));
 }
