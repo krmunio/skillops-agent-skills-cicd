@@ -17,7 +17,7 @@ Choose a base branch that contains the task's prerequisites and disclose any
 dependency on another unmerged PR.
 
 Agree report schemas, input identities and error semantics before parallel changes
-to `skillops.py`, `candidates.py` or `repositories.py`. The authoring-guide
+to `skillops/skillops.py`, `skillops/candidates.py` or `skillops/repositories.py`. The authoring-guide
 assessment and repeated-trial evaluation are different work items. Check the
 ongoing assessment work before starting a duplicate implementation.
 
@@ -26,20 +26,27 @@ unrelated changes in your PR.
 
 ## Development and verification
 
-The current Python implementation uses the standard library. The README documents
-the supported runtime and optional live-evaluation setup.
+Application implementation, dashboard, tests and dependency manifests live in
+`skillops/`; workflows, infrastructure, docs, projects and public results stay at
+the repository root. Python uses the standard library plus the hash-pinned
+evaluator parser in `skillops/requirements-evaluator.txt`. The README documents
+repository-root and application-directory commands and optional live setup.
+
+Install locked browser dependencies with `npm --prefix skillops ci --no-audit --no-fund`;
+run them with `npm --prefix skillops run test:dashboard`. Do not move private
+stores or rewrite historical evidence when changing application paths.
 
 Run focused tests for your change, then the relevant existing suite:
 
 ```bash
-python3 -m unittest discover -s tests -p 'test_*.py' -v
+PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 ```
 
 For evaluator/container behavior, also run the container-enabled suite when Docker
 and the required image are available:
 
 ```bash
-SKILLOPS_CONTAINER_TESTS=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
+SKILLOPS_CONTAINER_TESTS=1 PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 ```
 
 State skips and limitations explicitly. Offline success with skipped container

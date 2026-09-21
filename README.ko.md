@@ -10,6 +10,24 @@
 여기서 자가 진화는 **후보 생성과 평가의 자동화**이며, 원본 Skill을 몰래 덮어쓰거나
 검증하지 않은 후보를 곧바로 채택·배포한다는 뜻이 아닙니다.
 
+## 저장소 구조와 실행 경로
+
+앱 코드·대시보드·테스트·npm 잠금 파일·평가기 의존성·프로필·템플릿은
+`skillops/`에 있습니다. 아래 명령은 저장소 루트 기준입니다.
+루트에서는 `python3 skillops/skillops.py --help`, 앱 디렉터리에서는
+`python3 skillops.py --help` 또는 `python3 project_results.py catalog`를 실행합니다.
+브라우저 테스트는 루트에서 `npm --prefix skillops run test:dashboard`,
+앱 디렉터리에서 `npm run test:dashboard`로 실행합니다.
+
+`projects/`, `results/`, `.skillops/`, `.skillops-private/`, `runs/`의 기준은
+항상 저장소 루트입니다. 사용자가 지정한 상대 경로는 실행 디렉터리 기준이므로
+앱 디렉터리에서는 예를 들어 `--results ../results`를 사용합니다.
+`--root`는 앱이 아닌 저장소/데이터 루트를 지정하며 기본 결과 경로도 이 루트 아래입니다.
+`eval/`, `skills/`의 보호 입력과 `evidence/`, `publication-candidates/`의 기록은 이동하지 않습니다.
+평가기 지문은 변경되지만 프로젝트 식별자와 과거 기록 바이트는 보존됩니다.
+기존 보정·승인 기록을 새 평가기의 최신 증거로 간주하지 않습니다.
+루트 호환 래퍼는 없으므로 호출 경로에 `skillops/`를 명시해야 합니다.
+
 ## 개선 흐름
 
 ```text
@@ -71,7 +89,7 @@ Owner가 운영하는 [공개 대시보드](https://agreeable-pebble-0ea54a800.6
 연결되어 있습니다. 별도 루트 어댑터 등록은 필요하지 않습니다. 지원되는 검사나 검증 가능한
 작업이 없으면 실행 효과는 `unverified`로 남깁니다. 실제 모델 실행에는 명시적 설정과 인증이 필요합니다.
 Actions의 단계별 로그와 실행 요약은 Anthropic 베이스라인 품질, APO-inspired 개선 근거 연결,
-프로젝트 회귀 검사를 구분합니다. `python3 evaluation_reporting.py --results results --run-id <saved-run-id>`로
+프로젝트 회귀 검사를 구분합니다. `python3 skillops/evaluation_reporting.py --results results --run-id <saved-run-id>`로
 모델 호출 없이 저장된 근거의 요약을 확인할 수 있습니다. 별도 평가 job이나 APO 점수를 추가하는 기능은 아닙니다.
 main push에서는 추가·변경된 프로젝트만 선택하며, 공통 평가기 변경은 전체 목록을 대상으로 합니다.
 선택된 Skill마다 후보는 최대 1개이고 전체 실행 한도를 공유합니다. 기존 `--project <id>` 수동 선택은 유지하며,
@@ -106,7 +124,7 @@ Opt-in 어댑터는 기록된 development WorkItem과 고정된 원본 Skill을 
 후보 1개를 평가합니다. 기존 자동 단일 후보 경로는 변경하지 않습니다.
 
 ```bash
-python3 skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
+python3 skillops/skillops.py replay --project <project-id> --skill-key <discovered-skill-key> \
   --work-item <private-development-json> --results <replay-results-directory>
 ```
 
@@ -133,7 +151,7 @@ Confirmation은 `not_run` 및 `confirmation_isolation_unverified`로 남고 승�
 ### 제한된 개발 반복과 오프라인 데모
 
 ```bash
-python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
+python3 skillops/skillops.py iterate --project <project-id> --skill-key <discovered-skill-key> \
   --work-item <private-development-json> --confirmation-work-item <private-confirmation-json> \
   --confirmation-disclosure <private-reviewed-disclosure-json> \
   --max-rounds 2 --results <iteration-results-directory>
@@ -165,7 +183,7 @@ python3 skillops.py iterate --project <project-id> --skill-key <discovered-skill
 아래 `<...>` 자리표시자는 실제 로컬 근거의 값으로 모두 바꿉니다.
 
 ```bash
-python3 -B skillops.py approval-preflight \
+python3 -B skillops/skillops.py approval-preflight \
   --project '<project-id>' --skill-key '<skill-key>' \
   --candidate-version 'sha256:<full-bundle-hash>' --cycle '<cycle-id>' \
   --evidence-sha256 '<cycle-file-sha256>' --results '<local-results-directory>'
@@ -191,7 +209,7 @@ python3 -B skillops.py approval-preflight \
 거부합니다. 두 `none`은 이전 Active가 없다는 명시적 null이며 wildcard가 아닙니다.
 
 ```bash
-python3 skillops.py approve --project <project-id> --skill-key <skill-key> \
+python3 skillops/skillops.py approve --project <project-id> --skill-key <skill-key> \
   --candidate-version sha256:<full-bundle-hash> --cycle <cycle-id> \
   --evidence-sha256 <cycle-file-sha256> --expected-active-version none \
   --expected-active-execution-sha256 none --results <results-directory>
@@ -213,7 +231,7 @@ Projection 실패 시 private 승인은 남아 있으나 명시적인 게시 오
 ### 별도로 실행 승인한 다음 작업
 
 ```bash
-python3 skillops.py run-approved --project <project-id> --skill-key <skill-key> \
+python3 skillops/skillops.py run-approved --project <project-id> --skill-key <skill-key> \
   --approval <approval-id> --candidate-version sha256:<full-bundle-hash> \
   --evidence-sha256 <cycle-file-sha256> --work-item <new-private-work-json> \
   --results <results-directory>
@@ -245,7 +263,7 @@ Active 버전/영수증 해시 쌍을 저장합니다. 검증된 사용과 작�
 
 ### 평가 없이 기존 검토 결과만 게시
 
-`reviewed_publication.py`와 별도 수동 `publish-reviewed-results.yml`은 평가·승인·승인 버전
+`skillops/reviewed_publication.py`와 별도 수동 `publish-reviewed-results.yml`은 평가·승인·승인 버전
 실행 없이 기존 immutable merge/index/build와 정적 배포를 재사용합니다. 기본 동작은
 **검증 전용**입니다. 신뢰된 코드 commit·같은 저장소의 데이터 commit·공개 manifest 해시를
 각각 고정하며, 해시를 공개 적합성이나 사람의 검토 증명으로 취급하지 않습니다.
@@ -260,10 +278,10 @@ Active 버전/영수증 해시 쌍을 저장합니다. 검증된 사용과 작�
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.
 
 ```bash
-SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 tests/export_iteration_evidence.py \
+SKILLOPS_LIVE_EVALUATION_ENABLED=false python3 skillops/tests/export_iteration_evidence.py \
   --output /tmp/skillops-iterate-demo
 python3 -m json.tool /tmp/skillops-iterate-demo/manifest.json
-python3 project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
+python3 skillops/project_results.py validate --results /tmp/skillops-iterate-demo/n2-feedback
 ```
 
 생성기는 실제 provider·반복·저장 모듈을 사용하며 입력 프로젝트와 모델·컨테이너 응답만 합성합니다.
@@ -279,9 +297,9 @@ cycle/run ID와 해시가 남습니다. N=2 피드백, 조기 종료, 최대 라
 공식 빌드로 준비합니다. 비공개 runtime 디렉터리를 통째로 복사하지 마세요.
 
 ```bash
-python3 project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
-python3 project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
-python3 project_results.py build --results <demo-results> --output <new-site>
+python3 skillops/project_results.py merge --incoming <reviewed-live-results> --results <demo-results>
+python3 skillops/project_results.py merge --incoming /tmp/skillops-iterate-demo/n2-feedback --results <demo-results>
+python3 skillops/project_results.py build --results <demo-results> --output <new-site>
 python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
 ```
 
@@ -297,9 +315,9 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory <new-site>
 - `projects/project-b`: `obra/superpowers` v6.3.0의 고정 커밋이며 기존 스킬을 그대로 보존합니다.
 
 ```bash
-python3 project_samples.py verify --project project-a
-python3 project_samples.py verify --project project-b
-python3 project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
+python3 skillops/project_samples.py verify --project project-a
+python3 skillops/project_samples.py verify --project project-b
+python3 skillops/project_samples.py add-skill --project sample_repo --skill skills/develop/SKILL.md
 ```
 
 준비 도구는 Windows/Linux의 Python 3.12 이상에서 동작합니다.
@@ -356,10 +374,10 @@ Python 코드는 표준 라이브러리만 사용합니다.
 
 ```bash
 # 오프라인 테스트: Copilot 설치·인증이나 Docker 불필요
-python3 -m unittest discover -s tests -p 'test_*.py' -v
+PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 
 # 실제 실행 환경 사전 확인
-python3 skillops.py doctor
+python3 skillops/skillops.py doctor
 ```
 
 `doctor`는 모델을 호출하지 않습니다. CLI 제어 옵션, 활성 judge 스킬, Docker와 이미지 상태를
@@ -376,7 +394,7 @@ docker pull python:3.12-slim
 ## 전용 프로필 로그인
 
 ```bash
-python3 skillops.py login
+python3 skillops/skillops.py login
 ```
 
 개인 Copilot 프로필 대신 프로젝트 소유의 별도 프로필을 사용합니다.
@@ -389,7 +407,7 @@ python3 skillops.py login
 ## 실제 실행 계약 확인
 
 ```bash
-python3 skillops.py probe --model gpt-6-astra
+python3 skillops/skillops.py probe --model gpt-6-astra
 ```
 
 이 명령은 실제 모델을 호출하므로 Copilot 사용량이 발생할 수 있습니다.
@@ -409,8 +427,8 @@ judge와 generator에 `--available-tools=skill --excluded-tools=skill`을 사용
 ## Baseline 실행
 
 ```bash
-python3 skillops.py calibrate --model gpt-6-astra
-python3 skillops.py baseline --model gpt-6-astra
+python3 skillops/skillops.py calibrate --model gpt-6-astra
+python3 skillops/skillops.py baseline --model gpt-6-astra
 ```
 
 처음부터 실행하면 작업군별 3개씩 교정 judge 호출 9회와, 작업 5개에 대한 developer/judge 호출 10회,
@@ -537,9 +555,9 @@ Listing은 작업당 26/26, labels는 17/17, updates는 22/22를 통과했고
 ## LLM 후보 스킬 생성과 비교
 
 ```bash
-python3 skillops.py propose --baseline BASELINE_RUN_ID --model gpt-6-astra
-python3 skillops.py calibrate --model gpt-6-astra
-python3 skillops.py compare --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py propose --baseline BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py calibrate --model gpt-6-astra
+python3 skillops/skillops.py compare --candidate CANDIDATE_RUN_ID --model gpt-6-astra
 ```
 
 파일 경로가 아니라 실제 생성된 run ID를 넣습니다.
@@ -617,9 +635,9 @@ Generator 1회, 교정 9회, 비교 20회는 서로 다른 실제 CLI 세션 30�
 다음 명령은 모델을 호출하지 않으며 Copilot 인증이나 Docker가 필요하지 않습니다.
 
 ```bash
-python3 skillops.py register --repository sample --path projects/sample_repo \
+python3 skillops/skillops.py register --repository sample --path projects/sample_repo \
   --skill develop --evaluation-set issue-management-v2
-python3 skillops.py repositories
+python3 skillops/skillops.py repositories
 ```
 
 등록 시 엔진의 `skills/develop/SKILL.md` 내용을 SHA-256으로 식별하는 변경 불가능한
@@ -636,11 +654,11 @@ Python 파일로 평가합니다. 등록은 입력 형태와 파일 존재를 �
 **별도로 승인한 실제 모델 평가**에서는 등록 ID를 지정합니다.
 
 ```bash
-python3 skillops.py calibrate --repository sample --model gpt-6-astra
-python3 skillops.py baseline --repository sample --model gpt-6-astra
-python3 skillops.py propose --baseline BOUND_BASELINE_RUN_ID --model gpt-6-astra
-python3 skillops.py compare --repository sample --candidate CANDIDATE_RUN_ID --model gpt-6-astra
-python3 skillops.py eligibility --repository sample --comparison COMPARISON_RUN_ID
+python3 skillops/skillops.py calibrate --repository sample --model gpt-6-astra
+python3 skillops/skillops.py baseline --repository sample --model gpt-6-astra
+python3 skillops/skillops.py propose --baseline BOUND_BASELINE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py compare --repository sample --candidate CANDIDATE_RUN_ID --model gpt-6-astra
+python3 skillops/skillops.py eligibility --repository sample --comparison COMPARISON_RUN_ID
 ```
 
 앞의 네 명령은 모델을 호출하고 `eligibility`는 호출하지 않습니다.
@@ -690,10 +708,10 @@ CLI 호출은 180초와 통합 출력 4MiB로 제한합니다.
 
 ```bash
 # 오프라인 검사: Copilot 설치·모델 호출·Docker 불필요
-python3 -m unittest discover -s tests -p 'test_*.py' -v
+PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 
 # 실제 컨테이너 정상·오류 대조 검사 포함: 이미지 필요
-SKILLOPS_CONTAINER_TESTS=1 python3 -m unittest discover -s tests -p 'test_*.py' -v
+SKILLOPS_CONTAINER_TESTS=1 PYTHONPATH=skillops python3 -m unittest discover -s skillops/tests -p 'test_*.py' -v
 ```
 
 전용 프로필은 비차단 lock으로 동시 사용을 막습니다.
