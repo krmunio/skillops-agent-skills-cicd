@@ -467,7 +467,7 @@ export function clearTrace(status = '공개 기록 없음') {
     ['development', '개발 평가', '다음 행동: 기록된 개발 작업과 선택 Skill의 평가 근거를 확인하세요. 새 평가는 별도 실행 허가가 필요합니다.'],
     ['iteration', '최대 N회 개선', '다음 행동: 승인된 반복 한도와 라운드별 부모·후보·피드백·종료 사유를 확인하세요.'],
     ['confirmation', '별도 최종 확인', '다음 행동: 개발 평가와 분리된 최종 작업의 확인 결과를 확인하세요. 개발 개선만으로 통과하지 않습니다.'],
-    ['approval', '사람 승인', '다음 행동: live 최종 확인 근거가 있어도 로컬 CLI에서 대상·버전·근거·승인 자격을 재검증하세요.'],
+    ['approval', '사람 승인', '다음 행동: 로컬의 읽기 전용 approval-preflight로 자격을 확인한 뒤, 사람이 대화형 approve를 별도로 수행하세요.'],
     ['use', '다음 작업 사용', '다음 행동: 별도 실행 허가 후 다음 작업의 실제 버전 사용 관측과 작업 결과를 각각 확인하세요.'],
   ]) {
     const item = node('li'); item.dataset.stage = id;
@@ -477,7 +477,7 @@ export function clearTrace(status = '공개 기록 없음') {
   const guide = node('div'); guide.id = 'approval-guidance';
   const help = node('a', '로컬 CLI 사용 안내');
   help.href = 'https://github.com/krmunio/skillops-agent-skills-cicd/blob/main/README.ko.md#별도의-로컬-승인';
-  guide.append(node('p', '승인은 로컬 CLI에서 수행합니다. 공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다. 웹에서는 승인하거나 실행 권한을 부여하지 않습니다.'),
+  guide.append(node('p', '승인은 로컬 CLI에서 수행합니다. 먼저 읽기 전용 approval-preflight로 대상·버전·근거·승인 자격을 재검증한 뒤, 사람이 대화형 approve를 별도로 수행합니다. preflight는 승인이나 작업 실행이 아닙니다. 공개 live 최종 확인 통과도 로컬 승인 자격 재검증이 필요합니다. 웹에서는 승인하거나 실행 권한을 부여하지 않습니다.'),
     help, node('p', '공개 기록만으로 실제 승인 여부를 단정하지 않습니다. 현재 private Active와 이전 영수증 hash는 웹에서 추정하지 않습니다.'));
   panel.replaceChildren(node('h2', '개발 작업에서 다음 Skill 사용까지'), steps, guide);
 }

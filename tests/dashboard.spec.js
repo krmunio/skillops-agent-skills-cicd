@@ -983,6 +983,92 @@ test('offline examples have explicit confirmed links and are never the automatic
   expect(new URL(page.url()).searchParams.get('run')).toBe('local-20260918T094535Z-b9a681f6cfb2');
 });
 
+for (const width of [1440, 768, 390, 320]) {
+  test(`UI32 offline links, read-only context and next actions remain usable at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await tracePage(page, traceFixture(), null);
+    await page.locator('#offline-examples summary').click();
+    await expect(page.locator('#offline-examples p').first()).toBeVisible();
+    for (const link of await page.locator('#offline-examples a').all()) await expect(link).toBeVisible();
+    await expect(page.locator('.readonly-context')).toBeVisible();
+    await expect(page.locator('.readonly-context')).toContainText('읽기 전용');
+    await expect(page.locator('.vision-context')).toContainText('방향성');
+    await expect(page.locator('#approval-guidance')).toContainText('읽기 전용 approval-preflight');
+    await expect(page.locator('#approval-guidance')).toContainText('대화형 approve');
+    await expect(page.locator('#skill-progress')).toHaveCSS('list-style-type', 'none');
+    await page.locator('#offline-examples a').first().focus();
+    await expect(page.locator('#offline-examples a').first()).toHaveCSS('color', 'rgb(118, 228, 207)');
+    await expect(page.locator('#offline-examples a').first()).toHaveCSS('outline-color', 'rgb(118, 228, 207)');
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.locator('#offline-examples summary')).toBeFocused();
+    await expect(page.locator('#offline-examples summary')).toHaveCSS('outline-color', 'rgb(118, 228, 207)');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  });
+}
+
+for (const width of [1440, 320]) {
+  test(`UI32 trace and quality navigation follows document order both ways at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 844 });
+    await tracePage(page, traceFixture());
+    await expect(page.locator('#trace-mode')).toContainText('offline_test');
+    await expect(page.locator('#detail')).toBeVisible();
+    const trace = page.locator('.section-nav a[href="#evidence-trace"]');
+    const quality = page.locator('.section-nav a[href="#quality-section"]');
+    await expect(page.locator('.section-nav a').first()).toHaveAttribute('href', '#evidence-trace');
+    await expect(page.locator('.section-nav a > span')).toHaveText(['01', '02', '03', '04', '05']);
+    for (const target of ['#quality-section', '#evidence-trace', '#quality-section', '#evidence-trace']) {
+      await page.locator(target).evaluate(element => element.scrollIntoView());
+      await expect(target === '#evidence-trace' ? trace : quality).toHaveAttribute('aria-current', 'location');
+      await expect(page.locator('.section-nav [aria-current]')).toHaveCount(1);
+    }
+    await quality.focus();
+    await expect(quality).toBeFocused();
+    await quality.press('Enter');
+    await expect(quality).toHaveAttribute('aria-current', 'location');
+    await expect(page).toHaveURL(/#quality-section$/);
+    await expect.poll(() => page.evaluate(() =>
+      document.querySelector('#quality-title').getBoundingClientRect().top >=
+      document.querySelector('.section-nav').getBoundingClientRect().bottom)).toBe(true);
+    await page.locator('#history-section').evaluate(element => element.scrollIntoView());
+    await expect(page.locator('.section-nav a[href="#history-section"]')).toHaveAttribute('aria-current', 'location');
+  });
+}
+
+test('UI32 sidecar discovery warning survives summary tiles without asserting absent adoption', async ({ page }) => {
+  const fixture = traceFixture();
+  await tracePage(page, fixture);
+  await page.route('https://dashboard.test/results/sample_repo/104-1/cycle.json', route => route.fulfill({ status: 503, body: 'Unavailable' }));
+  await page.reload();
+  await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
+  await expect(page.locator('.summary-highlights #summary-adoptions')).toContainText('새 승인·사용은 선택 실행 근거에서 확인');
+  await expect(page.locator('#project-summary')).toContainText('새 실행의 실측 성과를 추정하지 않습니다');
+});
+
+for (const width of [1440, 768, 390, 320]) {
+  test(`UI32 visual review of public, sample, offline and empty states at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 844 });
+    const capture = async state => {
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: testInfo.outputPath(`${state}-${width}.png`), fullPage: true });
+    };
+    await comparisonPage(page);
+    await capture('public-fixture');
+    await page.locator('#demo-open').click();
+    await expect(page.locator('#sample-banner')).toBeVisible();
+    await capture('synthetic-sample');
+    await tracePage(page, traceFixture());
+    await expect(page.locator('#trace-mode')).toContainText('offline_test');
+    await page.locator('#offline-examples summary').click();
+    await expect(page.locator('#offline-examples a').first()).toBeVisible();
+    await capture('offline-example');
+    await pageWith(page, { schema_version: 1, projects: [] });
+    await expect(page.locator('#origin')).toHaveText('프로젝트 없음');
+    await expect(page.locator('#skill-progress .stage-status')).toHaveText(Array(5).fill('공개 기록 없음'));
+    await capture('empty');
+  });
+}
+
 test('switching from observed use to an unevaluated Skill clears all progression claims', async ({ page }) => {
   const fixture = traceFixture();
   await tracePage(page, fixture);
@@ -1865,7 +1951,7 @@ test('projects without assessments show unevaluated decisions and no numeric can
   await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
   await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
   await expect(page.locator('#project-summary details')).toHaveJSProperty('open', false);
-  await expect(page.locator('#project-summary details summary')).toHaveText('이 요약은 무엇을 세나요?');
+  await expect(page.locator('#project-summary details summary')).toHaveText('최근 평가·비용·집계 상세');
   await expect(page.locator('#project-summary details p')).toBeHidden();
 });
 
@@ -2063,6 +2149,218 @@ test('a forged newest assessment stays unevaluated instead of borrowing an older
   await expect(page.locator('#project-summary .summary-warning')).toBeVisible();
   await expect(page.locator('#error')).toBeVisible();
   await expect(page.locator('#detail')).toBeHidden();
+});
+
+test.describe('design regressions', () => {
+  for (const width of [1440, 768, 390, 320]) {
+    test(`compact real layout keeps states readable at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+      await expect(page.locator('#summary-history')).toBeVisible();
+      await expect(page.locator('#summary-decisions')).toBeVisible();
+      await expect(page.locator('#summary-adoptions')).toBeVisible();
+      await expect(page.locator('.summary-explanation')).toHaveJSProperty('open', false);
+      const layout = await page.evaluate(() => ({
+        width: document.documentElement.scrollWidth,
+        header: document.querySelector('.site-header').getBoundingClientRect().height,
+        refresh: document.querySelector('#refresh').getBoundingClientRect().height,
+        summary: document.querySelector('#project-summary').getBoundingClientRect().height,
+        trace: document.querySelector('#evidence-trace').getBoundingClientRect().top,
+      }));
+      expect(layout.width).toBeLessThanOrEqual(width);
+      expect(layout.header).toBeLessThanOrEqual(72);
+      expect(layout.refresh).toBeLessThanOrEqual(48);
+      expect(layout.summary).toBeLessThan(width <= 600 ? 410 : 320);
+      expect(layout.trace).toBeLessThan(width <= 600 ? 1000 : 900);
+      if (width <= 600) {
+        expect(layout.refresh).toBeGreaterThanOrEqual(44);
+        await expect(page.locator('.brand-short')).toBeVisible();
+      }
+      await expect(page.locator('#execution .decision-title')).toHaveText('차단');
+      await expect(page.locator('.outcome-card.is-empty')).toHaveCount(2);
+      await expect(page.locator('#cost-card .decision-title')).toHaveCSS('font-size', '16px');
+    });
+
+    test(`populated sample preserves readable content and controls at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await pageWith(page, { schema_version: 1, projects: [] });
+      await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).click();
+      await expect(page.locator('.quality-totals')).toBeVisible();
+      await expect(page.locator('#sample-banner')).toContainText('실제 평가·개선 성과·채택 근거가 아닙니다.');
+      await expect(page.locator('.check-name').first()).toHaveCSS('font-size', '14px');
+      await expect(page.locator('#task-results td').first()).toHaveCSS('font-size', '14px');
+      await expect(page.locator('.outcome-card.is-empty')).toHaveCount(0);
+      await page.getByRole('button', { name: '변경 비교', exact: true }).click();
+      await expect(page.locator('#skill-diff')).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await page.getByRole('tab', { name: '실행 이력', exact: true }).click();
+      await expect(page.locator('#execution-history-panel')).toBeVisible();
+      await page.getByRole('button', { name: '실제 기록으로 돌아가기', exact: true }).click();
+      await expect(page.locator('#sample-banner')).toBeHidden();
+      await expect(page.locator('.section-nav a:visible')).toHaveCount(2);
+    });
+  }
+
+  for (const width of [1440, 320]) {
+    test(`section navigation tracks anchors, scrolling and keyboard activation at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await comparisonPage(page);
+      const quality = page.locator('.section-nav a[href="#quality-section"]');
+      const execution = page.locator('.section-nav a[href="#execution-section"]');
+      const history = page.locator('.section-nav a[href="#history-section"]');
+      await expect(page.locator('.section-nav a[href="#evidence-trace"]')).toHaveAttribute('aria-current', 'location');
+      await history.click();
+      await expect(history).toHaveAttribute('aria-current', 'location');
+      await expect(page.locator('.section-nav [aria-current]')).toHaveCount(1);
+      await expect(page.getByRole('tab', { name: 'Skill 이력', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await quality.focus();
+      await quality.press('Enter');
+      await expect(quality).toHaveAttribute('aria-current', 'location');
+      const position = await page.evaluate(() => ({
+        navigation: document.querySelector('.section-nav').getBoundingClientRect().bottom,
+        heading: document.querySelector('#quality-title').getBoundingClientRect().top,
+      }));
+      expect(position.heading).toBeGreaterThanOrEqual(position.navigation);
+      await page.locator('#execution-section').evaluate(element => element.scrollIntoView());
+      await expect(execution).toHaveAttribute('aria-current', 'location');
+      await expect(quality).not.toHaveAttribute('aria-current', 'location');
+    });
+  }
+
+  test('compact summary keeps recency, usage and interpretation available in details', async ({ page }) => {
+    await historyPage(page, [historyRun(1, 'project_assessment', 'completed', 'completed')]);
+    await expect(page.locator('#summary-completed')).toBeHidden();
+    await expect(page.locator('#summary-usage')).toBeHidden();
+    await expect(page.locator('#project-summary .summary-scope')).toBeVisible();
+    await page.locator('.summary-explanation summary').click();
+    await expect(page.locator('#summary-completed')).toBeVisible();
+    await expect(page.locator('#summary-usage')).toBeVisible();
+    await expect(page.locator('#summary-usage')).toHaveText('기존 → 후보 비용 미기록 / 시간 미기록');
+  });
+
+  test('long project names and horizontal selection stay in view after resizing', async ({ page }) => {
+    const longName = `project-${'long-project-label-'.repeat(3)}`.slice(0, 64);
+    const projects = ['project-one', 'project-two', 'project-three', longName]
+      .map(id => ({ id, state: 'active', history_count: 0, current_run: null }));
+    await page.route('http://dashboard.test/results/*/index.json', route => route.fulfill({
+      json: { schema_version: 1, history: [] },
+    }));
+    await page.setViewportSize({ width: 1440, height: 960 });
+    await pageWith(page, { schema_version: 1, projects });
+    const selected = page.locator(`.project[data-project="${longName}"]`);
+    await selected.click();
+    await expect(selected).toHaveAttribute('aria-pressed', 'true');
+    await page.locator('#freshness').evaluate(element => {
+      element.textContent = '선택한 기록은 다른 버전의 평가입니다. 현재 버전의 검증 근거가 아닙니다. '.repeat(8);
+    });
+    for (const width of [768, 390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      await expect.poll(() => selected.evaluate(element => {
+        const item = element.getBoundingClientRect();
+        const list = element.parentElement.getBoundingClientRect();
+        return item.left >= list.left - 1 && item.right <= list.right + 1;
+      })).toBe(true);
+      await expect(page.locator('#project-title')).toHaveText(longName);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    }
+  });
+  test('skip link transfers keyboard focus into the main content', async ({ page }) => {
+    await pageWith(page, { schema_version: 1, projects: [] });
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: '평가 결과로 이동', exact: true })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#main')).toBeFocused();
+  });
+});
+
+test.describe('visual identity', () => {
+  test('the brand shell separates navigation without changing labels or empty outcomes', async ({ page }) => {
+    await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+    await expect(page.getByRole('link', { name: 'Self-Evolving Agent SkillOps', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '새로고침', exact: true })).toBeVisible();
+    await expect(page.locator('aside')).toHaveCSS('background-color', 'rgb(20, 43, 58)');
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(244, 246, 248)');
+    await expect(page.locator('#refresh')).toHaveCSS('background-color', 'rgb(8, 117, 131)');
+    await expect(page.locator('.summary-heading')).toContainText('프로젝트 평가 요약');
+    await expect(page.locator('#summary-decisions')).toHaveText('후보 판정 없음');
+    await expect(page.locator('.summary-decision')).toHaveCount(0);
+    await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
+    await expect(page.locator('#execution .decision-title')).toHaveText('차단');
+    await expect(page.locator('#cost-card .decision-title')).toHaveText('미기록');
+  });
+
+  for (const width of [1440, 390]) {
+    test(`brand and selected controls retain readable text and focus contrast at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await historyPage(page, [historyRun(1, 'project_assessment', 'blocked', 'blocked')]);
+      await expect(page.locator('.section-nav [aria-current]')).toBeVisible();
+      await page.getByRole('button', { name: '샘플 화면 보기', exact: true }).focus();
+      const contrasts = await page.evaluate(() => {
+        const style = selector => getComputedStyle(document.querySelector(selector));
+        const luminance = color => {
+          const channels = color.match(/[\d.]+/g).slice(0, 3).map(channel => {
+            const value = Number(channel) / 255;
+            return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+          });
+          return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+        };
+        const ratio = (foreground, background) => {
+          const values = [luminance(foreground), luminance(background)].sort((left, right) => right - left);
+          return (values[0] + .05) / (values[1] + .05);
+        };
+        const selected = '.project[aria-pressed="true"]';
+        const pairs = [
+          ['body', style('body').color, style('body').backgroundColor],
+          ['description', style('.freshness').color, style('body').backgroundColor],
+          ['project', style(`${selected} strong`).color, style(selected).backgroundColor],
+          ['project metadata', style(`${selected} small`).color, style(selected).backgroundColor],
+          ['refresh', style('#refresh').color, style('#refresh').backgroundColor],
+          ['section navigation', style('.section-nav [aria-current]').color, style('.section-nav [aria-current]').backgroundColor],
+          ['summary label', style('.summary-label').color, style('.summary-heading').backgroundColor],
+          ['sample entry', style('#demo-open').color, style('aside').backgroundColor],
+        ];
+        return {
+          text: pairs.map(([name, foreground, background]) => ({ name, ratio: ratio(foreground, background) })),
+          focus: ratio(style('#demo-open').outlineColor, style('aside').backgroundColor),
+        };
+      });
+      for (const result of contrasts.text) expect(result.ratio, result.name).toBeGreaterThanOrEqual(4.5);
+      expect(contrasts.focus).toBeGreaterThanOrEqual(3);
+      await expect(page.locator('#demo-open')).toHaveCSS('outline-style', 'solid');
+    });
+  }
+
+  test('candidate summary keeps counts, unknowns and missing evidence distinct', async ({ page }) => {
+    const run = historyRun(1, 'project_assessment', 'completed', 'completed');
+    await historyPage(page, [run]);
+    await expect(page.locator('#summary-history')).toBeVisible();
+    await page.evaluate(async run => {
+      const { renderProjectSummary } = await import('/views.js');
+      const assessed = { ...run, skill_assessments: `${run.run_id}/skill-assessments.json` };
+      const skills = ['improved', 'improved', 'not_improved', 'unverified', 'rejected'].map((status, index) => ({
+        skill_key: `path:${String(index).padStart(24, '0')}`, decision: { status },
+        applications: { base: null, candidate: null },
+      }));
+      renderProjectSummary([assessed], [{ run: assessed, bundle: { assessments: { skills } } }]);
+    }, run);
+    await expect(page.locator('#summary-decisions')).toHaveText('상승 2 · 변화 없음 1 · 검증 불충분 1 · 거절 1');
+    await expect(page.locator('.summary-decision')).toHaveCount(4);
+    await expect(page.locator('.summary-decision-count')).toHaveText(['2', '1', '1', '1']);
+    await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
+    for (const width of [1440, 768, 390, 320]) {
+      await page.setViewportSize({ width, height: 844 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      await expect(page.locator('.summary-decision-count').first()).toHaveCSS('font-size', width <= 600 ? '24px' : '28px');
+    }
+    await page.evaluate(async run => {
+      const { renderProjectSummary } = await import('/views.js');
+      renderProjectSummary([run], [{ run: { ...run, skill_assessments: `${run.run_id}/skill-assessments.json` }, error: true }]);
+    }, run);
+    await expect(page.locator('#summary-decisions')).toHaveText('미평가');
+    await expect(page.locator('.summary-decision')).toHaveCount(0);
+    await expect(page.locator('#summary-adoptions')).toHaveText('기록 없음');
+    await expect(page.locator('.summary-warning')).toBeVisible();
+  });
 });
 
 test('the project summary preserves a policy-stamped assessment verdict rather than relabelling an efficiency regression as improved', async ({ page }) => {

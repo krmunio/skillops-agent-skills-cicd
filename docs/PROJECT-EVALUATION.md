@@ -425,6 +425,16 @@ Skills, invents missing measurements, or treats completion or a candidate verdic
 as a pass, adoption, installation or deployment. Synthetic sample data stays separate
 and does not receive a real-project summary card.
 
+The summary gives candidate decisions and adoption records visual priority, while
+Skill/version counts, history counts and their scope caveat remain visible. The
+`최근 평가·비용·집계 상세` disclosure contains the latest completed evaluation,
+source commit, scoped cost/time comparison and aggregation explanation. This changes
+presentation only, not which records are counted or how measurements are calculated.
+On narrower screens, project selection moves above the content and the mobile brand
+shortens to SkillOps while retaining the full accessible name. The sticky section
+index indicates the current reading position; it remains separate from the history
+tabs. Missing evidence uses compact, neutral panels rather than large metric values.
+
 Keep these evidence scopes distinct:
 
 - **Baseline validation workflow:** regression tests of the evaluator, container
@@ -971,6 +981,28 @@ the selected run's original-artifact commitment and decision are validated befor
 rendering; a historical baseline reference does not assert full-version equivalence.
 
 ## Validation
+
+### Read-only dashboard interpretation
+
+The bilingual **Self-Evolving Agent / 자가 진화** identity describes the future
+direction, not validated autonomous operation. The navy/teal dashboard keeps one
+five-stage trace: development, bounded iteration, separate confirmation, human
+approval, and observed next-task use. Each stage shows its recorded status and
+next action; quality completion, task success, confirmation, approval, and verified
+version use remain distinct. Missing evidence is not zero or an absent approval.
+
+Navigation follows document order (trace, quality, execution, changes, history).
+Mobile retains read-only context and accessible offline-example links and warnings.
+Offline/test and synthetic examples remain opt-in, never automatic live evidence.
+Summary tiles retain legacy-aggregate scope, sidecar adoption guidance and discovery
+warnings; they do not combine evaluator scores or infer productivity from identical
+code output.
+
+The existing local CLI documentation link describes **read-only
+`approval-preflight` first**, followed by a separately authorized, interactive
+`approve`. Neither preflight nor quality-only assessment is task confirmation.
+The dashboard cannot approve, run tasks, inspect private Active state, or consume
+private preflight output. Operational pilot preparation remains paused.
 
 The `dashboard` job in `SkillOps validation` runs the Playwright suite on
 Ubuntu 24.04 with Node 22, Python 3.12 and Chromium. It uses the existing locked
