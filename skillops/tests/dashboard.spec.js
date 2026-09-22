@@ -1203,13 +1203,42 @@ async function tracePage(page, fixture, run = '104-1') {
     for (const [field, file] of Object.entries({ report: 'report.json', envelope: 'skill-evolution.json',
       replay: 'replay-evaluation.json', cycle: 'cycle.json', adoption: 'adoption.json' })) {
       if (item[field]) await page.route(`${origin}/results/sample_repo/${item.report.run_id}/${file}`,
-        route => route.fulfill({ contentType: 'application/json', body: publicBytes(item[field]) }));
+        route => route.fulfill({ contentType: 'application/json', body: item.raw?.[field] || publicBytes(item[field]) }));
     }
   }
   await pageWith(page, { schema_version: 1, projects: [{ id: 'sample_repo', state: 'active',
     history_count: fixture.items.length, current_run: null }] }, 200, origin,
   `/?project=sample_repo${run ? `&run=${run}` : ''}&skill=${encodeURIComponent(fixture.key)}`);
 }
+
+function gepaTraceFixture() {
+  const fixture = JSON.parse(require('node:child_process').execFileSync(process.env.SKILLOPS_TEST_PYTHON || 'python3', ['-c',
+    'import json; from test_gepa_search import dashboard_fixture; print(json.dumps(dashboard_fixture()))',
+  ], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: `${process.cwd()}:${process.cwd()}/tests` } }));
+  fixture.cycle = fixture.items.find(item => item.report.run_id === fixture.cycle.report.run_id);
+  return fixture;
+}
+
+test('GEPA trace shows official Pareto pool and separate confirmation without approval', async ({ page }) => {
+  const fixture = gepaTraceFixture();
+  page.dashboardLocale = 'default';
+  await tracePage(page, fixture, fixture.cycle.report.run_id);
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+  await expect(page.locator('#evidence-trace')).toContainText('GEPA 0.1.4');
+  await expect(page.locator('#evidence-trace')).toContainText('Development cases reused');
+  await expect(page.locator('#evidence-trace')).toContainText('search_complete');
+  await expect(page.locator('.gepa-pool tbody tr')).toHaveCount(3);
+  await expect(page.locator('#skill-progress [data-stage="confirmation"]')).toContainText(/passed/i);
+});
+
+test('GEPA trace rejects tampered score evidence', async ({ page }) => {
+  const fixture = gepaTraceFixture();
+  const raw = fixture.cycle.raw.cycle;
+  fixture.cycle.raw.cycle = raw.replace(/("scores":\s*\[\s*\[\s*)0/, (_, prefix) => prefix + '1');
+  expect(fixture.cycle.raw.cycle).not.toBe(raw);
+  await tracePage(page, fixture, fixture.cycle.report.run_id);
+  await expect(page.locator('#trace-error')).toBeVisible();
+});
 
 test('offline examples have explicit confirmed links and are never the automatic Skill selection', async ({ page }) => {
   const fixture = traceFixture();

@@ -1,5 +1,10 @@
 // Only explicitly marked UI messages are localized. Recorded evidence stays literal.
 const english = {
+  '탐색 방식': 'Search strategy',
+  '평가 범위': 'Evaluation scope',
+  '개발 검사 재사용 · 독립 최종 확인과 별개': 'Development cases reused · separate from independent confirmation',
+  'GEPA 추천 후보': 'GEPA-recommended candidate',
+  '* 검사별 최고 점수 후보 · 승인 상태가 아님': '* Best-scoring candidates per case · not approval status',
   'Self-Evolving Agent SkillOps · 자가 진화 에이전트 스킬옵스': 'Self-Evolving Agent SkillOps',
   '자가 진화 에이전트 스킬옵스': 'Self-Evolving Agent SkillOps',
   '자가 진화 에이전트': 'Self-Evolving Agent',
