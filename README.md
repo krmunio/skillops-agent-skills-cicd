@@ -87,7 +87,7 @@ unlimited self-improvement process.
 | Dashboard | Read-only evidence views, version/diff history and English/Korean UI. No web approval button. |
 | User feedback | Collection, scope/conflict review, disposition and version-linked effect tracking are planned. |
 | Automatic learning from next use | End-to-end reinjection of task results and user feedback is planned, not assumed from a stored result. |
-| GEPA integration | Conceptual reference only; GEPA's Pareto candidate-pool search is not implemented. |
+| GEPA integration | Opt-in official GEPA optimizer with Pareto parent selection, retained candidate pool and per-case scores. Separate confirmation and approval gates remain mandatory. |
 | Canary, automatic promotion and rollback | Not implemented. |
 
 ### What “verified” means
@@ -131,11 +131,14 @@ The shared pattern we highlight in SkillOps is:
 
 **Evidence → hypothesis → instruction change → re-evaluation.**
 
-The current implementation and detailed contracts describe APO-inspired
-improvement evidence; this conceptual comparison does not replace that
-implementation or claim full GEPA integration. Pareto-based candidate-pool
-search remains outside the implemented scope. SkillOps adds explicit lifecycle
-boundaries around confirmation, approval, version use and publication.
+The default path retains its APO-inspired improvement evidence and sequential
+search. The opt-in `iterate --optimizer gepa` path integrates the official GEPA
+optimizer with Pareto-based parent selection. It searches across the required
+cases of one recorded development task, retaining candidate lineage and scores.
+These development cases are reused for search validation, not presented as
+independent held-out evidence. SkillOps preserves separate confirmation,
+approval, version-use and publication boundaries. See [GEPA integration](docs/GEPA.md)
+for installation, scoring, limits and the versioned evidence contract.
 
 Instruction-quality assessment also draws on Anthropic's Skill-authoring
 guidance. It is automated guidance—not certification, a substitute for task
@@ -160,6 +163,20 @@ The dependency installation accesses the package index; these inspection
 commands do not run a model. Evaluator work targets Linux and Python 3.12+.
 Live execution additionally needs an authenticated Copilot CLI, Docker and
 explicitly authorized invocation/time/Credit limits.
+
+For optional GEPA search, install the hash-pinned core package (no provider
+extras), then inspect the existing iteration command:
+
+```bash
+python3 -m pip --isolated install --only-binary=:all: --require-hashes \
+  --index-url https://pypi.org/simple -r skillops/requirements-gepa.txt
+python3 skillops/skillops.py iterate --help
+```
+
+`--optimizer sequential` remains the default. `--optimizer gepa` needs a
+recorded development WorkItem with 2–128 required cases and the same explicit
+live authorization and shared limits. A completed search is not improvement
+proof, confirmation, approval or deployment.
 
 Do not turn on live evaluation just to view the UI. See the
 [offline presentation guide](docs/OPERATIONS.md#offline-presentation-backup)

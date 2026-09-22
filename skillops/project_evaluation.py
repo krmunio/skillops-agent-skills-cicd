@@ -529,9 +529,15 @@ def run_replay(root, *, project_id, skill_key, work_item, output, model, executi
 
 def run_iterations(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
                    max_rounds=1, confirmation_work_item=None, confirmation_disclosure=None,
-                   runtime_factory=None, cycle_id=None, history=None):
+                   runtime_factory=None, cycle_id=None, history=None, optimizer="sequential"):
     """Connect the delivered loop; do not duplicate its attempt or failure semantics."""
     import skill_iterations
+    results.require(optimizer in ("sequential", "gepa"), "unsupported_optimizer")
+    search = skill_iterations
+    if optimizer == "gepa":
+        import gepa_search
+        gepa_search.optimizer()
+        search = gepa_search
     results.require(type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_round_limit")
     cycle_id = _replay_run_id(execution_mode) if cycle_id is None else cycle_id
     results.require(results.matches(results.RUN, cycle_id), "invalid_cycle_id")
@@ -541,7 +547,7 @@ def run_iterations(root, *, project_id, skill_key, work_item, output, model, exe
             confirmation_work_item=confirmation_work_item, confirmation_disclosure=confirmation_disclosure,
             history=history
     ) as (runtime, context, artifact, confirmation):
-        cycle = skill_iterations.run_cycle(
+        cycle = search.run_cycle(
             runtime, model, context, artifact / "cycle", cycle_id=cycle_id, max_rounds=max_rounds,
             budget=runtime.budget, confirmation_context=confirmation,
             persist_round=partial(persist_replay, output, execution_mode=execution_mode))

@@ -2,6 +2,7 @@
 .skillops/
 runs/
 __pycache__/
+.venv/
 *.py[cod]
 .superpowers/
 .copilot-tracking/

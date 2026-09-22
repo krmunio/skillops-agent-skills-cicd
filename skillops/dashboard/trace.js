@@ -12,7 +12,7 @@ const version = /^sha256:[a-f0-9]{64}$/;
 const replayPolicyHash = 'd6efd14169aab7830b99a03d28f85282aeb04644d54df4d876fb02a3a1d7b212';
 const modes = ['live', 'offline_test', 'sample'];
 const stops = ['improved', 'max_rounds', 'no_change', 'call_limit', 'time_limit', 'credit_limit',
-  'input_changed', 'evaluation_unverified', 'runtime_error', 'cancelled'];
+  'input_changed', 'evaluation_unverified', 'runtime_error', 'cancelled', 'search_complete'];
 const states = { improved: t('지침 품질 개선 판정'), not_improved: t('개선 미확인'), rejected: t('후보 거절'), unverified: t('검증 불충분') };
 const files = { replay_evaluation: 'replay-evaluation.json', cycle: 'cycle.json', adoption: 'adoption.json' };
 const cycleFields = 'cycle_id skill_key source_path input_sha256 reference_sha256 original_version_id ' +
@@ -102,10 +102,85 @@ export function validateTraceSummary(run) {
 }
 async function wrapper(parsed, bundle, fields) {
   const data = parsed.value, report = bundle.report;
-  exact(data, `schema_version project_id run_id report_sha256 execution_mode ${fields}`);
-  check(data.schema_version === 1 && data.project_id === report.project_id && data.run_id === report.run_id &&
+  const gepa = fields === cycleFields && data.schema_version === 2;
+  exact(data, `schema_version project_id run_id report_sha256 execution_mode ${fields}${gepa ? ' optimizer' : ''}`);
+  check((data.schema_version === 1 || gepa) && data.project_id === report.project_id && data.run_id === report.run_id &&
     modes.includes(data.execution_mode) && data.report_sha256 === await digest(encoder.encode(bundle.rawReport)));
   check((report.origin === 'sample') === (data.execution_mode === 'sample'));
+}
+
+function caseScores(observed, criteria) {
+  check(observed && ['completed', 'failed'].includes(observed.status));
+  const outcomes = {};
+  for (const [field, key] of [['cases', 'required_case_ids'], ['gates', 'required_gate_ids']]) {
+    const values = new Map(observed[field].map(row => [row.id, row.status]));
+    check(values.size === observed[field].length && criteria[key].every(id => ['passed', 'failed'].includes(values.get(id))));
+    outcomes[field] = criteria[key].map(id => Number(values.get(id) === 'passed'));
+  }
+  return outcomes.gates.every(Boolean) ? outcomes.cases : outcomes.cases.map(() => 0);
+}
+
+async function validateOptimizer(parsed, evaluated, development) {
+  const data = parsed.value, meta = data.optimizer;
+  exact(meta, 'name version strategy seed validation_scope case_ids reference work_checks max_metric_calls ' +
+    'metric_requests pool scores frontier recommended_version_id seed_evaluation');
+  check(meta.name === 'gepa' && meta.version === '0.1.4' && meta.strategy === 'pareto' && meta.seed === 0 &&
+    meta.validation_scope === 'development_reuse');
+  unique(meta.case_ids, value => text(value));
+  integer(meta.case_ids.length, 2, 128);
+  exact(meta.work_checks, 'plan_sha256 protected_sha256 required_case_ids required_gate_ids');
+  same(meta.case_ids, meta.work_checks.required_case_ids);
+  unique(meta.work_checks.required_gate_ids, value => text(value));
+  check(meta.reference.reference_sha256 === data.reference_sha256 &&
+    await parsed.hashObject(meta.reference, 'reference_sha256') === data.reference_sha256);
+  for (const key of ['project_id', 'skill_key', 'source_path', 'input_sha256', 'original_version_id']) {
+    same(meta.reference[key], data[key]);
+  }
+  if (development) same(meta.reference, development.reference);
+  same(meta.max_metric_calls, meta.case_ids.length * (1 + 3 * data.max_rounds));
+  integer(meta.metric_requests, 0, meta.max_metric_calls);
+  unique(meta.pool, value => check(matches(version, value)));
+  check(Array.isArray(meta.scores) && meta.scores.length === meta.pool.length &&
+    meta.pool.length <= evaluated.size + 1);
+  const byVersion = new Map();
+  for (const value of evaluated.values()) {
+    const row = value.evaluation;
+    same(row.work.checks, meta.work_checks);
+    check(!byVersion.has(row.candidate_version_id));
+    byVersion.set(row.candidate_version_id, row);
+  }
+  if (!meta.pool.length) {
+    same(meta.frontier, {}); same(meta.recommended_version_id, null); same(data.selected_candidate_version_id, null);
+    check(data.stop_reason !== 'search_complete'); return null;
+  }
+  check(meta.pool[0] === data.original_version_id && meta.pool.slice(1).every(id => byVersion.has(id)));
+  same(meta.pool.slice(1), [...byVersion.keys()].filter(id => meta.pool.includes(id)));
+  for (const row of data.rounds) {
+    check(meta.pool.includes(row.parent_version_id) && (!meta.pool.includes(row.candidate_version_id) ||
+      meta.pool.indexOf(row.parent_version_id) < meta.pool.indexOf(row.candidate_version_id)));
+  }
+  const seed = meta.seed_evaluation;
+  exact(seed, 'application checks'); application(seed.application); observation(seed.checks);
+  check(seed.application?.activated && seed.application.version_id === data.original_version_id &&
+    seed.application.staged_version_id === data.original_version_id && seed.application.work_sha256 === data.input_sha256);
+  for (const key of ['plan_sha256', 'environment_sha256', 'protected_sha256']) same(seed.checks[key], meta.reference[key]);
+  const expected = [caseScores(seed.checks, meta.work_checks)];
+  for (const id of meta.pool.slice(1)) {
+    const row = byVersion.get(id);
+    check(!row.errors.length && ['quality', 'checks', 'applications'].every(group => Object.values(row[group]).every(Boolean)));
+    expected.push(caseScores(row.checks.candidate, meta.work_checks));
+  }
+  same(meta.scores, expected);
+  const frontier = Object.fromEntries(meta.case_ids.map((id, index) => [id,
+    expected.flatMap((row, candidate) => row[index] === Math.max(...expected.map(value => value[index])) ? [candidate] : [])]));
+  same(meta.frontier, frontier);
+  const totals = expected.map(row => row.reduce((sum, score) => sum + score, 0));
+  const recommended = meta.pool[totals.indexOf(Math.max(...totals))];
+  same(meta.recommended_version_id, recommended);
+  const selected = data.stop_reason === 'search_complete' && byVersion.get(recommended)?.decision.status === 'improved'
+    ? recommended : null;
+  same(data.selected_candidate_version_id, selected);
+  return selected;
 }
 export async function loadTraceSkills(project, run, report, read) {
   const skills = new Map();
@@ -294,9 +369,11 @@ export async function loadTrace({ project, run, skill, history, loadBundle, read
       const parsed = await attachment(identifier, 'cycle'), data = parsed.value;
       const bundle = await loadBundle(getRun(identifier));
       await wrapper(parsed, bundle, cycleFields);
+      const gepa = data.schema_version === 2;
       identity(data);
       check(data.cycle_id === identifier && matches(hash, data.input_sha256) && matches(hash, data.reference_sha256) &&
         matches(version, data.original_version_id) && stops.includes(data.stop_reason));
+      check(gepa || data.stop_reason !== 'search_complete');
       integer(data.max_rounds, 1, 10);
       exact(data.budget, 'max_invocations max_seconds max_ai_credits_per_session');
       integer(data.budget.max_invocations, 1, 1000); integer(data.budget.max_seconds, 1, 7200);
@@ -308,14 +385,20 @@ export async function loadTrace({ project, run, skill, history, loadBundle, read
         bundle.lifecycle.versions.get(data.original_version_id)?.capture_scope === 'complete_bundle');
       let parent = data.original_version_id, previous = null, selected = null, development = null;
       const runIds = new Set();
+      const evaluatedRounds = new Map();
       for (const [index, round] of data.rounds.entries()) {
         exact(round, 'round_id round_number run_id parent_version_id candidate_version_id input_sha256 reference_sha256 ' +
           'feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason');
+        if (gepa) {
+          check(round.feedback_source_round_id === null || evaluatedRounds.has(round.feedback_source_round_id));
+          previous = evaluatedRounds.get(round.feedback_source_round_id) || null;
+          parent = previous?.evaluation.candidate_version_id || data.original_version_id;
+        }
         check(round.round_number === index + 1 && round.round_id === `${identifier}-r${index + 1}` &&
           (round.run_id === null || matches(runId, round.run_id) && round.run_id !== identifier && !runIds.has(round.run_id)) &&
           round.parent_version_id === parent && round.input_sha256 === data.input_sha256 &&
           round.reference_sha256 === data.reference_sha256 && matches(hash, round.feedback_sha256) &&
-          round.feedback_source_round_id === (index ? data.rounds[index - 1].round_id : null));
+          (gepa || round.feedback_source_round_id === (index ? data.rounds[index - 1].round_id : null)));
         if (round.run_id !== null) runIds.add(round.run_id);
         check(round.candidate_version_id === null || matches(version, round.candidate_version_id));
         check(round.candidate_version_id === null || round.candidate_version_id !== round.parent_version_id);
@@ -338,21 +421,25 @@ export async function loadTrace({ project, run, skill, history, loadBundle, read
           check(generation.addressed_findings.every(id => known.includes(id)));
           development ||= evaluated;
           previous = evaluated;
-          if (row.decision.status === 'improved') {
+          evaluatedRounds.set(round.round_id, evaluated);
+          if (row.decision.status === 'improved' && !gepa) {
             check(selected === null && round.stop_reason === 'improved'); selected = round.candidate_version_id;
-          } else if (row.decision.status === 'unverified') check(round.stop_reason === 'evaluation_unverified' ||
+          } else if (row.decision.status === 'unverified' && !gepa) check(round.stop_reason === 'evaluation_unverified' ||
             ['call_limit', 'time_limit', 'credit_limit', 'input_changed', 'runtime_error', 'cancelled'].includes(round.stop_reason));
-          if (round.stop_reason === null) check(['rejected', 'not_improved'].includes(row.decision.status));
+          if (round.stop_reason === null && !gepa) check(['rejected', 'not_improved'].includes(row.decision.status));
           if (round.stop_reason === 'max_rounds') check(index + 1 === data.max_rounds &&
             ['rejected', 'not_improved'].includes(row.decision.status));
         } else {
           check(round.run_id === null && round.decision === null && round.stop_reason !== null &&
-            !['improved', 'max_rounds'].includes(round.stop_reason));
+            !['improved', 'max_rounds', 'search_complete'].includes(round.stop_reason));
         }
         if (round.candidate_version_id) parent = round.candidate_version_id;
       }
-      same(selected, data.selected_candidate_version_id);
-      check((data.stop_reason === 'improved') === (selected !== null));
+      if (gepa) selected = await validateOptimizer(parsed, evaluatedRounds, development);
+      else {
+        same(selected, data.selected_candidate_version_id);
+        check((data.stop_reason === 'improved') === (selected !== null));
+      }
       if (selected && bundle.lifecycle) check(binding.candidate_version_id === selected &&
         bundle.lifecycle.versions.get(selected)?.capture_scope === 'complete_bundle');
       check(['not_run', 'passed', 'failed', 'unverified'].includes(data.confirmation_status));
@@ -540,6 +627,18 @@ export function renderTrace(trace) {
     paragraph(section, t('최초 원본'), cycle.original_version_id);
     paragraph(section, t('승인된 한도'), t`최대 ${cycle.max_rounds}회 · 호출 ${cycle.budget.max_invocations} · ${cycle.budget.max_seconds}초`);
     paragraph(section, t('세션별 Credit soft cap'), cycle.budget.max_ai_credits_per_session);
+    if (cycle.optimizer) {
+      const optimizer = cycle.optimizer;
+      paragraph(section, t('탐색 방식'), `GEPA ${optimizer.version} · ${optimizer.strategy}`);
+      paragraph(section, t('평가 범위'), t('개발 검사 재사용 · 독립 최종 확인과 별개'));
+      paragraph(section, t('GEPA 추천 후보'), optimizer.recommended_version_id);
+      const pool = table([t('후보'), ...optimizer.case_ids], optimizer.pool.map((id, i) =>
+        [id, ...optimizer.scores[i].map((score, j) =>
+          `${score}${optimizer.frontier[optimizer.case_ids[j]].includes(i) ? ' *' : ''}`)]));
+      pool.classList.add('gepa-pool');
+      section.append(pool);
+      section.append(node('p', t('* 검사별 최고 점수 후보 · 승인 상태가 아님')));
+    }
     for (const round of cycle.rounds) {
       const article = node('article', undefined, 'trace-round'); article.dataset.round = round.round_number;
       article.append(node('h3', t`라운드 ${round.round_number} · ${round.round_id}`));
