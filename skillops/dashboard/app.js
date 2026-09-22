@@ -51,7 +51,9 @@ async function load(url, withRaw = false, limit = 1048576) {
   const raw = await response.text();
   if (new TextEncoder().encode(raw).length > limit) throw new Error('Result exceeds public size limit');
   const value = JSON.parse(raw);
-  if (value.schema_version !== 1) throw new Error('Unsupported result schema');
+  if (value.schema_version !== 1 && !(withRaw && url.endsWith('/cycle.json') && value.schema_version === 2)) {
+    throw new Error('Unsupported result schema');
+  }
   return withRaw ? { value, raw } : value;
 }
 function cached(store, key, read) {
