@@ -319,6 +319,26 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
     if cycle["rounds"] and cycle["rounds"][-1]["stop_reason"] is None:
         # Finalize the cycle boundary without rewriting an already stored evaluation.
         cycle["rounds"][-1]["stop_reason"] = cycle["stop_reason"]
+    confirm_selected(runtime, model, context, artifact, cycle,
+                     candidate if cycle["selected_candidate_version_id"] else None,
+                     budget=budget, confirmation_context=confirmation_context, persist_round=persist_round,
+                     seen=seen, check_inputs=check_inputs)
+    return cycle
+
+
+def confirm_selected(runtime, model, context, artifact, cycle, candidate, *, budget,
+                     confirmation_context, persist_round, seen, check_inputs):
+    """Apply the same registered final-confirmation gate after either search strategy."""
+    reference, original, work, execution_mode = _context_inputs(context)
+    reference, work, original = deepcopy(reference), deepcopy(work), _capture(original)
+    deadline = budget["deadline"]
+
+    def admit_stage():
+        check_inputs()
+        reason = _budget_stop(budget)
+        if reason:
+            raise RuntimeFailure(reason, "The shared authorized budget is exhausted.")
+
     if cycle["selected_candidate_version_id"] is not None and confirmation_context is not None:
         selected = _capture(candidate)
         folder = artifact / "confirmation"
@@ -363,4 +383,3 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
                     "improved": "passed", "not_improved": "passed",
                     "rejected": "failed", "unverified": "unverified",
                 }[confirmed["decision"]["status"]]
-    return cycle

@@ -54,7 +54,7 @@ CORE = tuple("skillops/" + name for name in (
     "evaluation.py", "copilot_runtime.py", "skillops.py", "candidates.py", "repositories.py",
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
     "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "skill_approvals.py",
-    "evaluation_telemetry.py", "requirements-evaluator.txt",
+    "evaluation_telemetry.py", "requirements-evaluator.txt", "gepa_search.py", "requirements-gepa.txt",
 ))
 
 
@@ -481,11 +481,12 @@ def load_replays(results, rows=None):
 
 def validate_cycle(data, *, report, evaluations):
     from copilot_runtime import MIN_AI_CREDITS
+    gepa = isinstance(data, dict) and type(data.get("schema_version")) is int and data["schema_version"] == 2
     evolution.exact(data, "schema_version project_id run_id report_sha256 execution_mode cycle_id skill_key source_path "
                          "input_sha256 reference_sha256 original_version_id max_rounds budget rounds stop_reason "
-                         "selected_candidate_version_id confirmation_ref confirmation_status")
+                         "selected_candidate_version_id confirmation_ref confirmation_status" + (" optimizer" if gepa else ""))
     validate(report)
-    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "invalid_cycle")
+    require(type(data["schema_version"]) is int and data["schema_version"] in (1, 2), "invalid_cycle")
     require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"] == data["cycle_id"]
             and data["report_sha256"] == sha256(encoded(report)).hexdigest(), "cycle_report_mismatch")
     require(report["purpose"] == "project_assessment", "cycle_report_mismatch")
@@ -506,6 +507,8 @@ def validate_cycle(data, *, report, evaluations):
             "invalid_cycle_budget")
     reasons = ("improved", "max_rounds", "no_change", "call_limit", "time_limit", "credit_limit",
                "input_changed", "evaluation_unverified", "runtime_error", "cancelled")
+    if gepa:
+        reasons = (*reasons, "search_complete")
     require(data["stop_reason"] in reasons, "invalid_cycle_stop")
     rounds = data["rounds"]
     require(isinstance(rounds, list) and len(rounds) <= data["max_rounds"]
@@ -535,6 +538,7 @@ def validate_cycle(data, *, report, evaluations):
     parent, previous_id, previous_quality, original_ref = data["original_version_id"], None, None, None
     development_work = None
     selected = None
+    evaluated_rounds = {}
     for number, row in enumerate(rounds, 1):
         evolution.exact(row, "round_id round_number run_id parent_version_id candidate_version_id input_sha256 "
                              "reference_sha256 feedback_source_round_id feedback_sha256 evaluation_ref decision stop_reason")
@@ -542,6 +546,12 @@ def validate_cycle(data, *, report, evaluations):
                 and row["round_id"] == f"{data['cycle_id']}-r{number}", "invalid_cycle_round")
         require(row["run_id"] is None if row["evaluation_ref"] is None else
                 matches(RUN, row["run_id"]) and row["run_id"] not in used, "invalid_cycle_round")
+        if gepa:
+            previous_id = row["feedback_source_round_id"]
+            require(previous_id is None or previous_id in evaluated_rounds, "cycle_lineage_mismatch")
+            prior = evaluated_rounds.get(previous_id)
+            parent = data["original_version_id"] if prior is None else prior["candidate_version_id"]
+            previous_quality = None if prior is None else prior["quality"]["candidate"]
         require(row["parent_version_id"] == parent and row["feedback_source_round_id"] == previous_id,
                 "cycle_lineage_mismatch")
         require(row["input_sha256"] == data["input_sha256"] and row["reference_sha256"] == data["reference_sha256"]
@@ -553,7 +563,7 @@ def validate_cycle(data, *, report, evaluations):
             require(row["stop_reason"] == data["stop_reason"], "cycle_stop_mismatch")
         if row["evaluation_ref"] is None:
             require(number == len(rounds) and row["decision"] is None
-                    and row["stop_reason"] not in (None, "improved", "max_rounds"), "incomplete_cycle_round")
+                    and row["stop_reason"] not in (None, "improved", "max_rounds", "search_complete"), "incomplete_cycle_round")
             require(row["candidate_version_id"] is None or matches(evolution.VERSION_ID, row["candidate_version_id"]),
                     "invalid_cycle_round")
             break
@@ -566,6 +576,8 @@ def validate_cycle(data, *, report, evaluations):
             original_ref = replay["reference"]
             previous_quality = original_ref["base_quality"]
             development_work = evaluation["work"]
+        if gepa and previous_id is None:
+            previous_quality = original_ref["base_quality"]
         require(evaluation["work"] == development_work, "cycle_work_mismatch")
         require(row["candidate_version_id"] == evaluation["candidate_version_id"]
                 and row["candidate_version_id"] != parent
@@ -581,22 +593,28 @@ def validate_cycle(data, *, report, evaluations):
             require(number == len(rounds) and row["stop_reason"] in (
                 "evaluation_unverified", "runtime_error", "call_limit", "time_limit",
                 "credit_limit", "input_changed", "cancelled"), "cycle_after_incomplete_evaluation")
-        elif status == "improved":
+        elif status == "improved" and not gepa:
             require(number == len(rounds) and row["stop_reason"] == "improved", "cycle_after_improvement")
             selected = evaluation["candidate_version_id"]
-        elif status == "unverified":
+        elif status == "unverified" and not gepa:
             require(number == len(rounds) and row["stop_reason"] == "evaluation_unverified", "cycle_after_unverified")
         else:
             require(row["stop_reason"] in (None, "max_rounds", "call_limit", "time_limit", "credit_limit",
-                                           "input_changed", "runtime_error", "cancelled"), "invalid_cycle_stop")
+                                           "input_changed", "runtime_error", "cancelled") +
+                    (("search_complete", "evaluation_unverified", "no_change") if gepa else ()), "invalid_cycle_stop")
+        evaluated_rounds[row["round_id"]] = evaluation
         parent, previous_id = row["candidate_version_id"], row["round_id"]
         previous_quality = evaluation["quality"]["candidate"]
     if data["stop_reason"] == "max_rounds":
         require(len(rounds) == data["max_rounds"], "cycle_stop_mismatch")
     if not rounds:
         require(data["stop_reason"] not in ("improved", "max_rounds", "no_change"), "cycle_stop_mismatch")
-    require(data["selected_candidate_version_id"] == selected
-            and (data["stop_reason"] == "improved") == (selected is not None), "cycle_selection_mismatch")
+    if gepa:
+        from gepa_search import validate_optimizer
+        selected = validate_optimizer(data, evaluated_rounds, original_ref)
+    else:
+        require(data["selected_candidate_version_id"] == selected
+                and (data["stop_reason"] == "improved") == (selected is not None), "cycle_selection_mismatch")
     if data["confirmation_ref"] is None:
         require(data["confirmation_status"] in ("not_run", "unverified"), "cycle_confirmation_mismatch")
     else:
