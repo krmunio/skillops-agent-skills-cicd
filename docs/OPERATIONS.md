@@ -481,6 +481,9 @@ unexpected plugins, custom MCP servers and alternate-provider registries.
 CLI-reported disabled builtin plugins are retained in the inventory receipt.
 Enabled plugins, third-party plugins and unknown inventory shapes remain blocked;
 the actual role tool manifest must still match the existing allowlist.
+The dedicated settings explicitly disable the default GitHub MCP server and
+preflight verifies its disabled builtin identity. Only its name is retained,
+not its endpoint or headers. Active servers and custom servers still block.
 Authentication failure is a blocker, not a successful evaluation.
 
 The probe asks for dummy-file access, verifies an actual zero-tool manifest

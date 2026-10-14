@@ -629,6 +629,7 @@ class CopilotRuntime:
         settings = {
             "disableAllHooks": True, "memory": False, "ide": {"autoConnect": False},
             "customAgents": {"defaultLocalOnly": True}, "disabledSkills": disabled,
+            "disabledMcpServers": ["github-mcp-server"],
         }
         descriptor, path = tempfile.mkstemp(prefix=".settings-", dir=self.config)
         try:
@@ -660,11 +661,18 @@ class CopilotRuntime:
             for row in plugins
         ):
             raise RuntimeFailure("unexpected_plugins", "Only disabled CLI builtin plugins are allowed.")
-        if self.inventory(workdir, "mcp") != {"mcpServers": {}}:
+        mcps = self.inventory(workdir, "mcp")
+        if (not isinstance(mcps, dict) or set(mcps) != {"mcpServers"}
+                or not isinstance(mcps["mcpServers"], dict) or any(
+                    name != "github-mcp-server" or not isinstance(server, dict)
+                    or server.get("source") != "builtin" or server.get("enabled") is not False
+                    or server.get("isDefaultServer") is not True
+                    for name, server in mcps["mcpServers"].items())):
             raise RuntimeFailure("unexpected_mcp", "The dedicated profile must not contain custom MCP servers.")
         return {
             "enabled_skills": enabled, "discovered_count": len(checked),
             "instructions": [], "plugins": plugins, "custom_mcp_servers": [],
+            "disabled_builtin_mcp_servers": sorted(mcps["mcpServers"]),
         }
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
