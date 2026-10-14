@@ -15,7 +15,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from copilot_runtime import RuntimeFailure
+from copilot_runtime import CopilotRuntime, RuntimeFailure
 import project_results as results
 import project_samples
 import skill_assessments
@@ -85,6 +85,22 @@ class DatasetTests(unittest.TestCase):
             with self.subTest(task=task_id), self.assertRaises(RuntimeFailure):
                 self.datasets.export_development(self.root, self.output, task_id, output.with_name(task_id + ".json"))
             self.assertFalse(output.with_name(task_id + ".json").exists())
+
+    def test_preparation_keeps_the_private_store_compatible_with_runtime(self):
+        self.prepare()
+        with patch("copilot_runtime.shutil.which", return_value="/offline/copilot"):
+            runtime = CopilotRuntime(self.root, inherited={})
+        self.assertEqual(runtime.private, self.root / ".skillops-private")
+        self.assertEqual((runtime.private / ".owner").read_text(), "skillops-profile-v1\n")
+
+    def test_preparation_rejects_an_unowned_private_directory(self):
+        private = self.root / ".skillops-private"
+        private.mkdir(mode=0o700)
+        with self.assertRaises(RuntimeFailure) as caught:
+            self.prepare()
+        self.assertEqual(caught.exception.code, "unsafe_profile")
+        self.assertFalse((private / ".owner").exists())
+        self.assertFalse(self.output.exists())
 
     def test_rejects_missing_split_duplicate_ids_and_cross_split_leakage(self):
         changes = (
