@@ -204,7 +204,12 @@ class DatasetTests(unittest.TestCase):
         (other / "unsafe").symlink_to(self.root)
         data = self.prepare()
         self.assertEqual(data["project_id"], "project_c")
-        self.assertGreaterEqual(len(data["tasks"][0]["checks"]["required_case_ids"]), 2)
+        self.assertEqual(data["dataset_id"], "project-c-queue-v2")
+        self.assertEqual(data["tasks"][0]["task_id"], "queue-selection-v2")
+        _, available = self.datasets._cases(self.project)
+        selected = set(data["tasks"][0]["checks"]["required_case_ids"])
+        self.assertEqual(len(selected), 12)
+        self.assertEqual(selected, {case for case in available if ":test_selection." in case})
         self.assertFalse(list(self.project.rglob("SKILL.md")))
 
     def test_demo_defects_are_failed_assertions_not_runtime_errors(self):
@@ -215,8 +220,8 @@ class DatasetTests(unittest.TestCase):
             run = subprocess.run([sys.executable, "-B", "-m", "unittest", "discover", "-s", "tests"],
                                  cwd=project, capture_output=True, text=True)
         self.assertEqual(run.returncode, 1)
-        self.assertIn("Ran 9 tests", run.stderr)
-        self.assertIn("FAILED (failures=4)", run.stderr)
+        self.assertIn("Ran 18 tests", run.stderr)
+        self.assertIn("FAILED (failures=9)", run.stderr)
         self.assertNotIn("ERROR:", run.stderr)
 
     def test_skill_onboarding_requires_a_new_committed_dataset(self):
@@ -236,6 +241,27 @@ class DatasetTests(unittest.TestCase):
         updated = self.datasets.prepare(self.root, self.spec_path, output)
         self.assertNotEqual(updated["project_tree_sha256"], data["project_tree_sha256"])
         self.assertEqual(updated["tasks"], data["tasks"])
+
+    def test_v2_selection_contract_is_satisfiable_without_changing_tests(self):
+        sample = Path(__file__).resolve().parents[2] / "projects/project_c"
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory) / "project_c"
+            shutil.copytree(sample, project, ignore=shutil.ignore_patterns("__pycache__"))
+            (project / "selection.py").write_text(
+                "def select_tasks(tasks, status=None, limit=2):\n"
+                "    if type(limit) is not int or limit <= 0:\n"
+                "        raise ValueError('limit must be a positive integer')\n"
+                "    first = {}\n"
+                "    for task in tasks:\n"
+                "        if status is None or task['status'] == status:\n"
+                "            first.setdefault(task['id'], task)\n"
+                "    return sorted(first.values(), key=lambda t: -t.get('priority', 0))[:limit]\n")
+            run = subprocess.run(
+                [sys.executable, "-B", "-m", "unittest", "discover",
+                 "-s", "tests", "-p", "test_selection.py"],
+                cwd=project, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("Ran 12 tests", run.stderr)
 
 
 if __name__ == "__main__":

@@ -1,18 +1,27 @@
 {
   "schema_version": 1,
-  "dataset_id": "project-c-queue-v1",
+  "dataset_id": "project-c-queue-v2",
   "project_id": "project_c",
   "origin": "synthetic",
   "tasks": [
     {
-      "task_id": "queue-selection",
+      "task_id": "queue-selection-v2",
       "family": "selection",
       "split": "development",
-      "request": "Repair select_tasks(tasks, status=None, limit=2). Filter by exact status before taking up to limit items; status=None includes all items. Preserve order and never mutate the input. Tasks are well-formed dictionaries. Require limit to be a positive integer excluding booleans; otherwise raise ValueError. Empty or unmatched input returns an empty list. Modify only selection.py and leave all tests unchanged.",
+      "request": "Repair select_tasks(tasks, status=None, limit=2). Tasks are a list of well-formed dictionaries with integer id, string status, optional integer priority and arbitrary extra fields. Apply these operations in order: filter by exact status (status=None includes every status); deduplicate by id keeping the first eligible occurrence in input order, even if a later duplicate has higher priority; sort the remaining tasks by descending priority, treating a missing priority as zero and preserving input order among ties; return up to limit items. Preserve each retained task's fields and never mutate the input list or dictionaries, including nested data. Require limit to be a positive integer excluding booleans; otherwise raise ValueError, including when tasks is empty. Empty or unmatched input returns an empty list. Modify only selection.py and leave all tests unchanged.",
       "sources": ["selection.py"],
       "required_case_ids": [
+        "python-tests:test_selection.SelectionTests.test_combined_rules_preserve_nested_input",
+        "python-tests:test_selection.SelectionTests.test_descending_priority_before_limit",
+        "python-tests:test_selection.SelectionTests.test_empty_and_unmatched_status",
+        "python-tests:test_selection.SelectionTests.test_equal_priority_preserves_input_order",
         "python-tests:test_selection.SelectionTests.test_filter_before_limit",
+        "python-tests:test_selection.SelectionTests.test_filter_precedes_deduplication",
+        "python-tests:test_selection.SelectionTests.test_first_eligible_duplicate_wins_before_sort",
         "python-tests:test_selection.SelectionTests.test_invalid_limit",
+        "python-tests:test_selection.SelectionTests.test_large_limit_and_none_status",
+        "python-tests:test_selection.SelectionTests.test_limit_applies_after_deduplication",
+        "python-tests:test_selection.SelectionTests.test_missing_priority_is_zero",
         "python-tests:test_selection.SelectionTests.test_preserve_input_and_order"
       ]
     },
