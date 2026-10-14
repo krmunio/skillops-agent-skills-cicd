@@ -4,6 +4,7 @@ import argparse
 import ast
 from copy import deepcopy
 from hashlib import sha256
+import os
 from pathlib import Path
 import sys
 
@@ -140,7 +141,14 @@ def _output(root, path):
 
 def _write(root, path, value):
     target = _output(root, path)
-    private_directory(root)
+    private = private_directory(root)
+    directory = private
+    for part in target.parent.relative_to(private).parts:
+        directory = results.safe_path(directory / part)
+        directory.mkdir(mode=0o700, exist_ok=True)
+        info = directory.stat()
+        results.require(directory.is_dir() and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                        "unsafe_dataset_store")
     results.atomic_json(target, value, immutable=True)
 
 

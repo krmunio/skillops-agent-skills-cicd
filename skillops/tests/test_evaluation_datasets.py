@@ -17,6 +17,7 @@ from unittest.mock import patch
 
 from copilot_runtime import CopilotRuntime, RuntimeFailure
 import project_results as results
+import project_evaluation
 import project_samples
 import skill_assessments
 
@@ -92,6 +93,17 @@ class DatasetTests(unittest.TestCase):
             runtime = CopilotRuntime(self.root, inherited={})
         self.assertEqual(runtime.private, self.root / ".skillops-private")
         self.assertEqual((runtime.private / ".owner").read_text(), "skillops-profile-v1\n")
+
+    def test_exported_work_can_be_retained_by_the_live_runner(self):
+        self.prepare()
+        output = self.root / ".skillops-private/work-items/development.json"
+        work = self.datasets.export_development(self.root, self.output, "selection", output)
+        try:
+            retained = project_evaluation.retain_work_item(self.root, work)
+        except RuntimeFailure as error:
+            self.fail(f"Export must preserve runner-compatible private permissions: {error.code}")
+        self.assertEqual(results.read_json(retained), work)
+        self.assertEqual(output.parent.stat().st_mode & 0o777, 0o700)
 
     def test_preparation_rejects_an_unowned_private_directory(self):
         private = self.root / ".skillops-private"
