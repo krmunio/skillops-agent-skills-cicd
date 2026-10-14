@@ -295,6 +295,25 @@ def usage_metrics(value, model):
     return result
 
 
+def private_directory(project):
+    """Initialize the owned store without requiring a CLI or model invocation."""
+    private = Path(project).resolve(strict=True) / ".skillops-private"
+    marker = private / ".owner"
+    if private.is_symlink():
+        raise RuntimeFailure("unsafe_profile", "Private profile must not be a symlink.")
+    if private.exists():
+        if not private.is_dir() or private.stat().st_uid != os.getuid():
+            raise RuntimeFailure("unsafe_profile", "Private directory has an unexpected owner.")
+        if private.stat().st_mode & 0o077:
+            raise RuntimeFailure("unsafe_profile", "Private directory must have mode 0700.")
+        if marker.is_symlink() or not marker.is_file() or marker.read_text() != "skillops-profile-v1\n":
+            raise RuntimeFailure("unsafe_profile", "Refusing an unowned private directory.")
+    else:
+        private.mkdir(mode=0o700)
+        marker.write_text("skillops-profile-v1\n")
+    return private
+
+
 class CopilotRuntime:
     def __init__(self, project, inherited=None):
         source = os.environ if inherited is None else inherited
@@ -303,20 +322,7 @@ class CopilotRuntime:
         if self.cli is None:
             raise RuntimeFailure("missing_cli", "Copilot CLI is not installed.")
         self.cli = str(Path(self.cli).absolute())
-        self.private = self.project / ".skillops-private"
-        marker = self.private / ".owner"
-        if self.private.is_symlink():
-            raise RuntimeFailure("unsafe_profile", "Private profile must not be a symlink.")
-        if self.private.exists():
-            if not self.private.is_dir() or self.private.stat().st_uid != os.getuid():
-                raise RuntimeFailure("unsafe_profile", "Private directory has an unexpected owner.")
-            if self.private.stat().st_mode & 0o077:
-                raise RuntimeFailure("unsafe_profile", "Private directory must have mode 0700.")
-            if marker.is_symlink() or not marker.is_file() or marker.read_text() != "skillops-profile-v1\n":
-                raise RuntimeFailure("unsafe_profile", "Refusing an unowned private directory.")
-        else:
-            self.private.mkdir(mode=0o700)
-            marker.write_text("skillops-profile-v1\n")
+        self.private = private_directory(self.project)
         self.home = self.private / "home"
         self.config = self.home / ".copilot"
         for directory in (self.home, self.config, self.home / ".cache", self.home / ".config"):

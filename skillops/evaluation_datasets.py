@@ -7,7 +7,7 @@ from hashlib import sha256
 from pathlib import Path
 import sys
 
-from copilot_runtime import RuntimeFailure, capture, strict_json
+from copilot_runtime import RuntimeFailure, capture, private_directory, strict_json
 import evolution_records as evolution
 import project_checks
 import project_results as results
@@ -140,7 +140,7 @@ def _output(root, path):
 
 def _write(root, path, value):
     target = _output(root, path)
-    (Path(root) / ".skillops-private").mkdir(mode=0o700, exist_ok=True)
+    private_directory(root)
     results.atomic_json(target, value, immutable=True)
 
 
