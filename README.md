@@ -90,6 +90,50 @@ unlimited self-improvement process.
 | GEPA integration | Opt-in official GEPA optimizer with Pareto parent selection, retained candidate pool and per-case scores. Separate confirmation and approval gates remain mandatory. |
 | Canary, automatic promotion and rollback | Not implemented. |
 
+### Local project-scoped dataset preparation
+
+`projects/project_c` is a skill-free, dependency-free Python task-queue demo.
+Its nine checks contain four intentional failing assertions, not runtime errors.
+The recipe `eval/datasets/project_c.json` assigns task selection to development,
+tag normalization to validation, and retry policy to confirmation. Each role has
+one task with three checks and separate editable source files.
+
+From a checkout with the target project committed and unchanged:
+
+```bash
+python3 skillops/evaluation_datasets.py prepare \
+  --spec eval/datasets/project_c.json \
+  --output .skillops-private/datasets/project_c.json
+python3 skillops/evaluation_datasets.py validate \
+  --dataset .skillops-private/datasets/project_c.json
+python3 skillops/evaluation_datasets.py export-development \
+  --dataset .skillops-private/datasets/project_c.json --task queue-selection \
+  --output .skillops-private/work-items/project_c-development.json
+```
+
+Only the named project's files are inspected; project code, tests and models are
+not executed. Outputs must be new paths below `.skillops-private/`. Source
+commit/tree, file/check hashes and dataset content are pinned. Missing roles,
+duplicate tasks/normalized requests, or cross-role family/source/check overlap
+are rejected. Static check-ID validation currently supports direct unittest
+cases, not dynamic/inherited discovery or arbitrary runners.
+
+These are **synthetic preparation inputs, not evaluation results**. Validation
+checks structural separation, not semantic independence or statistical quality.
+Validation/confirmation tasks cannot be exported as development WorkItems.
+This does not change the existing full-project check runner, enable final
+confirmation, or provide an independent GEPA validation set; the current GEPA
+engine still reports `development_reuse`. No automatic adoption or publication
+is performed.
+
+To demonstrate initial Skill onboarding, explicitly select the unvalidated
+template with `python3 skillops/project_samples.py add-skill --project project_c
+--skill skillops/project_templates/project-c-development/SKILL.md`. Commit that
+project change before preparing a **new** dataset and WorkItem; adding a Skill
+invalidates the earlier project snapshot. A local paid `iterate --max-rounds 2`
+run still requires explicit call/time/Credit limits and live authorization.
+Two is a proposal-attempt ceiling, not two repeated statistical trials.
+
 ### What “verified” means
 
 These are separate questions, not interchangeable green badges:
