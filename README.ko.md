@@ -86,6 +86,46 @@ frontmatter와 부속 파일을 보존하면서 `SKILL.md` 본문을 변경합�
 | GEPA 통합 | 공식 GEPA 옵티마이저의 Pareto 부모 선택을 선택적으로 사용하고 후보군·검사별 점수를 보존합니다. 별도 최종 확인과 승인 게이트는 유지합니다. |
 | Canary·자동 승격·롤백 | 구현되지 않았습니다. |
 
+### 로컬 프로젝트별 평가 데이터 준비
+
+`projects/project_c`는 Skill과 외부 의존성이 없는 Python 작업 큐 데모입니다.
+검사 9개 중 4개는 의도적으로 실패하는 assertion이며 실행 오류와 구분합니다.
+`eval/datasets/project_c.json`은 작업 선택을 개발용, 태그 정규화를 후보 선택용,
+재시도 정책을 최종 확인용으로 분리합니다. 각 그룹은 작업 하나·검사 세 개와
+별도의 수정 가능 소스 파일을 가집니다.
+
+대상 프로젝트가 커밋되어 있고 변경되지 않은 checkout에서 실행합니다.
+
+```bash
+python3 skillops/evaluation_datasets.py prepare \
+  --spec eval/datasets/project_c.json \
+  --output .skillops-private/datasets/project_c.json
+python3 skillops/evaluation_datasets.py validate \
+  --dataset .skillops-private/datasets/project_c.json
+python3 skillops/evaluation_datasets.py export-development \
+  --dataset .skillops-private/datasets/project_c.json --task queue-selection \
+  --output .skillops-private/work-items/project_c-development.json
+```
+
+명시한 프로젝트의 파일만 확인하며 프로젝트 코드·검사·모델은 실행하지 않습니다.
+출력은 `.skillops-private/` 아래 새 경로로 제한합니다. 소스 커밋·트리,
+파일·검사 해시와 데이터셋 내용을 고정하고, 분할 누락·작업 및 정규화한 요청의 중복·
+그룹 간 작업군/소스/검사 중복을 거부합니다. 검사 ID의 정적 확인은 직접 정의한
+unittest 사례를 지원하며, 동적·상속 기반 수집이나 임의 runner는 지원하지 않습니다.
+
+이는 **합성 평가 입력의 준비이며 평가 결과가 아닙니다.** 구조적 분리는 확인하지만
+의미적 독립성이나 통계적 품질을 보장하지 않습니다. 후보 선택·최종 확인 작업을
+개발용 WorkItem으로 내보낼 수 없습니다. 기존 전체 프로젝트 검사 실행을 변경하거나
+최종 확인을 활성화하지 않으며, GEPA의 독립 validation 데이터셋 연결도 아닙니다.
+현재 GEPA 엔진의 `development_reuse` 표시는 유지하고 자동 채택·게시는 하지 않습니다.
+
+초기 Skill 추가는 `python3 skillops/project_samples.py add-skill --project project_c
+--skill skillops/project_templates/project-c-development/SKILL.md`로 미검증 초안을
+명시적으로 선택합니다. 프로젝트 변경을 커밋한 뒤 **새** 데이터셋과 WorkItem을
+준비해야 합니다. Skill 추가는 이전 프로젝트 snapshot을 무효화합니다.
+로컬 유료 `iterate --max-rounds 2` 실행에도 호출·시간·Credit 한도와 실행 승인이
+필요합니다. 2는 후보 생성 시도 상한이며 통계적인 반복 측정 횟수가 아닙니다.
+
 ### 무엇을 검증했다는 뜻인가?
 
 다음은 서로 다른 질문이며, 하나의 통과 표시로 대체할 수 없습니다.

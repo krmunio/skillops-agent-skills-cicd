@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "dataset_id": "project-c-queue-v1",
+  "project_id": "project_c",
+  "origin": "synthetic",
+  "tasks": [
+    {
+      "task_id": "queue-selection",
+      "family": "selection",
+      "split": "development",
+      "request": "Repair select_tasks(tasks, status=None, limit=2). Filter by exact status before taking up to limit items; status=None includes all items. Preserve order and never mutate the input. Tasks are well-formed dictionaries. Require limit to be a positive integer excluding booleans; otherwise raise ValueError. Empty or unmatched input returns an empty list. Modify only selection.py and leave all tests unchanged.",
+      "sources": ["selection.py"],
+      "required_case_ids": [
+        "python-tests:test_selection.SelectionTests.test_filter_before_limit",
+        "python-tests:test_selection.SelectionTests.test_invalid_limit",
+        "python-tests:test_selection.SelectionTests.test_preserve_input_and_order"
+      ]
+    },
+    {
+      "task_id": "queue-tags",
+      "family": "tags",
+      "split": "validation",
+      "request": "Repair normalize_tags(tags). Require a list containing only strings or raise ValueError. Collapse whitespace using split/join, Unicode-casefold the labels, drop empty labels and deduplicate in first-occurrence order. Do not mutate the input even on errors. Modify only tags.py and leave all tests unchanged.",
+      "sources": ["tags.py"],
+      "required_case_ids": [
+        "python-tests:test_tags.TagTests.test_canonical_order",
+        "python-tests:test_tags.TagTests.test_input_is_unchanged",
+        "python-tests:test_tags.TagTests.test_invalid_input"
+      ]
+    },
+    {
+      "task_id": "queue-retry",
+      "family": "retry",
+      "split": "confirmation",
+      "request": "Repair retry_delay(attempt, base=1, cap=60). For positive integer base and cap, return min(cap, base * 2 ** (attempt - 1)). Require attempt to be a positive integer excluding booleans or raise ValueError. Avoid computing an unbounded exponent for very large attempts. Modify only retry.py and leave all tests unchanged.",
+      "sources": ["retry.py"],
+      "required_case_ids": [
+        "python-tests:test_retry.RetryTests.test_cap",
+        "python-tests:test_retry.RetryTests.test_exponential_delay",
+        "python-tests:test_retry.RetryTests.test_invalid_attempt"
+      ]
+    }
+  ]
+}
