@@ -478,6 +478,9 @@ python3 skillops/skillops.py probe --model gpt-6-astra
 This invokes the model and can consume Copilot usage. It requests no tools,
 disables discovered skills, custom instructions, hooks and memory, and rejects
 unexpected plugins, custom MCP servers and alternate-provider registries.
+CLI-reported disabled builtin plugins are retained in the inventory receipt.
+Enabled plugins, third-party plugins and unknown inventory shapes remain blocked;
+the actual role tool manifest must still match the existing allowlist.
 Authentication failure is a blocker, not a successful evaluation.
 
 The probe asks for dummy-file access, verifies an actual zero-tool manifest

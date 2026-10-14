@@ -651,13 +651,20 @@ class CopilotRuntime:
             raise RuntimeFailure("skill_mismatch", "Enabled skills do not match the role allowlist.")
         if self.inventory(workdir, "instruction"):
             raise RuntimeFailure("unexpected_instructions", "Unexpected instructions discovered in the role workspace.")
-        if self.inventory(workdir, "plugin") != []:
-            raise RuntimeFailure("unexpected_plugins", "The dedicated profile must not contain plugins.")
+        plugins = self.inventory(workdir, "plugin")
+        if not isinstance(plugins, list) or len(plugins) > 128 or any(
+            not isinstance(row, dict)
+            or set(row) != {"name", "marketplace", "version", "enabled", "source"}
+            or row["enabled"] is not False or row["source"] != "builtin" or row["marketplace"] != ""
+            or any(not isinstance(row[key], str) or not 0 < len(row[key]) <= 256 for key in ("name", "version"))
+            for row in plugins
+        ):
+            raise RuntimeFailure("unexpected_plugins", "Only disabled CLI builtin plugins are allowed.")
         if self.inventory(workdir, "mcp") != {"mcpServers": {}}:
             raise RuntimeFailure("unexpected_mcp", "The dedicated profile must not contain custom MCP servers.")
         return {
             "enabled_skills": enabled, "discovered_count": len(checked),
-            "instructions": [], "plugins": [], "custom_mcp_servers": [],
+            "instructions": [], "plugins": plugins, "custom_mcp_servers": [],
         }
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,
