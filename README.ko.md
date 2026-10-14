@@ -89,10 +89,14 @@ frontmatter와 부속 파일을 보존하면서 `SKILL.md` 본문을 변경합�
 ### 로컬 프로젝트별 평가 데이터 준비
 
 `projects/project_c`는 Skill과 외부 의존성이 없는 Python 작업 큐 데모입니다.
-검사 9개 중 4개는 의도적으로 실패하는 assertion이며 실행 오류와 구분합니다.
+검사 18개 중 9개는 의도적으로 실패하는 assertion이며 실행 오류와 구분합니다.
 `eval/datasets/project_c.json`은 작업 선택을 개발용, 태그 정규화를 후보 선택용,
-재시도 정책을 최종 확인용으로 분리합니다. 각 그룹은 작업 하나·검사 세 개와
-별도의 수정 가능 소스 파일을 가집니다.
+재시도 정책을 최종 확인용으로 분리합니다. 각 그룹은 작업 하나와 별도의 수정 가능
+소스 파일을 가집니다. v2 개발 과제는 정확한 상태 필터, 첫 적격 ID 기준 중복 제거,
+우선순위 내림차순(누락 시 0), 동점 순서, limit 적용 순서, 입력 보존을 검사 12개로
+다룹니다. 후보 선택·최종 확인용 검사는 각각 3개를 유지합니다. 원본 소스와 Skill
+초안은 바꾸지 않았지만 요구사항이 늘었으므로 v1과의 전후 성능 비교가 아닌 별도
+실험입니다. 검사 추가가 원본 Skill의 실패나 GEPA의 개선을 보장하지는 않습니다.
 
 대상 프로젝트가 커밋되어 있고 변경되지 않은 checkout에서 실행합니다.
 
@@ -103,7 +107,7 @@ python3 skillops/evaluation_datasets.py prepare \
 python3 skillops/evaluation_datasets.py validate \
   --dataset .skillops-private/datasets/project_c.json
 python3 skillops/evaluation_datasets.py export-development \
-  --dataset .skillops-private/datasets/project_c.json --task queue-selection \
+  --dataset .skillops-private/datasets/project_c.json --task queue-selection-v2 \
   --output .skillops-private/work-items/project_c-development.json
 ```
 

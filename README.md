@@ -93,10 +93,16 @@ unlimited self-improvement process.
 ### Local project-scoped dataset preparation
 
 `projects/project_c` is a skill-free, dependency-free Python task-queue demo.
-Its nine checks contain four intentional failing assertions, not runtime errors.
+Its 18 checks contain nine intentional failing assertions, not runtime errors.
 The recipe `eval/datasets/project_c.json` assigns task selection to development,
 tag normalization to validation, and retry policy to confirmation. Each role has
-one task with three checks and separate editable source files.
+one task and separate editable source files. The v2 development task has 12 checks
+covering exact-status filtering, first-eligible-ID deduplication, descending
+priority (missing means zero), stable ties, limit ordering, and input preservation.
+Validation and confirmation retain three checks each. The original source and
+Skill template are unchanged; v2 adds requirements, so its scores are a separate
+experiment, not a before/after comparison with v1. Additional checks do not
+guarantee that the original Skill will fail or that GEPA will improve it.
 
 From a checkout with the target project committed and unchanged:
 
@@ -107,7 +113,7 @@ python3 skillops/evaluation_datasets.py prepare \
 python3 skillops/evaluation_datasets.py validate \
   --dataset .skillops-private/datasets/project_c.json
 python3 skillops/evaluation_datasets.py export-development \
-  --dataset .skillops-private/datasets/project_c.json --task queue-selection \
+  --dataset .skillops-private/datasets/project_c.json --task queue-selection-v2 \
   --output .skillops-private/work-items/project_c-development.json
 ```
 
