@@ -127,10 +127,13 @@ cases, not dynamic/inherited discovery or arbitrary runners.
 These are **synthetic preparation inputs, not evaluation results**. Validation
 checks structural separation, not semantic independence or statistical quality.
 Validation/confirmation tasks cannot be exported as development WorkItems.
-This does not change the existing full-project check runner, enable final
-confirmation, or provide an independent GEPA validation set; the current GEPA
-engine still reports `development_reuse`. No automatic adoption or publication
-is performed.
+Preparation alone does not change the full-project check runner or enable
+execution isolation. Explicit `iterate --optimizer gepa --validation-dataset
+<pinned-dataset.json> --validation-task <task-id>` connects a separate validation
+execution to candidate selection and requires verified model-process isolation.
+Without these options GEPA still reports `development_reuse`. See
+[the input, evidence and isolation contract](docs/GEPA.md#independent-validation).
+Confirmation, approval and publication remain separate.
 
 To demonstrate initial Skill onboarding, explicitly select the unvalidated
 template with `python3 skillops/project_samples.py add-skill --project project_c

@@ -425,7 +425,8 @@ def _authorized_budget(policy, *, fresh=False):
 
 @contextmanager
 def _replay_session(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
-                    runtime_factory=None, confirmation_work_item=None, confirmation_disclosure=None, history=None):
+                    runtime_factory=None, confirmation_work_item=None, confirmation_disclosure=None, history=None,
+                    validation_work_item=None):
     """Keep preparation, image lifetime, lock and budget shared across either execution path."""
     budget = _authorized_budget(policy)
     results.require(execution_mode in ("live", "offline_test"), "invalid_execution_mode")
@@ -462,12 +463,17 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
     selected = [bundle for bundle in skill_guide.discover(project)
                 if skill_pipeline.skill_key(project_id, bundle["path"], identity_history) == skill_key]
     results.require(len(selected) == 1, "unknown_skill")
+    if validation_work_item is not None:
+        skill_assessments.validate_validation_pair(
+            work, validation_work_item, project=project,
+            original=skill_pipeline.captured_files(project, selected[0]))
     disclosure = None
     if final is not None:
         disclosure = results.read_json(confirmation_disclosure)
         skill_assessments.validate_confirmation_disclosure(
             disclosure, project=project, development_work_item=work, confirmation_work_item=final,
-            original=skill_pipeline.captured_files(project, selected[0]), source_path=selected[0]["path"])
+            original=skill_pipeline.captured_files(project, selected[0]), source_path=selected[0]["path"],
+            validation_work_item=validation_work_item)
     rubric = results.read_json(root / "eval/skill-guide-rubric.json")
     reservation = _replay_report(
         {**work, "evaluator_sha256": results.evaluator_hash(root)},
@@ -480,6 +486,8 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
     artifact = runtime.private / "replays" / uuid4().hex
     with raw_runtime.locked():
         retain_work_item(root, work)
+        if validation_work_item is not None:
+            retain_work_item(root, validation_work_item)
         if final is not None:
             retain_work_item(root, final)
         images = resolve_images(project)
@@ -487,17 +495,18 @@ def _replay_session(root, *, project_id, skill_key, work_item, output, model, ex
         results.require(remaining > 0, "time_limit")
         with project_checks.prepared_images(project, images, timeout=remaining) as prepared, ExitStack() as scope:
             registration = None
-            if final is not None:
+            if final is not None or validation_work_item is not None:
                 isolation = getattr(raw_runtime, "confirmation_isolation", None)
                 results.require(callable(isolation), "confirmation_isolation_unverified")
                 scope.enter_context(isolation(deadline=budget["deadline"]))
+            if final is not None:
                 registration = skill_pipeline.register_confirmation(
                     runtime, model, project, selected[0], skill_key, rubric, prepared, artifact / "registration",
                     development_work_item=work, confirmation_work_item=final,
-                    disclosure=disclosure, deadline=budget["deadline"])
+                    disclosure=disclosure, deadline=budget["deadline"], validation_work_item=validation_work_item)
             context = skill_pipeline.prepare_replay(
                 runtime, model, project, selected[0], skill_key, rubric, prepared, artifact / "prepare",
-                work_item=work, deadline=budget["deadline"])
+                work_item=work, deadline=budget["deadline"], validation_work_item=validation_work_item)
             def prepare_selected(selected):
                 return skill_pipeline.prepare_confirmation(
                     runtime, model, context, selected, artifact / "confirmation-prepare",
@@ -529,10 +538,19 @@ def run_replay(root, *, project_id, skill_key, work_item, output, model, executi
 
 def run_iterations(root, *, project_id, skill_key, work_item, output, model, execution_mode, policy,
                    max_rounds=1, confirmation_work_item=None, confirmation_disclosure=None,
-                   runtime_factory=None, cycle_id=None, history=None, optimizer="sequential"):
+                   runtime_factory=None, cycle_id=None, history=None, optimizer="sequential",
+                   validation_dataset=None, validation_task=None):
     """Connect the delivered loop; do not duplicate its attempt or failure semantics."""
     import skill_iterations
     results.require(optimizer in ("sequential", "gepa"), "unsupported_optimizer")
+    results.require((validation_dataset is None) == (validation_task is None), "validation_selection_required")
+    validation_work, dataset_sha256 = None, None
+    if validation_dataset is not None:
+        results.require(optimizer == "gepa", "validation_requires_gepa")
+        import evaluation_datasets
+        validation_work, dataset_sha256 = evaluation_datasets.select_validation(
+            root, validation_dataset, validation_task, results.read_json(work_item),
+            None if confirmation_work_item is None else results.read_json(confirmation_work_item))
     search = skill_iterations
     if optimizer == "gepa":
         import gepa_search
@@ -545,12 +563,20 @@ def run_iterations(root, *, project_id, skill_key, work_item, output, model, exe
             root, project_id=project_id, skill_key=skill_key, work_item=work_item, output=output,
             model=model, execution_mode=execution_mode, policy=policy, runtime_factory=runtime_factory,
             confirmation_work_item=confirmation_work_item, confirmation_disclosure=confirmation_disclosure,
-            history=history
+            history=history, validation_work_item=validation_work
     ) as (runtime, context, artifact, confirmation):
+        options = {}
+        if validation_work is not None:
+            options = {
+                "validation_context": skill_pipeline.prepare_validation(
+                    runtime, model, context, artifact / "validation-prepare",
+                    work_item=validation_work, deadline=runtime.budget["deadline"]),
+                "validation_dataset_sha256": dataset_sha256,
+            }
         cycle = search.run_cycle(
             runtime, model, context, artifact / "cycle", cycle_id=cycle_id, max_rounds=max_rounds,
             budget=runtime.budget, confirmation_context=confirmation,
-            persist_round=partial(persist_replay, output, execution_mode=execution_mode))
+            persist_round=partial(persist_replay, output, execution_mode=execution_mode), **options)
         evidence = persist_cycle(output, cycle, context["reference"])
         stored = results.load_cycles(output)[(project_id, cycle_id)]
         eligible = (stored["execution_mode"] == "live" and stored["confirmation_status"] == "passed"

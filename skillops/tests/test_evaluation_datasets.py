@@ -87,6 +87,25 @@ class DatasetTests(unittest.TestCase):
                 self.datasets.export_development(self.root, self.output, task_id, output.with_name(task_id + ".json"))
             self.assertFalse(output.with_name(task_id + ".json").exists())
 
+    def test_validation_selection_preserves_role_and_binds_development_membership(self):
+        data = self.prepare()
+        development = self.datasets._work_item(data, data["tasks"][0])
+        work, digest = self.datasets.select_validation(self.root, self.output, "tags", development)
+        self.assertEqual(work["schema_version"], 2)
+        self.assertEqual(work["split"], "validation")
+        self.assertEqual(digest, data["dataset_sha256"])
+        skill_assessments.validate_work_item(work, project=self.project, source_commit=data["source_commit"])
+        changed = deepcopy(development)
+        changed["task_id"] = "foreign-development"
+        changed["input_sha256"] = self.datasets._hash({k: v for k, v in changed.items() if k != "input_sha256"})
+        with self.assertRaises(RuntimeFailure):
+            self.datasets.select_validation(self.root, self.output, "tags", changed)
+        changed = deepcopy(work)
+        changed["split"] = "development"
+        changed["input_sha256"] = self.datasets._hash({k: v for k, v in changed.items() if k != "input_sha256"})
+        with self.assertRaises(RuntimeFailure):
+            skill_assessments.validate_work_item(changed, project=self.project, source_commit=data["source_commit"])
+
     def test_preparation_keeps_the_private_store_compatible_with_runtime(self):
         self.prepare()
         with patch("copilot_runtime.shutil.which", return_value="/offline/copilot"):

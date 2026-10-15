@@ -249,9 +249,9 @@ class GEPAIntegrationTests(unittest.TestCase):
         self.assertEqual(self.f.raw.calls, [])
 
 
-def dashboard_fixture():
+def dashboard_fixture(test=None):
     """Build public response fixtures using real search/storage; transport stays offline."""
-    test = GEPAIntegrationTests("test_real_providers_persist_search_and_isolated_confirmation")
+    test = test or GEPAIntegrationTests("test_real_providers_persist_search_and_isolated_confirmation")
     test.setUp()
     try:
         receipt = test.run_search()

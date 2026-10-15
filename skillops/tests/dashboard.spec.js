@@ -1211,9 +1211,11 @@ async function tracePage(page, fixture, run = '104-1') {
   `/?project=sample_repo${run ? `&run=${run}` : ''}&skill=${encodeURIComponent(fixture.key)}`);
 }
 
-function gepaTraceFixture() {
+function gepaTraceFixture(independent = false) {
   const fixture = JSON.parse(require('node:child_process').execFileSync(process.env.SKILLOPS_TEST_PYTHON || 'python3', ['-c',
-    'import json; from test_gepa_search import dashboard_fixture; print(json.dumps(dashboard_fixture()))',
+    'import json; from test_gepa_search import dashboard_fixture; ' + (independent
+      ? 'from test_gepa_validation import IndependentValidationTests; print(json.dumps(dashboard_fixture(IndependentValidationTests())))'
+      : 'print(json.dumps(dashboard_fixture()))'),
   ], { encoding: 'utf8', env: { ...process.env, PYTHONPATH: `${process.cwd()}:${process.cwd()}/tests` } }));
   fixture.cycle = fixture.items.find(item => item.report.run_id === fixture.cycle.report.run_id);
   return fixture;
@@ -1236,6 +1238,25 @@ test('GEPA trace rejects tampered score evidence', async ({ page }) => {
   const raw = fixture.cycle.raw.cycle;
   fixture.cycle.raw.cycle = raw.replace(/("scores":\s*\[\s*\[\s*)0/, (_, prefix) => prefix + '1');
   expect(fixture.cycle.raw.cycle).not.toBe(raw);
+  await tracePage(page, fixture, fixture.cycle.report.run_id);
+  await expect(page.locator('#trace-error')).toBeVisible();
+});
+
+test('GEPA independent validation trace shows separate selection without confirmation or approval', async ({ page }) => {
+  const fixture = gepaTraceFixture(true);
+  page.dashboardLocale = 'default';
+  await tracePage(page, fixture, fixture.cycle.report.run_id);
+  await expect(page.locator('#trace-error')).toHaveCount(0);
+  await expect(page.locator('#evidence-trace')).toContainText('Independent validation task');
+  await expect(page.locator('.gepa-pool tbody tr')).toHaveCount(3);
+  await expect(page.locator('#skill-progress [data-stage="confirmation"]')).not.toContainText(/passed/i);
+});
+
+test('GEPA independent validation trace rejects tampered validation receipts', async ({ page }) => {
+  const fixture = gepaTraceFixture(true);
+  const cycle = fixture.cycle.cycle;
+  cycle.optimizer.validation.evaluations[1].application.work_sha256 = cycle.input_sha256;
+  fixture.cycle.raw.cycle = publicBytes(cycle);
   await tracePage(page, fixture, fixture.cycle.report.run_id);
   await expect(page.locator('#trace-error')).toBeVisible();
 });
