@@ -1,0 +1,1160 @@
+{
+  "budget": {
+    "max_ai_credits_per_session": 3000,
+    "max_invocations": 100,
+    "max_seconds": 3600
+  },
+  "confirmation_ref": null,
+  "confirmation_status": "not_run",
+  "cycle_id": "local-20261015T022226Z-95a81ba1c579",
+  "execution_mode": "live",
+  "input_sha256": "9dfd6785fba33d286c8da195de63be0ad5e096c4d143dbe029db0238dfaf8469",
+  "max_rounds": 3,
+  "optimizer": {
+    "case_ids": [
+      "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+      "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+      "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+      "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+      "python-tests:test_enqueue.EnqueueTests.test_stable_partition"
+    ],
+    "frontier": {
+      "python-tests:test_enqueue.EnqueueTests.test_dependent_generator": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "python-tests:test_enqueue.EnqueueTests.test_empty_iterable": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "python-tests:test_enqueue.EnqueueTests.test_stable_partition": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "max_metric_calls": 200,
+    "metric_requests": 128,
+    "name": "gepa",
+    "pool": [
+      "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+      "sha256:93361405a62604cde1f070dcafe497a25cab0171fbd9c6c1c9e4119256679a9f",
+      "sha256:446e3f76e4626222675b85ae7323f14cb1313853d1441822e9c31a2742e63283",
+      "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83"
+    ],
+    "recommended_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+    "reference": {
+      "base_quality": {
+        "context_sha256": "596a3bb66be876a6a9877a80fe9f1a736671367b8b996878d8763835fdd9d278",
+        "dimensions": [
+          {
+            "id": "generalization",
+            "score": 3
+          },
+          {
+            "id": "instruction_quality",
+            "score": 3
+          },
+          {
+            "id": "principle_of_lack_of_surprise",
+            "score": 4
+          },
+          {
+            "id": "progressive_disclosure",
+            "score": null
+          },
+          {
+            "id": "resource_organization",
+            "score": null
+          },
+          {
+            "id": "trigger_description",
+            "score": 4
+          },
+          {
+            "id": "workflow_clarity",
+            "score": 2
+          }
+        ],
+        "findings": [],
+        "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+        "status": "completed"
+      },
+      "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+      "evaluator_sha256": "d4c24ab29624813ffe68f4be6b88ae41bca1bac6e0852e1d23d4754a1eab725f",
+      "input_sha256": "9dfd6785fba33d286c8da195de63be0ad5e096c4d143dbe029db0238dfaf8469",
+      "original_checks": {
+        "cases": [
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_stable_partition",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_error_order",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_optional_dependencies",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_release_error_reported",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_retry_slot_error",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_successful_failure_order",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_zero_retry_limit",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_date_cap",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_digit_length_bound",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_invalid_input",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_invalid_limits",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_numeric_cap",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_past_date",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_zero_cap",
+            "status": "failed"
+          }
+        ],
+        "elapsed_seconds": 0.6033518760232255,
+        "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+        "gates": [],
+        "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+        "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+        "status": "failed"
+      },
+      "original_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+      "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+      "policy_sha256": "d6efd14169aab7830b99a03d28f85282aeb04644d54df4d876fb02a3a1d7b212",
+      "project_id": "project_d",
+      "project_tree_sha256": "adf738ef8ae508040b2cb45d0ad59550862c7a2306b5cc1b32a69c4814a67d04",
+      "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+      "quality_context_sha256": "596a3bb66be876a6a9877a80fe9f1a736671367b8b996878d8763835fdd9d278",
+      "reference_sha256": "69b16b15d0365d97f3bd5995735d98b189bde09a21e06295c6761bdc950fcf75",
+      "rubric_sha256": "f0c1665c43c653348c2008f51f174be0dd1e5c74871b3acbc2cdca8f69c5b965",
+      "schema_version": 1,
+      "skill_key": "path:3ce29dd001dba1f55271c1fb",
+      "source_commit": "589c88a76acf3ef7c378b876145026994b19a1fb",
+      "source_path": ".github/skills/project-d-development"
+    },
+    "scores": [
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      [
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    ],
+    "seed": 0,
+    "seed_evaluation": {
+      "application": {
+        "activated": true,
+        "changed": true,
+        "measurement": {
+          "cost_nano_aiu": 9152050000,
+          "elapsed_seconds": 30.753021042997716
+        },
+        "output_sha256": "0102abe68832865f96e26d1fbc8e7120704f056d0aabba72afa413e19476e477",
+        "staged_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+        "task_outcome": "satisfied",
+        "version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+        "work_sha256": "9dfd6785fba33d286c8da195de63be0ad5e096c4d143dbe029db0238dfaf8469"
+      },
+      "checks": {
+        "cases": [
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_enqueue.EnqueueTests.test_stable_partition",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_error_order",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_optional_dependencies",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_release_error_reported",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_retry_slot_error",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_successful_failure_order",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_failure.FailureTests.test_zero_retry_limit",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_date_cap",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_digit_length_bound",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_invalid_input",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_invalid_limits",
+            "status": "passed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_numeric_cap",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_past_date",
+            "status": "failed"
+          },
+          {
+            "id": "python-tests:test_retry.RetryTests.test_zero_cap",
+            "status": "failed"
+          }
+        ],
+        "elapsed_seconds": 0.5849389279901516,
+        "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+        "gates": [],
+        "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+        "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+        "status": "failed"
+      }
+    },
+    "strategy": "pareto",
+    "validation": {
+      "dataset_sha256": "30715adedeafa1461470823ac78961246977d4574ae4ca0ffc2d9db4b1c0d004",
+      "evaluations": [
+        {
+          "application": {
+            "activated": true,
+            "changed": true,
+            "measurement": {
+              "cost_nano_aiu": 6554450000,
+              "elapsed_seconds": 25.288802314025816
+            },
+            "output_sha256": "cc66a2c976d966809f9f1ba3a66f16a88f6ad3813879c9c468fa0f381f858555",
+            "staged_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+            "task_outcome": "satisfied",
+            "version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+            "work_sha256": "225a754e919baf64767c80f9928e7896cc400522364cc0b620a7b63cac6da34c"
+          },
+          "checks": {
+            "cases": [
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_stable_partition",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_error_order",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_optional_dependencies",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_release_error_reported",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_slot_error",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_successful_failure_order",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_zero_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_date_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_digit_length_bound",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_input",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_limits",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_numeric_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_past_date",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_zero_cap",
+                "status": "failed"
+              }
+            ],
+            "elapsed_seconds": 0.5351161829894409,
+            "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+            "gates": [],
+            "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+            "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+            "status": "failed"
+          }
+        },
+        {
+          "application": {
+            "activated": true,
+            "changed": true,
+            "measurement": {
+              "cost_nano_aiu": 6049450000,
+              "elapsed_seconds": 24.407807965995744
+            },
+            "output_sha256": "54280a9b0a75e3277f7263e47588a2dae5644715d465c2f7102ebbc7cb97dd5a",
+            "staged_version_id": "sha256:93361405a62604cde1f070dcafe497a25cab0171fbd9c6c1c9e4119256679a9f",
+            "task_outcome": "satisfied",
+            "version_id": "sha256:93361405a62604cde1f070dcafe497a25cab0171fbd9c6c1c9e4119256679a9f",
+            "work_sha256": "225a754e919baf64767c80f9928e7896cc400522364cc0b620a7b63cac6da34c"
+          },
+          "checks": {
+            "cases": [
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_stable_partition",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_error_order",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_optional_dependencies",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_release_error_reported",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_slot_error",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_successful_failure_order",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_zero_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_date_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_digit_length_bound",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_input",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_limits",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_numeric_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_past_date",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_zero_cap",
+                "status": "failed"
+              }
+            ],
+            "elapsed_seconds": 0.5595447180094197,
+            "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+            "gates": [],
+            "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+            "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+            "status": "failed"
+          }
+        },
+        {
+          "application": {
+            "activated": true,
+            "changed": true,
+            "measurement": {
+              "cost_nano_aiu": 6016850000,
+              "elapsed_seconds": 24.11770609000814
+            },
+            "output_sha256": "75fdcbdd925ccc343abfa93a37221676a1e75b4dab4c4d70d1fa7233aebd59c8",
+            "staged_version_id": "sha256:446e3f76e4626222675b85ae7323f14cb1313853d1441822e9c31a2742e63283",
+            "task_outcome": "satisfied",
+            "version_id": "sha256:446e3f76e4626222675b85ae7323f14cb1313853d1441822e9c31a2742e63283",
+            "work_sha256": "225a754e919baf64767c80f9928e7896cc400522364cc0b620a7b63cac6da34c"
+          },
+          "checks": {
+            "cases": [
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_stable_partition",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_error_order",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_optional_dependencies",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_release_error_reported",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_slot_error",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_successful_failure_order",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_zero_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_date_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_digit_length_bound",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_input",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_limits",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_numeric_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_past_date",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_zero_cap",
+                "status": "failed"
+              }
+            ],
+            "elapsed_seconds": 0.6109355539956596,
+            "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+            "gates": [],
+            "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+            "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+            "status": "failed"
+          }
+        },
+        {
+          "application": {
+            "activated": true,
+            "changed": true,
+            "measurement": {
+              "cost_nano_aiu": 5994650000,
+              "elapsed_seconds": 26.366863374976674
+            },
+            "output_sha256": "af411debb37deff87eec06ea2182ea563f3b00eb5b27d1360cb3ec326311c363",
+            "staged_version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83",
+            "task_outcome": "satisfied",
+            "version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83",
+            "work_sha256": "225a754e919baf64767c80f9928e7896cc400522364cc0b620a7b63cac6da34c"
+          },
+          "checks": {
+            "cases": [
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_enqueue.EnqueueTests.test_stable_partition",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_error_order",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_optional_dependencies",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_release_error_reported",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_retry_slot_error",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_successful_failure_order",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_failure.FailureTests.test_zero_retry_limit",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_date_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_digit_length_bound",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_input",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_invalid_limits",
+                "status": "passed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_numeric_cap",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_past_date",
+                "status": "failed"
+              },
+              {
+                "id": "python-tests:test_retry.RetryTests.test_zero_cap",
+                "status": "failed"
+              }
+            ],
+            "elapsed_seconds": 0.5827623399964068,
+            "environment_sha256": "c6b8ea015487e4eb18d97e0ba2b6d1a8b4fd0c1705b0309e84ac33a4dc130310",
+            "gates": [],
+            "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+            "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+            "status": "failed"
+          }
+        }
+      ],
+      "work": {
+        "checks": {
+          "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+          "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+          "required_case_ids": [
+            "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+            "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+            "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+            "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+            "python-tests:test_enqueue.EnqueueTests.test_stable_partition"
+          ],
+          "required_gate_ids": []
+        },
+        "input_sha256": "225a754e919baf64767c80f9928e7896cc400522364cc0b620a7b63cac6da34c",
+        "project_id": "project_d",
+        "project_tree_sha256": "adf738ef8ae508040b2cb45d0ad59550862c7a2306b5cc1b32a69c4814a67d04",
+        "schema_version": 2,
+        "source_commit": "589c88a76acf3ef7c378b876145026994b19a1fb",
+        "split": "validation",
+        "task_id": "batch-iterable"
+      }
+    },
+    "validation_scope": "independent",
+    "version": "0.1.4",
+    "work_checks": {
+      "plan_sha256": "3e0524b8393232f2a92a8fcd1592c44d28a7e7d3976bbb7bb00fd102428148e0",
+      "protected_sha256": "ef2b9aa459115423a7827b213fd2dd28dacadfdbb303111592108861fb886630",
+      "required_case_ids": [
+        "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+        "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+        "python-tests:test_failure.FailureTests.test_error_order",
+        "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+        "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+        "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+        "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+        "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+        "python-tests:test_failure.FailureTests.test_optional_dependencies",
+        "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+        "python-tests:test_failure.FailureTests.test_release_error_reported",
+        "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+        "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+        "python-tests:test_failure.FailureTests.test_retry_slot_error",
+        "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+        "python-tests:test_failure.FailureTests.test_successful_failure_order",
+        "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+        "python-tests:test_failure.FailureTests.test_zero_retry_limit"
+      ],
+      "required_gate_ids": []
+    }
+  },
+  "original_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+  "project_id": "project_d",
+  "reference_sha256": "69b16b15d0365d97f3bd5995735d98b189bde09a21e06295c6761bdc950fcf75",
+  "report_sha256": "9e80c5e2b0aa6889f34237cae3bf05ac16f949dbef173ca88199dcb15999e30a",
+  "rounds": [
+    {
+      "candidate_version_id": "sha256:93361405a62604cde1f070dcafe497a25cab0171fbd9c6c1c9e4119256679a9f",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [
+          "efficiency_regression",
+          "quality_regression"
+        ],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "rejected"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "project_d",
+        "run_id": "local-20261015T032319Z-491737bac1e5",
+        "sha256": "07206254357e7ae250007c4b1d2464ed8b2a3288ffa7e1bde897fa2ded580ccf"
+      },
+      "feedback_sha256": "09e0d590f291230accdf7e4b72015f536779088edb9158b8b13e04fa91173ddc",
+      "feedback_source_round_id": null,
+      "input_sha256": "9dfd6785fba33d286c8da195de63be0ad5e096c4d143dbe029db0238dfaf8469",
+      "parent_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+      "reference_sha256": "69b16b15d0365d97f3bd5995735d98b189bde09a21e06295c6761bdc950fcf75",
+      "round_id": "local-20261015T022226Z-95a81ba1c579-r1",
+      "round_number": 1,
+      "run_id": "local-20261015T032319Z-491737bac1e5",
+      "stop_reason": null
+    },
+    {
+      "candidate_version_id": "sha256:446e3f76e4626222675b85ae7323f14cb1313853d1441822e9c31a2742e63283",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "project_d",
+        "run_id": "local-20261015T032619Z-898c448ec957",
+        "sha256": "beff5d812f286fe96ed2a2e7446a5e9beb29c06e271367de576eb683aca78353"
+      },
+      "feedback_sha256": "888f69ee574f63b9510c857baa874c6474646069246a6544a39dafe942a14c5e",
+      "feedback_source_round_id": "local-20261015T022226Z-95a81ba1c579-r1",
+      "input_sha256": "9dfd6785fba33d286c8da195de63be0ad5e096c4d143dbe029db0238dfaf8469",
+      "parent_version_id": "sha256:93361405a62604cde1f070dcafe497a25cab0171fbd9c6c1c9e4119256679a9f",
+      "reference_sha256": "69b16b15d0365d97f3bd5995735d98b189bde09a21e06295c6761bdc950fcf75",
+      "round_id": "local-20261015T022226Z-95a81ba1c579-r2",
+      "round_number": 2,
+      "run_id": "local-20261015T032619Z-898c448ec957",
+      "stop_reason": null
+    },
+    {
+      "candidate_version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [
+          "efficiency_regression",
+          "quality_regression"
+        ],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "rejected"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "project_d",
+        "run_id": "local-20261015T032918Z-dea6d4845c61",
+        "sha256": "916adeaa34287b18e6d621de2de59830328549726f76ae36b6343aba96d2fadc"
+      },
+      "feedback_sha256": "02fc746f9abd5bebf19a8baf5c57682e558eda610b37fea137e49e90cd92cab3",
+      "feedback_source_round_id": "local-20261015T022226Z-95a81ba1c579-r2",
+      "input_sha256": "9dfd6785fba33d286c8da195de63be0ad5e096c4d143dbe029db0238dfaf8469",
+      "parent_version_id": "sha256:446e3f76e4626222675b85ae7323f14cb1313853d1441822e9c31a2742e63283",
+      "reference_sha256": "69b16b15d0365d97f3bd5995735d98b189bde09a21e06295c6761bdc950fcf75",
+      "round_id": "local-20261015T022226Z-95a81ba1c579-r3",
+      "round_number": 3,
+      "run_id": "local-20261015T032918Z-dea6d4845c61",
+      "stop_reason": "search_complete"
+    }
+  ],
+  "run_id": "local-20261015T022226Z-95a81ba1c579",
+  "schema_version": 3,
+  "selected_candidate_version_id": null,
+  "skill_key": "path:3ce29dd001dba1f55271c1fb",
+  "source_path": ".github/skills/project-d-development",
+  "stop_reason": "search_complete"
+}

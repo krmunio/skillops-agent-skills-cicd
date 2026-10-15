@@ -1,0 +1,13 @@
+{
+  "history": [],
+  "project": {
+    "current_run": null,
+    "detected_skills": [],
+    "history_count": 0,
+    "id": "project_c",
+    "index": "project_c/index.json",
+    "skill_discovery_error": null,
+    "state": "active"
+  },
+  "schema_version": 1
+}
