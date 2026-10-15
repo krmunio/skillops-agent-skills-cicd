@@ -1,0 +1,38 @@
+{
+  "created_at": "2026-10-15T00:28:38.897920+00:00",
+  "evaluator_sha256": "a56c9d07014f0283b74fca12808e224563a91365d47b287767890db542dac317",
+  "execution": {
+    "decision": null,
+    "metrics": {
+      "attempted": 1,
+      "base_cost_nano_aiu": 9600700000,
+      "base_elapsed_seconds": 26.262834323977586,
+      "cli_invocations": 1,
+      "correctness_successes": 1,
+      "evaluation_completed": 1,
+      "input_tokens": 8839,
+      "output_tokens": 699,
+      "passed_cases": 18,
+      "requested": 1,
+      "required_cases": 18,
+      "total_elapsed_seconds": 27.078
+    },
+    "reason_code": "baseline_saturated",
+    "status": "completed"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "baseline_screening_only",
+    "status": "not_assessed"
+  },
+  "origin": "local",
+  "project_id": "project_d",
+  "project_tree_sha256": "adf738ef8ae508040b2cb45d0ad59550862c7a2306b5cc1b32a69c4814a67d04",
+  "purpose": "baseline",
+  "run_id": "local-20261015T002838Z-718b3ce87296",
+  "schema_version": 1,
+  "source_commit": "26723db828a85a3c8447f7c5aad25be29a227430",
+  "source_report_sha256": "718b3ce87296578e416fc9942f2d09fdddaa6f6da25bf89c248c48fdcce7d77f",
+  "source_schema_version": null
+}

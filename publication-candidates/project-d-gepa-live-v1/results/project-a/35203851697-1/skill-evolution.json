@@ -1,0 +1,86 @@
+{
+  "bindings": [
+    {
+      "base_version_id": "sha256:984ea5638db62ae5029c1a1cec74be94e9a29f229459c8301463ba14e2663454",
+      "candidate_version_id": "sha256:1347b2f3bb5b33a16c5f7bbfaf43511f57d918900b5a023b809aa3699d1e10fc",
+      "legacy_skill_id": null,
+      "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+    }
+  ],
+  "file_contents": [
+    {
+      "data": "LS0tCm5hbWU6IHNjaGVkdWxlLWRldmVsb3BtZW50CmRlc2NyaXB0aW9uOiBVc2Ugd2hlbiBjaGFuZ2luZyBQeXRob24gU2NoZWR1bGUgam9iIHRpbWluZywgY2FuY2VsbGF0aW9uLCB0YWdzLCBvciBzY2hlZHVsZXIgcmVncmVzc2lvbiB0ZXN0cy4KLS0tCgojIFNjaGVkdWxlIGRldmVsb3BtZW50CgpUaGlzIGlzIGFuIHVudmFsaWRhdGVkIG9uYm9hcmRpbmcgZHJhZnQsIG5vdCBldmlkZW5jZSBvZiBpbXByb3ZlZCBtb2RlbCBiZWhhdmlvci4KClJlYWQgdGhlIHJlbGV2YW50IGltcGxlbWVudGF0aW9uIGluIGBzY2hlZHVsZS9fX2luaXRfXy5weWAgYW5kIG5laWdoYm9yaW5nIHRlc3RzCmluIGB0ZXN0X3NjaGVkdWxlLnB5YC4gUHJlc2VydmUgdGhlIHB1YmxpYyBBUEkgYW5kIGtlZXAgdGhlIGNoYW5nZSBzY29wZWQgdG8gdGhlCnJlcXVlc3RlZCBzY2hlZHVsaW5nIGJlaGF2aW9yLgoKVXNlIGFuIGluZGVwZW5kZW50IGBTY2hlZHVsZXJgIG9yIGNsZWFyIHRoZSBzaGFyZWQgZGVmYXVsdCBzY2hlZHVsZXIgYmV0d2Vlbgp0ZXN0cyBzbyBqb2JzIGFuZCB0YWdzIGNhbm5vdCBsZWFrIGFjcm9zcyBjYXNlcy4gRm9sbG93IHRoZSBleGlzdGluZwpgbW9ja19kYXRldGltZWAgYXBwcm9hY2ggZm9yIGRldGVybWluaXN0aWMgZHVlIHRpbWVzOyBkbyBub3QgdXNlIHJlYWwgc2xlZXBzIHRvCnByb3ZlIHNjaGVkdWxpbmcgYmVoYXZpb3IuCgpDaGVjayB0aGUgYm91bmRhcmllcyBhZmZlY3RlZCBieSB0aGUgY2hhbmdlOiBkdWUtam9iIG9yZGVyaW5nLCBuZXh0LXJ1biB0aW1lLAp0YWcgZmlsdGVyaW5nLCBjYW5jZWxsYXRpb24sIGFuZCBjYWxsYmFja3MgcmV0dXJuaW5nIGBDYW5jZWxKb2JgLiBEaXN0aW5ndWlzaApgcnVuX3BlbmRpbmdgIGZyb20gYHJ1bl9hbGxgOyBkbyBub3QgYXNzdW1lIHRoYXQgbWlzc2VkIGludGVydmFscyBhcmUgcmVwbGF5ZWQuCgpUaW1lem9uZSB0ZXN0cyBkZXBlbmQgb24gcGxhdGZvcm0gdGltZXpvbmUgY29udHJvbHMsIGFuZCByZWxldmFudCBjYXNlcyB1c2UKb3B0aW9uYWwgYHB5dHpgLiBUaGUgcGlubmVkIHVwc3RyZWFtIHN1aXRlIGNhbGxzIGB0aW1lLnR6c2V0YCBkdXJpbmcgaW1wb3J0LCBzbwpkbyBub3QgdHJlYXQgaXQgYXMgYSBwb3J0YWJsZSBXaW5kb3dzIHRlc3QgY29tbWFuZC4gVXNlIGFuIGV4cGxpY2l0bHkgYXV0aG9yaXplZApMaW51eCB0ZXN0IGVudmlyb25tZW50IGZvciB0aGUgdXBzdHJlYW0gc3VpdGUgcmF0aGVyIHRoYW4gY2hhbmdpbmcgaXRzIHRlc3RzIHRvCmhpZGUgbWlzc2luZyBkZXBlbmRlbmNpZXMuCgpSZXBvcnQgdGhlIGV4YWN0IGNoZWNrcyBleGVjdXRlZCwgc2VsZWN0ZWQgdmVyc3VzIGZ1bGwtc3VpdGUgY292ZXJhZ2UsIGFuZCBza2lwcwpvciBlbnZpcm9ubWVudCBibG9ja2Vycy4gU291cmNlIHByZXBhcmF0aW9uIGFuZCBtZXRhZGF0YSBjaGVja3MgZG8gbm90IGVzdGFibGlzaAp0aGF0IHVwc3RyZWFtIHRlc3RzIG9yIG1vZGVsLWJhY2tlZCBza2lsbCBldmFsdWF0aW9ucyBwYXNzZWQuCg==",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:984ea5638db62ae5029c1a1cec74be94e9a29f229459c8301463ba14e2663454"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHNjaGVkdWxlLWRldmVsb3BtZW50CmRlc2NyaXB0aW9uOiBVc2Ugd2hlbiBjaGFuZ2luZyBQeXRob24gU2NoZWR1bGUgam9iIHRpbWluZywgY2FuY2VsbGF0aW9uLCB0YWdzLCBvciBzY2hlZHVsZXIgcmVncmVzc2lvbiB0ZXN0cy4KLS0tCgojIFNjaGVkdWxlIGRldmVsb3BtZW50CgpVc2UgdGhpcyB3b3JrZmxvdyB3aGVuIGNoYW5naW5nIFB5dGhvbiBTY2hlZHVsZSBqb2IgdGltaW5nLCBjYW5jZWxsYXRpb24sIHRhZ3MsIG9yIHNjaGVkdWxlciByZWdyZXNzaW9uIHRlc3RzLiBQcmVzZXJ2ZSB0aGUgcHVibGljIEFQSSBhbmQgc2NvcGUgY2hhbmdlcyB0byB0aGUgcmVxdWVzdGVkIHNjaGVkdWxpbmcgYmVoYXZpb3IuCgpUaGlzIGlzIGFuIHVudmFsaWRhdGVkIG9uYm9hcmRpbmcgZHJhZnQsIG5vdCBldmlkZW5jZSBvZiBpbXByb3ZlZCBtb2RlbCBiZWhhdmlvci4KCiMjIDEuIEluc3BlY3QgdGhlIGFmZmVjdGVkIGJlaGF2aW9yCgpSZWFkIHRoZSByZWxldmFudCBpbXBsZW1lbnRhdGlvbiBpbiBgc2NoZWR1bGUvX19pbml0X18ucHlgIGFuZCBuZWlnaGJvcmluZyB0ZXN0cyBpbiBgdGVzdF9zY2hlZHVsZS5weWAuIElkZW50aWZ5IHRoZSByZXF1ZXN0ZWQgYmVoYXZpb3IgYW5kIHRoZSBhZmZlY3RlZCBzY2hlZHVsaW5nIGJvdW5kYXJpZXMgYmVmb3JlIGVkaXRpbmcuIERpc3Rpbmd1aXNoIGBydW5fcGVuZGluZ2AgZnJvbSBgcnVuX2FsbGA7IGRvIG5vdCBhc3N1bWUgdGhhdCBtaXNzZWQgaW50ZXJ2YWxzIGFyZSByZXBsYXllZC4KCiMjIDIuIE1ha2UgdGhlIHNjb3BlZCBjaGFuZ2UgYW5kIHJlZ3Jlc3Npb24gdGVzdHMKClVzZSBhbiBpbmRlcGVuZGVudCBgU2NoZWR1bGVyYCBvciBjbGVhciB0aGUgc2hhcmVkIGRlZmF1bHQgc2NoZWR1bGVyIGJldHdlZW4gdGVzdHMgc28gam9icyBhbmQgdGFncyBjYW5ub3QgbGVhayBhY3Jvc3MgY2FzZXMuIEZvbGxvdyB0aGUgZXhpc3RpbmcgYG1vY2tfZGF0ZXRpbWVgIGFwcHJvYWNoIGZvciBkZXRlcm1pbmlzdGljIGR1ZSB0aW1lczsgZG8gbm90IHVzZSByZWFsIHNsZWVwcyB0byBwcm92ZSBzY2hlZHVsaW5nIGJlaGF2aW9yLgoKQ2hlY2sgZWFjaCBib3VuZGFyeSBhZmZlY3RlZCBieSB0aGUgY2hhbmdlOiBkdWUtam9iIG9yZGVyaW5nLCBuZXh0LXJ1biB0aW1lLCB0YWcgZmlsdGVyaW5nLCBjYW5jZWxsYXRpb24sIGFuZCBjYWxsYmFja3MgcmV0dXJuaW5nIGBDYW5jZWxKb2JgLiBLZWVwIGltcGxlbWVudGF0aW9uIGFuZCB0ZXN0IGNoYW5nZXMgZm9jdXNlZCBvbiB0aGUgcmVxdWVzdGVkIGJlaGF2aW9yLgoKIyMgMy4gQ2hlY2sgZW52aXJvbm1lbnQgcmVxdWlyZW1lbnRzIGFuZCB2YWxpZGF0ZQoKVGltZXpvbmUgdGVzdHMgZGVwZW5kIG9uIHBsYXRmb3JtIHRpbWV6b25lIGNvbnRyb2xzLCBhbmQgcmVsZXZhbnQgY2FzZXMgdXNlIG9wdGlvbmFsIGBweXR6YC4gVGhlIHBpbm5lZCB1cHN0cmVhbSBzdWl0ZSBjYWxscyBgdGltZS50enNldGAgZHVyaW5nIGltcG9ydCwgc28gZG8gbm90IHRyZWF0IGl0IGFzIGEgcG9ydGFibGUgV2luZG93cyB0ZXN0IGNvbW1hbmQuIFVzZSBhbiBleHBsaWNpdGx5IGF1dGhvcml6ZWQgTGludXggdGVzdCBlbnZpcm9ubWVudCBmb3IgdGhlIHVwc3RyZWFtIHN1aXRlIHJhdGhlciB0aGFuIGNoYW5naW5nIGl0cyB0ZXN0cyB0byBoaWRlIG1pc3NpbmcgZGVwZW5kZW5jaWVzLgoKUnVuIHRoZSByZWxldmFudCByZWdyZXNzaW9uIGNoZWNrcyBpbiBhIHN1cHBvcnRlZCwgYXV0aG9yaXplZCBlbnZpcm9ubWVudC4gSWYgZW52aXJvbm1lbnQgcmVxdWlyZW1lbnRzIHByZXZlbnQgZXhlY3V0aW9uLCByZXBvcnQgdGhlIGJsb2NrZXIgcmF0aGVyIHRoYW4gY2xhaW1pbmcgYSBwYXNzLgoKIyMgNC4gUmVwb3J0IHRoZSByZXN1bHQgYW5kIGNvdmVyYWdlCgpSZXBvcnQgdGhlIGV4YWN0IGNoZWNrcyBleGVjdXRlZCwgZGlzdGluZ3Vpc2ggc2VsZWN0ZWQtdGVzdCBjb3ZlcmFnZSBmcm9tIGZ1bGwtc3VpdGUgY292ZXJhZ2UsIGFuZCBkaXNjbG9zZSBza2lwcyBvciBlbnZpcm9ubWVudCBibG9ja2Vycy4gU291cmNlIHByZXBhcmF0aW9uIGFuZCBtZXRhZGF0YSBjaGVja3MgZG8gbm90IGVzdGFibGlzaCB0aGF0IHVwc3RyZWFtIHRlc3RzIG9yIG1vZGVsLWJhY2tlZCBza2lsbCBldmFsdWF0aW9ucyBwYXNzZWQuCg==",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:1347b2f3bb5b33a16c5f7bbfaf43511f57d918900b5a023b809aa3699d1e10fc"
+    }
+  ],
+  "project_id": "project-a",
+  "records": {
+    "adoptions": [],
+    "comparisons": [],
+    "generations": [],
+    "identities": [
+      {
+        "display_name": "schedule-development",
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+      }
+    ],
+    "skill_versions": [
+      {
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+        "version_id": "sha256:984ea5638db62ae5029c1a1cec74be94e9a29f229459c8301463ba14e2663454"
+      },
+      {
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d",
+        "version_id": "sha256:1347b2f3bb5b33a16c5f7bbfaf43511f57d918900b5a023b809aa3699d1e10fc"
+      }
+    ],
+    "sources": [
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-09-17T09:14:24.714940+00:00",
+        "path": ".github/skills/schedule-development",
+        "project_id": "project-a",
+        "scope": "project",
+        "skill_key": "path:db18433c1af9c5cacc3d5e2d"
+      }
+    ],
+    "versions": [
+      {
+        "capture_scope": "complete_bundle",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 1507,
+            "path": "SKILL.md",
+            "sha256": "1b225ff7005aa529c0a951c06fa299fce69088642f0e3a44c4549c2ee52ce48a"
+          }
+        ],
+        "version_id": "sha256:984ea5638db62ae5029c1a1cec74be94e9a29f229459c8301463ba14e2663454"
+      },
+      {
+        "capture_scope": "complete_bundle",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 2149,
+            "path": "SKILL.md",
+            "sha256": "e2dd3d4dc02af168ec601521425a1616340eff4f10837cc43c170c7f1d589da5"
+          }
+        ],
+        "version_id": "sha256:1347b2f3bb5b33a16c5f7bbfaf43511f57d918900b5a023b809aa3699d1e10fc"
+      }
+    ]
+  },
+  "report_sha256": "dfb0ef764ef07fbaf7c2be3d4a3c3a512f205476328a5d2eefc6751eb0b29556",
+  "run_id": "35203851697-1",
+  "schema_version": 1
+}

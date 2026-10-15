@@ -104,6 +104,32 @@ build. Redirects and oversized/stale content fail. Deployment may succeed while
 URL verification fails; those states remain distinct. Custom domains require a
 separately reviewed origin policy, not an arbitrary URL override.
 
+## Project D live-result packet
+
+`publication-candidates/project-d-gepa-live-v1` adds six existing `project_d`
+records: the original execution screen, a standalone quality assessment, three
+GEPA candidate replays and their cycle. Its manifest SHA-256 is
+`b162623f3b306bf997e18890aa4780c1253638decb27b91e0d38bcd26488c56a`.
+The producer commit is `589c88a76acf3ef7c378b876145026994b19a1fb`.
+Use the exact commit containing this packet as `data_sha`, not the producer SHA.
+
+The packet contains 60 payloads / 352,865 bytes, including the 47 unchanged
+offline/historical payloads needed by the existing example links. The 13 new
+payloads preserve the original live evidence bytes. Public prose and all four
+decoded Project D Skill captures were inspected; private model receipts,
+requests, working source copies and runtime logs are excluded.
+
+The standalone original quality score is 75/100. The same unchanged original
+scored 80/100 in the later GEPA run; this is a separate model judgment, not a
+Skill improvement. Candidate scores are 70/80/75. All four variants passed
+18/18 development checks and 5/5 independent validation checks. The original
+remained recommended; no candidate was selected, confirmation did not run,
+and no approval or adoption is recorded.
+
+Publishing this packet does not rerun evaluation or activate a Skill. Validate
+and merge it with the current results branch, then use the main-only reviewed
+publication workflow after the compatible dashboard code has been integrated.
+
 ## Session 5 candidate handoff
 
 All rows use project `sample_repo`, Skill `path:90ae807bd3d394fc140a6df8`,
