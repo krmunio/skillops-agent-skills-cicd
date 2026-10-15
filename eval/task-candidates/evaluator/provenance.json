@@ -1,0 +1,46 @@
+[
+  {
+    "candidate": "rq-2515",
+    "before": "a7233f3a25c2848a071f69b6e4f5be3316b7ab82",
+    "after": "f114a649c57555bed3100b7b1e00fb8996d5d1d5",
+    "actual_first_parent": "a7233f3a25c2848a071f69b6e4f5be3316b7ab82",
+    "changed_files": [
+      "rq/queue.py",
+      "tests/test_queue.py"
+    ],
+    "license_sha256": {
+      "a7233f3a25c2848a071f69b6e4f5be3316b7ab82": "8460b8ac592189fa38543b09ca6e86e4a996387af8cdf7951b7485ff0328ceae",
+      "f114a649c57555bed3100b7b1e00fb8996d5d1d5": "8460b8ac592189fa38543b09ca6e86e4a996387af8cdf7951b7485ff0328ceae"
+    },
+    "upstream_regression_ast_identical": true,
+    "upstream_controls_ast_identical_between_commits": true
+  },
+  {
+    "candidate": "rq-2516",
+    "before": "a41a36b431b67e329d671bc5cf7455df5890ab1e",
+    "after": "7d7f925c9a4a5bc0ac5d947d0a227e5fe167c44c",
+    "actual_first_parent": "a41a36b431b67e329d671bc5cf7455df5890ab1e",
+    "changed_files": [
+      "rq/worker/base.py"
+    ],
+    "license_sha256": {
+      "a41a36b431b67e329d671bc5cf7455df5890ab1e": "8460b8ac592189fa38543b09ca6e86e4a996387af8cdf7951b7485ff0328ceae",
+      "7d7f925c9a4a5bc0ac5d947d0a227e5fe167c44c": "8460b8ac592189fa38543b09ca6e86e4a996387af8cdf7951b7485ff0328ceae"
+    }
+  },
+  {
+    "candidate": "urllib3-3743",
+    "before": "8c480bf87bcefd321b3a1ae47f04e908b6b2ed7b",
+    "after": "13f0bfd55e4468fe1ea9c6f809d3a87b0f93ebab",
+    "actual_first_parent": "8c480bf87bcefd321b3a1ae47f04e908b6b2ed7b",
+    "changed_files": [
+      "changelog/3743.bugfix.rst",
+      "src/urllib3/util/retry.py",
+      "test/test_retry.py"
+    ],
+    "license_sha256": {
+      "8c480bf87bcefd321b3a1ae47f04e908b6b2ed7b": "130e3a64d5fdd5d096a752694634a7d9df284469de86e5732100268041e3d686",
+      "13f0bfd55e4468fe1ea9c6f809d3a87b0f93ebab": "130e3a64d5fdd5d096a752694634a7d9df284469de86e5732100268041e3d686"
+    }
+  }
+]
