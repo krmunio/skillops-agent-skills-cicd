@@ -285,13 +285,14 @@ def validate_work_item(data, *, project, source_commit):
     from project_results import CORE, safe_path, tree_hash
     from repositories import read_file
     exact(data, "schema_version task_id project_id source_commit project_tree_sha256 request split sources checks input_sha256")
-    require(type(data["schema_version"]) is int and data["schema_version"] == 1, "invalid_work_item")
+    require(type(data["schema_version"]) is int and data["schema_version"] in (1, 2), "invalid_work_item")
     for key in ("task_id", "project_id"):
         require(matches(evolution.PROJECT_ID, data[key]), "invalid_work_item")
     require(matches(r"[a-f0-9]{40}", source_commit) and data["source_commit"] == source_commit, "work_source_mismatch")
     for key in ("project_tree_sha256", "input_sha256"):
         require(matches(DIGEST, data[key]), "invalid_work_item")
-    require(data["split"] in ("development", "confirmation"), "invalid_work_item")
+    require(data["split"] in (("development", "confirmation") if data["schema_version"] == 1
+                             else ("validation",)), "invalid_work_item")
     text(data["request"], 16384)
     require(bool(data["request"].strip()), "invalid_work_item")
     _work_checks(data["checks"])
@@ -336,8 +337,23 @@ def validate_work_item(data, *, project, source_commit):
     return data
 
 
+def validate_validation_pair(development, validation, *, project, original):
+    for work in (development, validation):
+        validate_work_item(work, project=project, source_commit=development["source_commit"])
+    require(development["split"] == "development" and validation["split"] == "validation"
+            and development["task_id"] != validation["task_id"]
+            and not set(development["sources"]) & set(validation["sources"])
+            and not set(development["checks"]["required_case_ids"]) & set(validation["checks"]["required_case_ids"]),
+            "validation_overlap")
+    request = " ".join(validation["request"].split()).casefold()
+    visible = [development["request"], *project_checks.replay_sources(project, development["sources"]).values(),
+               *(raw.decode("utf-8") for raw in original[1].values())]
+    require(all(request not in " ".join(value.split()).casefold() for value in visible),
+            "validation_disclosure")
+
+
 def validate_confirmation_disclosure(data, *, project, development_work_item,
-                                     confirmation_work_item, original, source_path):
+                                     confirmation_work_item, original, source_path, validation_work_item=None):
     """Validate reviewed disclosure bytes; this neither issues nor proves runtime isolation."""
     import project_results as results
     exact(data, "schema_version development_input_sha256 confirmation_input_sha256 "
@@ -369,6 +385,16 @@ def validate_confirmation_disclosure(data, *, project, development_work_item,
     require(actual_bundle == original[1], "replay_capture_mismatch")
     visible = set(development["sources"]) | set(confirmation["sources"]) | {
         (Path(source_path) / name).as_posix() for name in original[1]}
+    if validation_work_item is not None:
+        validate_validation_pair(development, validation_work_item, project=project, original=original)
+        require(validation_work_item["task_id"] != confirmation["task_id"]
+                and not set(validation_work_item["sources"]) & set(confirmation["sources"])
+                and not set(validation_work_item["checks"]["required_case_ids"])
+                & set(confirmation["checks"]["required_case_ids"])
+                and " ".join(confirmation["request"].split()).casefold()
+                not in " ".join(validation_work_item["request"].split()).casefold(),
+                "confirmation_isolation_unverified")
+        visible.update(validation_work_item["sources"])
     maps = (data["model_visible_files"], data["checker_only_files"])
     for mapping in maps:
         require(isinstance(mapping, dict), "confirmation_isolation_unverified")

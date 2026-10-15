@@ -119,9 +119,12 @@ unittest 사례를 지원하며, 동적·상속 기반 수집이나 임의 runne
 
 이는 **합성 평가 입력의 준비이며 평가 결과가 아닙니다.** 구조적 분리는 확인하지만
 의미적 독립성이나 통계적 품질을 보장하지 않습니다. 후보 선택·최종 확인 작업을
-개발용 WorkItem으로 내보낼 수 없습니다. 기존 전체 프로젝트 검사 실행을 변경하거나
-최종 확인을 활성화하지 않으며, GEPA의 독립 validation 데이터셋 연결도 아닙니다.
-현재 GEPA 엔진의 `development_reuse` 표시는 유지하고 자동 채택·게시는 하지 않습니다.
+개발용 WorkItem으로 내보낼 수 없습니다. 준비만으로 실행 격리가 성립하지 않습니다.
+`iterate --optimizer gepa --validation-dataset <고정-dataset.json>
+--validation-task <task-id>`를 명시하면 별도 validation 실행 점수를 후보 선택에
+연결하며, 검증된 모델 프로세스 격리를 필수로 요구합니다. 미지정 시 기존
+`development_reuse`를 유지합니다. [입력·근거·격리 계약](docs/GEPA.md#independent-validation)을
+참고하세요. 최종 확인·승인·적용·공개는 별도 절차입니다.
 
 초기 Skill 추가는 `python3 skillops/project_samples.py add-skill --project project_c
 --skill skillops/project_templates/project-c-development/SKILL.md`로 미검증 초안을

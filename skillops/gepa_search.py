@@ -58,13 +58,18 @@ def _retain_failure(function):
 
 
 class SearchAdapter:
-    def __init__(self, runtime, model, context, artifact, cycle, persist_round, check_inputs):
+    def __init__(self, runtime, model, context, artifact, cycle, persist_round, check_inputs,
+                 validation_context=None):
         self.runtime, self.model, self.context = runtime, model, context
         self.artifact, self.cycle = artifact, cycle
         self.persist_round, self.check_inputs = persist_round, check_inputs
         self.deadline = runtime.budget["deadline"]
         self.reference, self.original, self.work, _ = iterations._context_inputs(context)
         self.cases = self.work["checks"]["required_case_ids"]
+        self.validation_context = validation_context
+        self.validation_cases = ([] if validation_context is None else
+                                 validation_context["work_item"]["checks"]["required_case_ids"])
+        self.validation_scores = {}
         self.seed = {"instructions": skill_pipeline.original_body(self.original[1])}
         self.captures = {self.seed["instructions"]: self.original}
         self.records = {}
@@ -91,12 +96,16 @@ class SearchAdapter:
         return (self.failure is not None or len(self.cycle["rounds"]) >= self.cycle["max_rounds"]
                 or iterations._budget_stop(self.runtime.budget) is not None)
 
+    @_retain_failure
     def evaluate(self, batch, candidate, capture_traces=False):
         from gepa.core.adapter import EvaluationBatch
         self.admit()
         exact(candidate, "instructions")
         body = candidate["instructions"]
-        require(body in self.captures and all(case in self.cases for case in batch), "unknown_gepa_candidate")
+        validation = bool(self.validation_context is not None and batch
+                          and all(case in self.validation_cases for case in batch))
+        require(body in self.captures and (validation or all(case in self.cases for case in batch)),
+                "unknown_gepa_candidate")
         require(self.metric_requests + len(batch) <= self.cycle["optimizer"]["max_metric_calls"],
                 "metric_limit")
         self.metric_requests += len(batch)
@@ -146,16 +155,35 @@ class SearchAdapter:
                             "evaluation_unverified")
                 record["scores"] = case_scores(row["checks"]["candidate"], self.work)
             scores = record["scores"]
-        indexes = [self.cases.index(case) for case in batch]
+        cases = self.cases
+        if validation:
+            if body not in self.validation_scores:
+                name = "seed" if record is None else f"r{record['round']['round_number']}"
+                application, observed = iterations._measured(
+                    self.runtime, self.artifact / (name + "-validation-metrics.json"),
+                    lambda progress: skill_pipeline._replay_application(
+                        self.runtime, self.model, self.validation_context, captured,
+                        self.artifact / (name + "-validation"), deadline=self.deadline), "candidate_application")
+                self.check_inputs()
+                evidence = {"application": application, "checks": observed}
+                project_results.atomic_json(
+                    self.artifact / (name + "-validation.json"), evidence, immutable=True)
+                self.cycle["optimizer"]["validation"]["evaluations"].append(evidence)
+                self.validation_scores[body] = case_scores(observed, self.validation_context["work_item"])
+            scores, cases = self.validation_scores[body], self.validation_cases
+        indexes = [cases.index(case) for case in batch]
         outputs = [{"version_id": captured[0]["version_id"], "case_id": case} for case in batch]
         # Only private issuance tokens and visible development feedback reach the proposer.
-        traces = [{"body": body, "case_id": case} for case in batch] if capture_traces else None
+        # GEPA's batch fallback requests traces even for valset scoring; never issue them there.
+        traces = ([{"body": body, "case_id": case} for case in batch]
+                  if capture_traces and not validation else None)
         return EvaluationBatch(outputs=outputs, scores=[scores[index] for index in indexes], trajectories=traces)
 
     @_retain_failure
     def make_reflective_dataset(self, candidate, eval_batch, components_to_update):
         require(components_to_update == ["instructions"] and eval_batch.trajectories
-                and all(row["body"] == candidate["instructions"] for row in eval_batch.trajectories),
+                and all(row["body"] == candidate["instructions"] and row["case_id"] in self.cases
+                        for row in eval_batch.trajectories),
                 "invalid_gepa_feedback")
         body = candidate["instructions"]
         record = self.records.get(body)
@@ -203,7 +231,7 @@ class SearchAdapter:
 
 
 def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
-              budget, confirmation_context, persist_round):
+              budget, confirmation_context, persist_round, validation_context=None, validation_dataset_sha256=None):
     gepa = optimizer()
     require(type(max_rounds) is int and 1 <= max_rounds <= 10, "invalid_round_limit")
     limits = iterations._authorized_limits(budget)
@@ -213,20 +241,42 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
             "gepa_requires_development_cases")
     original = iterations._capture(original)
     frozen = deepcopy((reference, original, work, mode))
+    require((validation_context is None) == (validation_dataset_sha256 is None), "validation_selection_required")
+    validation_frozen = deepcopy(validation_context)
+    if validation_context is not None:
+        require(matches(DIGEST, validation_dataset_sha256), "invalid_validation_dataset")
+        skill_pipeline._check_replay(runtime, validation_context, model)
+        skill_assessments.validate_validation_pair(
+            work, validation_context["work_item"], project=context["source_project"], original=original)
+        require(all(validation_context[key] == context[key] for key in
+                    ("original", "source_project", "plan", "images", "rubric", "execution_mode")),
+                "validation_inputs_changed")
     deadline, last_calls = budget["deadline"], budget["calls"]
+    search_finished = False
     artifact = skill_pipeline._private_artifact(runtime, artifact)
 
     def check_inputs():
         nonlocal last_calls
         require(iterations._context_inputs(context) == frozen, "inputs_changed")
+        if validation_context is not None:
+            require(validation_context == validation_frozen, "validation_inputs_changed")
+            skill_pipeline._require_isolation(runtime)
+            if not search_finished:
+                skill_pipeline._check_replay(runtime, validation_context, model)
         require(runtime.budget is budget and budget["deadline"] == deadline
                 and iterations._authorized_limits(budget) == limits
                 and last_calls <= budget["calls"] <= budget["max_calls"], "inputs_changed")
         last_calls = budget["calls"]
 
-    case_ids = list(work["checks"]["required_case_ids"])
+    training_ids = list(work["checks"]["required_case_ids"])
+    case_ids = (training_ids if validation_context is None else
+                list(validation_context["work_item"]["checks"]["required_case_ids"]))
+    require(len(case_ids) <= 128, "invalid_optimizer_cases")
+    metric_limit = (len(training_ids) * (1 + 3 * max_rounds)
+                    + (len(case_ids) * (1 + max_rounds) if validation_context is not None else 0))
     cycle = {
-        "schema_version": 2, "project_id": reference["project_id"], "run_id": cycle_id,
+        "schema_version": 2 if validation_context is None else 3,
+        "project_id": reference["project_id"], "run_id": cycle_id,
         "execution_mode": mode, "cycle_id": cycle_id, "skill_key": reference["skill_key"],
         "source_path": reference["source_path"], "input_sha256": work["input_sha256"],
         "reference_sha256": reference["reference_sha256"], "original_version_id": original[0]["version_id"],
@@ -234,20 +284,29 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
         "selected_candidate_version_id": None, "confirmation_ref": None, "confirmation_status": "not_run",
         "optimizer": {
             "name": "gepa", "version": GEPA_VERSION, "strategy": "pareto", "seed": 0,
-            "validation_scope": "development_reuse", "case_ids": case_ids,
+            "validation_scope": "development_reuse" if validation_context is None else "independent",
+            "case_ids": case_ids,
             "reference": deepcopy(reference), "work_checks": deepcopy(work["checks"]),
-            "max_metric_calls": len(case_ids) * (1 + 3 * max_rounds), "metric_requests": 0,
+            "max_metric_calls": metric_limit, "metric_requests": 0,
             "pool": [], "scores": [], "frontier": {}, "recommended_version_id": None,
             "seed_evaluation": None,
         },
     }
-    adapter = SearchAdapter(runtime, model, context, artifact, cycle, persist_round, check_inputs)
+    if validation_context is not None:
+        cycle["optimizer"]["validation"] = {
+            "dataset_sha256": validation_dataset_sha256,
+            "work": {key: deepcopy(validation_context["work_item"][key]) for key in
+                     ("schema_version", "project_id", "task_id", "split", "source_commit",
+                      "project_tree_sha256", "input_sha256", "checks")},
+            "evaluations": [],
+        }
+    adapter = SearchAdapter(runtime, model, context, artifact, cycle, persist_round, check_inputs, validation_context)
     result = None
     try:
         result = gepa.optimize(
-            seed_candidate=adapter.seed, trainset=case_ids, valset=case_ids, adapter=adapter,
+            seed_candidate=adapter.seed, trainset=training_ids, valset=case_ids, adapter=adapter,
             candidate_selection_strategy="pareto", frontier_type="instance",
-            reflection_minibatch_size=len(case_ids), skip_perfect_score=False,
+            reflection_minibatch_size=len(training_ids), skip_perfect_score=False,
             acceptance_criterion="improvement_or_equal", use_merge=False,
             max_metric_calls=cycle["optimizer"]["max_metric_calls"], stop_callbacks=adapter.stopped,
             seed=0, raise_on_exception=True, logger=SimpleNamespace(log=logging.getLogger(__name__).info),
@@ -291,6 +350,7 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
     project_results.atomic_json(artifact / "optimizer.json", meta, immutable=True)
     selected = next((capture for capture in adapter.captures.values()
                      if capture[0]["version_id"] == cycle["selected_candidate_version_id"]), None)
+    search_finished = True
     iterations.confirm_selected(
         runtime, model, context, artifact, cycle, selected, budget=budget,
         confirmation_context=confirmation_context, persist_round=persist_round,
@@ -301,17 +361,21 @@ def run_cycle(runtime, model, context, artifact, *, cycle_id, max_rounds=1,
 def validate_optimizer(cycle, evaluated_rounds, original_ref):
     """Validate public search evidence without importing the optional optimizer."""
     meta = cycle["optimizer"]
+    independent = cycle["schema_version"] == 3
     exact(meta, "name version strategy seed validation_scope case_ids reference work_checks "
-          "max_metric_calls metric_requests pool scores frontier recommended_version_id seed_evaluation")
+          "max_metric_calls metric_requests pool scores frontier recommended_version_id seed_evaluation"
+          + (" validation" if independent else ""))
     require(meta["name"] == "gepa" and meta["version"] == GEPA_VERSION
             and meta["strategy"] == "pareto" and type(meta["seed"]) is int and meta["seed"] == 0
-            and meta["validation_scope"] == "development_reuse", "invalid_optimizer")
+            and meta["validation_scope"] == ("independent" if independent else "development_reuse"), "invalid_optimizer")
     cases = meta["case_ids"]
-    require(isinstance(cases, list) and 2 <= len(cases) <= 128 and all(isinstance(c, str) for c in cases)
+    require(isinstance(cases, list) and (1 if independent else 2) <= len(cases) <= 128
+            and all(isinstance(c, str) for c in cases)
             and len(set(cases)) == len(cases), "invalid_optimizer_cases")
     checks, ref = meta["work_checks"], meta["reference"]
     skill_assessments._work_checks(checks)
-    require(checks["required_case_ids"] == cases, "optimizer_work_mismatch")
+    require(2 <= len(checks["required_case_ids"]) <= 128, "optimizer_work_mismatch")
+    require(independent or checks["required_case_ids"] == cases, "optimizer_work_mismatch")
     require(isinstance(ref, dict) and ref.get("reference_sha256") == cycle["reference_sha256"]
             and ref["reference_sha256"] == iterations._digest(
                 {key: value for key, value in ref.items() if key != "reference_sha256"})
@@ -319,8 +383,9 @@ def validate_optimizer(cycle, evaluated_rounds, original_ref):
                 "project_id", "skill_key", "source_path", "input_sha256", "original_version_id")),
             "optimizer_reference_mismatch")
     require(original_ref is None or ref == original_ref, "optimizer_reference_mismatch")
-    require(type(meta["max_metric_calls"]) is int
-            and meta["max_metric_calls"] == len(cases) * (1 + 3 * cycle["max_rounds"])
+    limit = (len(checks["required_case_ids"]) * (1 + 3 * cycle["max_rounds"])
+             + (len(cases) * (1 + cycle["max_rounds"]) if independent else 0))
+    require(type(meta["max_metric_calls"]) is int and meta["max_metric_calls"] == limit
             and type(meta["metric_requests"]) is int
             and 0 <= meta["metric_requests"] <= meta["max_metric_calls"], "invalid_optimizer_budget")
     pool, scores = meta["pool"], meta["scores"]
@@ -332,6 +397,7 @@ def validate_optimizer(cycle, evaluated_rounds, original_ref):
         require(row["work"]["checks"] == checks, "optimizer_work_mismatch")
         require(row["candidate_version_id"] not in by_version, "duplicate_optimizer_candidate")
         by_version[row["candidate_version_id"]] = row
+    validation_scores = (validate_validation(meta, cycle, by_version) if independent else None)
     if not pool:
         require(scores == [] and meta["frontier"] == {} and meta["recommended_version_id"] is None
                 and cycle["selected_candidate_version_id"] is None
@@ -367,6 +433,9 @@ def validate_optimizer(cycle, evaluated_rounds, original_ref):
             item is not None for group in ("quality", "checks", "applications") for item in row[group].values()),
             "optimizer_incomplete_candidate")
         expected.append(case_scores(row["checks"]["candidate"], row["work"]))
+    if independent:
+        require(set(pool) <= set(validation_scores), "optimizer_validation_missing")
+        expected = [validation_scores[identifier] for identifier in pool]
     require(all(isinstance(row, list) and len(row) == len(cases)
                 and all(type(score) is int and score in (0, 1) for score in row) for row in scores)
             and scores == expected, "optimizer_scores_mismatch")
@@ -381,3 +450,52 @@ def validate_optimizer(cycle, evaluated_rounds, original_ref):
                 and row["decision"]["status"] == "improved" else None)
     require(cycle["selected_candidate_version_id"] == selected, "optimizer_selection_mismatch")
     return selected
+
+
+def validate_validation(meta, cycle, by_version):
+    """Recompute selection scores from bound receipts, not optimizer claims."""
+    validation, ref = meta["validation"], meta["reference"]
+    exact(validation, "dataset_sha256 work evaluations")
+    require(matches(DIGEST, validation["dataset_sha256"]), "invalid_validation_dataset")
+    work = validation["work"]
+    exact(work, "schema_version project_id task_id split source_commit project_tree_sha256 input_sha256 checks")
+    require(type(work["schema_version"]) is int and work["schema_version"] == 2
+            and work["split"] == "validation" and matches(project_results.ID, work["task_id"])
+            and matches(DIGEST, work["input_sha256"]) and work["input_sha256"] != cycle["input_sha256"]
+            and all(work[key] == ref[key] for key in ("project_id", "source_commit", "project_tree_sha256")),
+            "optimizer_validation_mismatch")
+    skill_assessments._work_checks(work["checks"])
+    require(work["checks"]["required_case_ids"] == meta["case_ids"]
+            and not set(meta["case_ids"]) & set(meta["work_checks"]["required_case_ids"])
+            and all(work["checks"][key] == meta["work_checks"][key] for key in
+                    ("plan_sha256", "protected_sha256", "required_gate_ids"))
+            and all(work["task_id"] != row["work"]["task_id"] for row in by_version.values()),
+            "optimizer_validation_mismatch")
+    rows, scores = validation["evaluations"], {}
+    require(isinstance(rows, list) and len(rows) <= len(by_version) + 1, "invalid_validation_evidence")
+    for row in rows:
+        exact(row, "application checks")
+        observation, receipt = row["checks"], row["application"]
+        project_checks.validate_observation(observation)
+        require(all(observation[key] == ref[key] for key in
+                    ("plan_sha256", "protected_sha256", "environment_sha256")), "optimizer_validation_mismatch")
+        exact(receipt, "version_id staged_version_id work_sha256 output_sha256 activated changed task_outcome measurement")
+        identifier = receipt["version_id"]
+        require(isinstance(identifier, str) and identifier not in scores
+                and identifier in {cycle["original_version_id"], *by_version}
+                and identifier == receipt["staged_version_id"] and receipt["activated"] is True
+                and receipt["work_sha256"] == work["input_sha256"]
+                and matches(DIGEST, receipt["output_sha256"]) and type(receipt["changed"]) is bool
+                and receipt["task_outcome"] == project_checks.replay_outcome(observation, work["checks"]),
+                "optimizer_validation_mismatch")
+        exact(receipt["measurement"], "cost_nano_aiu elapsed_seconds")
+        require(all(value is None or (type(value) in (int, float) and math.isfinite(value) and value >= 0)
+                    for value in receipt["measurement"].values()), "optimizer_validation_mismatch")
+        # Failed/unknown observations are retained but can never supply a selectable score.
+        try:
+            scores[identifier] = case_scores(observation, work)
+        except RuntimeFailure as error:
+            require(error.code == "evaluation_unverified" and cycle["stop_reason"] != "search_complete",
+                    "optimizer_validation_mismatch")
+            scores[identifier] = None
+    return scores

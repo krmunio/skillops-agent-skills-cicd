@@ -79,11 +79,11 @@ def _cases(project):
 
 
 def _work_item(dataset, task):
-    # Validation is a dataset role, not a new replay split or an exported WorkItem.
-    work = {"schema_version": 1, **{key: dataset[key] for key in
+    work = {"schema_version": 2 if task["split"] == "validation" else 1,
+            **{key: dataset[key] for key in
             ("project_id", "source_commit", "project_tree_sha256")},
             **{key: deepcopy(task[key]) for key in ("task_id", "request", "sources", "checks")},
-            "split": "confirmation" if task["split"] == "confirmation" else "development"}
+            "split": task["split"]}
     work["input_sha256"] = _hash(work)
     return work
 
@@ -198,6 +198,19 @@ def export_development(root, dataset_path, task_id, output):
     work = _work_item(dataset, selected[0])
     _write(root, output, work)
     return work
+
+
+def select_validation(root, dataset_path, task_id, development, confirmation=None):
+    """Bind selection to the same structurally disjoint, pinned dataset as training."""
+    dataset = validate(root, results.read_json(dataset_path))
+    results.require(any(task["split"] == "development" and _work_item(dataset, task) == development
+                        for task in dataset["tasks"]), "dataset_development_mismatch")
+    selected = [task for task in dataset["tasks"] if task["task_id"] == task_id]
+    results.require(len(selected) == 1 and selected[0]["split"] == "validation", "dataset_validation_only")
+    if confirmation is not None:
+        results.require(any(task["split"] == "confirmation" and _work_item(dataset, task) == confirmation
+                            for task in dataset["tasks"]), "dataset_confirmation_mismatch")
+    return _work_item(dataset, selected[0]), dataset["dataset_sha256"]
 
 
 def main(argv=None):

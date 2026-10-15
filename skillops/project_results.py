@@ -55,6 +55,7 @@ CORE = tuple("skillops/" + name for name in (
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
     "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "skill_approvals.py",
     "evaluation_telemetry.py", "requirements-evaluator.txt", "gepa_search.py", "requirements-gepa.txt",
+    "evaluation_datasets.py",
 ))
 
 
@@ -481,12 +482,12 @@ def load_replays(results, rows=None):
 
 def validate_cycle(data, *, report, evaluations):
     from copilot_runtime import MIN_AI_CREDITS
-    gepa = isinstance(data, dict) and type(data.get("schema_version")) is int and data["schema_version"] == 2
+    gepa = isinstance(data, dict) and type(data.get("schema_version")) is int and data["schema_version"] in (2, 3)
     evolution.exact(data, "schema_version project_id run_id report_sha256 execution_mode cycle_id skill_key source_path "
                          "input_sha256 reference_sha256 original_version_id max_rounds budget rounds stop_reason "
                          "selected_candidate_version_id confirmation_ref confirmation_status" + (" optimizer" if gepa else ""))
     validate(report)
-    require(type(data["schema_version"]) is int and data["schema_version"] in (1, 2), "invalid_cycle")
+    require(type(data["schema_version"]) is int and data["schema_version"] in (1, 2, 3), "invalid_cycle")
     require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"] == data["cycle_id"]
             and data["report_sha256"] == sha256(encoded(report)).hexdigest(), "cycle_report_mismatch")
     require(report["purpose"] == "project_assessment", "cycle_report_mismatch")
@@ -628,6 +629,12 @@ def validate_cycle(data, *, report, evaluations):
         require(final["input_sha256"] != development["input_sha256"] and final["task_id"] != development["task_id"]
                 and not set(final["checks"]["required_case_ids"]) & set(development["checks"]["required_case_ids"]),
                 "cycle_confirmation_overlap")
+        if data["schema_version"] == 3:
+            validation = data["optimizer"]["validation"]["work"]
+            require(final["input_sha256"] != validation["input_sha256"]
+                    and final["task_id"] != validation["task_id"]
+                    and not set(final["checks"]["required_case_ids"]) & set(validation["checks"]["required_case_ids"]),
+                    "cycle_confirmation_overlap")
         require(all(confirmation["reference"][key] == original_ref[key] for key in
                     ("rubric_sha256", "quality_context_sha256", "policy_sha256", "plan_sha256",
                      "environment_sha256", "protected_sha256")), "cycle_confirmation_mismatch")

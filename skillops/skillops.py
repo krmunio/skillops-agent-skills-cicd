@@ -590,6 +590,8 @@ def main():
             replay_parser.add_argument("--optimizer", choices=("sequential", "gepa"), default="sequential",
                                        help="Opt-in official GEPA Pareto search; requires requirements-gepa.txt.")
             replay_parser.add_argument("--max-rounds", type=int, choices=range(1, 11), default=1)
+            replay_parser.add_argument("--validation-dataset", help="Private pinned dataset containing development and validation tasks.")
+            replay_parser.add_argument("--validation-task", help="Explicit validation task ID; requires GEPA and validation dataset.")
             replay_parser.add_argument("--confirmation-work-item", help="Private precommitted confirmation WorkItem JSON.")
             replay_parser.add_argument("--confirmation-disclosure", help="Operator-reviewed private disclosure JSON; requires confirmation WorkItem.")
     args = parser.parse_args()
@@ -636,6 +638,8 @@ def main():
             if args.command == "iterate":
                 if args.optimizer != "sequential":
                     options["optimizer"] = args.optimizer
+                if args.validation_dataset is not None or args.validation_task is not None:
+                    options.update(validation_dataset=args.validation_dataset, validation_task=args.validation_task)
                 report = run_iterations(root, **options, max_rounds=args.max_rounds,
                                         confirmation_work_item=args.confirmation_work_item,
                                         confirmation_disclosure=args.confirmation_disclosure)
