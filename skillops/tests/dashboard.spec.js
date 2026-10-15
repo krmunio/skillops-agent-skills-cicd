@@ -321,6 +321,7 @@ function historyRun(number, purpose, execution, guide = 'not_assessed') {
 async function historyPage(page, reports, withSkill = false) {
   const history = reports.map(report => {
     const summary = { ...report, guide_status: report.guide.status, execution_status: report.execution.status };
+    if (report.guide.reason_code === 'quality_only') summary.guide_reason_code = 'quality_only';
     if (withSkill) Object.assign(summary, { skill_id: 'develop', skill_snapshots: `${report.run_id}/skill-snapshots.json`,
       base_skill_sha256: hash('Retained instructions\n'), candidate_skill_sha256: null });
     return summary;
@@ -879,6 +880,41 @@ test('sample instructions and diff render HTML-looking content as inert text', a
   await expect(page.locator('#skill-diff')).toContainText(literal);
   await expect(page.locator('#skill-changes img')).toHaveCount(0);
   expect(await page.evaluate(() => window.sampleExecuted)).toBeUndefined();
+});
+
+test('standalone original quality shows measured scores, exclusions and no task or approval claims', async ({ page }) => {
+  const report = historyRun(1, 'project_assessment', 'not_assessed', 'completed');
+  report.origin = 'local';
+  report.guide.reason_code = 'quality_only';
+  report.execution.reason_code = 'quality_only';
+  report.guide.metrics = {
+    skills: 1, cli_invocations: 1, pass: 0, review: 1, blocked: 0,
+    static_errors: 0, static_warnings: 0, mean_judge_score: 75, judge_score_denominator: 5,
+    quality_trigger_description: 3, quality_workflow_clarity: 2, quality_generalization: 3,
+    quality_instruction_quality: 3, quality_progressive_disclosure: null,
+    quality_resource_organization: null, quality_principle_of_lack_of_surprise: 4,
+    base_cost_nano_aiu: 7625500000, total_elapsed_seconds: 17.374,
+  };
+  await historyPage(page, [report]);
+  await expect(page.locator('#guide .big-number')).toHaveText('75/100');
+  await expect(page.locator('#summary-history')).toContainText('완료 1');
+  await expect(page.locator('#history .run')).toContainText('원본 Skill 품질 평가');
+  await expect(page.locator('#history .badge')).toHaveText('실행 완료');
+  await expect(page.locator('#guide .badge')).toHaveText('검토 필요');
+  await expect(page.locator('#guide')).toContainText('정적 검사 오류 0 · 경고 0');
+  await expect(page.locator('#guide tbody tr').filter({ hasText: '작업 흐름 명확성' })).toContainText('2');
+  await expect(page.locator('#guide tbody tr').filter({ hasText: '적용 제외' })).toHaveCount(2);
+  await expect(page.locator('#execution .decision-title')).toHaveText('과제 실행 미실행 · 품질 평가 전용');
+  await expect(page.locator('#cost-card .big-number')).toHaveText('7.6255');
+  await page.locator('#language-select').selectOption('en');
+  await expect(page.locator('#quality-summary')).toHaveText('Original Skill quality assessment');
+  await expect(page.locator('#guide')).toContainText('Static errors 0 · warnings 0');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  report.guide.metrics.mean_judge_score = 100;
+  await page.reload();
+  await expect(page.locator('#error')).toBeVisible();
+  await expect(page.locator('#detail')).toBeHidden();
 });
 
 test('late real-report responses cannot overwrite an active sample view', async ({ page }) => {

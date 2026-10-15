@@ -305,6 +305,20 @@ WorkItem 해시, 원본 Skill 활성화, 검사 결과, 사용량, 고정된 소
 보이게 하려고 식별 정보를 재생성하거나 덮어쓰지 않습니다. 이 로컬 변환은 공개 배포를
 허가하지 않습니다.
 
+원본 전용 품질 평가도 추가 모델 호출 없이 별도 기록으로 연결할 수 있습니다.
+
+```bash
+python3 -B skillops/quality_results.py \
+  --summary .skillops-private/quality/<quality-run>/summary.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+완료된 judge 호출 1회와 같은 폴더의 `result.json`, `judge-1.json`을 받습니다.
+파일 해시·루브릭·커밋된 원본 Skill·정확한 프롬프트·재계산 점수를 확인하고 숫자형
+품질·사용량 지표만 내보냅니다. 프롬프트와 모델의 설명 원문은 비공개로 유지합니다.
+과거 기준 평가를 수정하거나 후보·과제 수행·적용 완료를 만들어내지 않습니다.
+기존 baseline 및 이후 실제 반복 평가 결과와 함께 로컬 빌드에 포함하세요.
+
 ### 오프라인 발표 백업
 
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.

@@ -355,6 +355,21 @@ The original dataset and receipt remain historical after integration changes;
 do not regenerate their identity or overwrite them just to make the screen current.
 This local projection does not authorize public deployment.
 
+An original-only quality run can also be projected without another model call:
+
+```bash
+python3 -B skillops/quality_results.py \
+  --summary .skillops-private/quality/<quality-run>/summary.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+This bounded importer accepts one completed judge call with its sibling
+`result.json` and `judge-1.json`. It verifies receipt hashes, rubric, original
+committed Skill bundle, exact judge prompt and recomputed scores. Only numeric
+quality/usage metrics are exported, not prompts or model rationales. The separate
+record does not revise the old baseline, invent a candidate, or mark task execution
+or adoption completed. Stage it with the baseline and later real iteration graphs.
+
 ### Offline presentation backup
 
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration
