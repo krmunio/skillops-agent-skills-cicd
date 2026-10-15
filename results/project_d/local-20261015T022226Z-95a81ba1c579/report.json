@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-10-15T03:29:51.799026+00:00",
+  "evaluator_sha256": "d4c24ab29624813ffe68f4be6b88ae41bca1bac6e0852e1d23d4754a1eab725f",
+  "execution": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "assessment_unverified",
+    "status": "blocked"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "assessment_unverified",
+    "status": "blocked"
+  },
+  "origin": "local",
+  "project_id": "project_d",
+  "project_tree_sha256": "adf738ef8ae508040b2cb45d0ad59550862c7a2306b5cc1b32a69c4814a67d04",
+  "purpose": "project_assessment",
+  "run_id": "local-20261015T022226Z-95a81ba1c579",
+  "schema_version": 1,
+  "source_commit": "589c88a76acf3ef7c378b876145026994b19a1fb",
+  "source_report_sha256": null,
+  "source_schema_version": null
+}

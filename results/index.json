@@ -1,7 +1,7 @@
 {
   "projects": [
     {
-      "current_run": "35692844926-1",
+      "current_run": null,
       "detected_skills": [
         {
           "display_name": "schedule-development",
@@ -16,7 +16,7 @@
       "state": "active"
     },
     {
-      "current_run": "35692844926-1",
+      "current_run": null,
       "detected_skills": [
         {
           "display_name": "brainstorming",
@@ -96,7 +96,31 @@
       "state": "active"
     },
     {
-      "current_run": "35692844926-1",
+      "current_run": null,
+      "detected_skills": [],
+      "history_count": 0,
+      "id": "project_c",
+      "index": "project_c/index.json",
+      "skill_discovery_error": null,
+      "state": "active"
+    },
+    {
+      "current_run": "local-20261015T022226Z-95a81ba1c579",
+      "detected_skills": [
+        {
+          "display_name": "project-d-development",
+          "skill_key": "path:3ce29dd001dba1f55271c1fb",
+          "source_path": ".github/skills/project-d-development"
+        }
+      ],
+      "history_count": 6,
+      "id": "project_d",
+      "index": "project_d/index.json",
+      "skill_discovery_error": null,
+      "state": "active"
+    },
+    {
+      "current_run": null,
       "detected_skills": [
         {
           "display_name": "develop",

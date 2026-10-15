@@ -1,0 +1,46 @@
+{
+  "created_at": "2026-10-15T01:44:30.090569+00:00",
+  "evaluator_sha256": "3dad4f9f2ba5626062187d9ceb9c8aae057cfa266e2eded7a8610bf40584b702",
+  "execution": {
+    "decision": null,
+    "metrics": null,
+    "reason_code": "quality_only",
+    "status": "not_assessed"
+  },
+  "guide": {
+    "decision": null,
+    "metrics": {
+      "base_cost_nano_aiu": 7625500000,
+      "blocked": 0,
+      "cli_invocations": 1,
+      "input_tokens": 3833,
+      "judge_score_denominator": 5,
+      "mean_judge_score": 75.0,
+      "output_tokens": 567,
+      "pass": 0,
+      "quality_generalization": 3,
+      "quality_instruction_quality": 3,
+      "quality_principle_of_lack_of_surprise": 4,
+      "quality_progressive_disclosure": null,
+      "quality_resource_organization": null,
+      "quality_trigger_description": 3,
+      "quality_workflow_clarity": 2,
+      "review": 1,
+      "skills": 1,
+      "static_errors": 0,
+      "static_warnings": 0,
+      "total_elapsed_seconds": 17.374380612018285
+    },
+    "reason_code": "quality_only",
+    "status": "completed"
+  },
+  "origin": "local",
+  "project_id": "project_d",
+  "project_tree_sha256": "adf738ef8ae508040b2cb45d0ad59550862c7a2306b5cc1b32a69c4814a67d04",
+  "purpose": "project_assessment",
+  "run_id": "local-20261015T014430Z-09891fe82cf8",
+  "schema_version": 1,
+  "source_commit": "59432c3989b8948825e2c8bc94b1e1e07074ac25",
+  "source_report_sha256": "09891fe82cf80a35df2388993bebeffd25c981c17435a854f47fcec8d5cb0396",
+  "source_schema_version": 1
+}

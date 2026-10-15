@@ -1,0 +1,86 @@
+{
+  "bindings": [
+    {
+      "base_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+      "candidate_version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83",
+      "legacy_skill_id": null,
+      "skill_key": "path:3ce29dd001dba1f55271c1fb"
+    }
+  ],
+  "file_contents": [
+    {
+      "data": "LS0tCm5hbWU6IHByb2plY3QtZC1kZXZlbG9wbWVudApkZXNjcmlwdGlvbjogVXNlIHdoZW4gaW1wbGVtZW50aW5nIGZhaWx1cmUgaGFuZGxpbmcsIGJhdGNoIGVucXVldWVpbmcgb3IgcmV0cnkgYmVoYXZpb3IgaW4gdGhlIHByb2plY3RfZCBQeXRob24gdGFzayBxdWV1ZS4KLS0tCgojIFByb2plY3QgRCBkZXZlbG9wbWVudAoKVGhpcyBpcyBhbiB1bnZhbGlkYXRlZCBkZW1vbnN0cmF0aW9uIGRyYWZ0LCBub3QgZXZpZGVuY2Ugb2YgaW1wcm92ZWQgYmVoYXZpb3IuCgpSZWFkIHRoZSByZXF1ZXN0IGFuZCB0aGUgcGVybWl0dGVkIHNvdXJjZSBmaWxlcy4gS2VlcCBjaGFuZ2VzIGxpbWl0ZWQgdG8gdGhlCnJlcXVlc3RlZCBiZWhhdmlvciBhbmQgcHJlc2VydmUgZXhpc3RpbmcgcHVibGljIGZ1bmN0aW9ucy4gRG8gbm90IG1vZGlmeQpwcm90ZWN0ZWQgdGVzdHMgb3IgZXZhbHVhdG9yIGNvbmZpZ3VyYXRpb24uCgpDaGVjayB0aGUgY2hhbmdlZCBiZWhhdmlvciBhbmQgcmVwb3J0IHdoYXQgeW91IHZlcmlmaWVkLiBJZiBleGVjdXRpb24gaXMKdW5hdmFpbGFibGUsIHNheSBzbyByYXRoZXIgdGhhbiBjbGFpbWluZyB0aGUgdGVzdHMgcGFzc2VkLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7"
+    },
+    {
+      "data": "LS0tCm5hbWU6IHByb2plY3QtZC1kZXZlbG9wbWVudApkZXNjcmlwdGlvbjogVXNlIHdoZW4gaW1wbGVtZW50aW5nIGZhaWx1cmUgaGFuZGxpbmcsIGJhdGNoIGVucXVldWVpbmcgb3IgcmV0cnkgYmVoYXZpb3IgaW4gdGhlIHByb2plY3RfZCBQeXRob24gdGFzayBxdWV1ZS4KLS0tCgoxLiBSZWFkIHJlcXVlc3QgYW5kIHBlcm1pdHRlZCBzb3VyY2VzOyB0cmFjZSBwYXRoczsgbGltaXQgc2NvcGU7IHByZXNlcnZlIHB1YmxpYyBmdW5jdGlvbnMuIE5ldmVyIGVkaXQgcHJvdGVjdGVkIHRlc3RzIG9yIGV2YWx1YXRvciBjb25maWcuCjIuIEdhdGUgc2lkZSBlZmZlY3RzIG9uIGNvbW1pdCBzdWNjZXNzLiBJc29sYXRlIGV4cGVjdGVkIGRlcGVuZGVuY3ksIHJlbGVhc2UgYW5kIG5vdGlmaWNhdGlvbiBmYXVsdHM7IHN0aWxsIGF0dGVtcHQgcmVsZWFzZTsgcHJlc2VydmUgZXJyb3Igb3JkZXI7IHByb3BhZ2F0ZSB1bmV4cGVjdGVkIGVycm9ycy4KMy4gVmVyaWZ5IHJldHJ5IGV4aGF1c3Rpb24gYW5kIGZhdWx0IGNvbWJpbmF0aW9uczsgcmVwb3J0IGNoZWNrcyBob25lc3RseSwgbm90aW5nIHdoZW4gZXhlY3V0aW9uIGlzIHVuYXZhaWxhYmxlLgo=",
+      "encoding": "base64",
+      "path": "SKILL.md",
+      "version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83"
+    }
+  ],
+  "project_id": "project_d",
+  "records": {
+    "adoptions": [],
+    "comparisons": [],
+    "generations": [],
+    "identities": [
+      {
+        "display_name": "project-d-development",
+        "skill_key": "path:3ce29dd001dba1f55271c1fb"
+      }
+    ],
+    "skill_versions": [
+      {
+        "skill_key": "path:3ce29dd001dba1f55271c1fb",
+        "version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7"
+      },
+      {
+        "skill_key": "path:3ce29dd001dba1f55271c1fb",
+        "version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83"
+      }
+    ],
+    "sources": [
+      {
+        "evidence_ref": null,
+        "kind": "workspace",
+        "observed_at": "2026-10-15T03:29:18.604152+00:00",
+        "path": ".github/skills/project-d-development",
+        "project_id": "project_d",
+        "scope": "project",
+        "skill_key": "path:3ce29dd001dba1f55271c1fb"
+      }
+    ],
+    "versions": [
+      {
+        "capture_scope": "complete_bundle",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 593,
+            "path": "SKILL.md",
+            "sha256": "62719aad704fe9e9f1894049335cddc7100fc2eaaae2042fa2cea81d4807900a"
+          }
+        ],
+        "version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7"
+      },
+      {
+        "capture_scope": "complete_bundle",
+        "entrypoint": "SKILL.md",
+        "files": [
+          {
+            "bytes": 590,
+            "path": "SKILL.md",
+            "sha256": "5d802942ac170afc02c51df0a13ba864bf0411c9cfa5b2ce014597a15e9f91d1"
+          }
+        ],
+        "version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83"
+      }
+    ]
+  },
+  "report_sha256": "7ad40d803d4a13cdfbbdc3f2704eedfd5ea0d6609b33201b7c33ba92fae235a9",
+  "run_id": "local-20261015T032918Z-dea6d4845c61",
+  "schema_version": 1
+}

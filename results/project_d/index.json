@@ -1,0 +1,107 @@
+{
+  "history": [
+    {
+      "created_at": "2026-10-15T03:29:51.799026+00:00",
+      "cycle": "local-20261015T022226Z-95a81ba1c579/cycle.json",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "report": "local-20261015T022226Z-95a81ba1c579/report.json",
+      "run_id": "local-20261015T022226Z-95a81ba1c579"
+    },
+    {
+      "created_at": "2026-10-15T03:29:18.604152+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+          "candidate_version_id": "sha256:4cd0ff7f7d03797fc55aeb7334e5ecaf054cc8280b02722e7836c85a593e8e83",
+          "display_name": "project-d-development",
+          "skill_key": "path:3ce29dd001dba1f55271c1fb"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20261015T032918Z-dea6d4845c61/replay-evaluation.json",
+      "report": "local-20261015T032918Z-dea6d4845c61/report.json",
+      "run_id": "local-20261015T032918Z-dea6d4845c61",
+      "skill_evolution": "local-20261015T032918Z-dea6d4845c61/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-10-15T03:26:19.389472+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+          "candidate_version_id": "sha256:446e3f76e4626222675b85ae7323f14cb1313853d1441822e9c31a2742e63283",
+          "display_name": "project-d-development",
+          "skill_key": "path:3ce29dd001dba1f55271c1fb"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20261015T032619Z-898c448ec957/replay-evaluation.json",
+      "report": "local-20261015T032619Z-898c448ec957/report.json",
+      "run_id": "local-20261015T032619Z-898c448ec957",
+      "skill_evolution": "local-20261015T032619Z-898c448ec957/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-10-15T03:23:19.778904+00:00",
+      "evolution_skills": [
+        {
+          "base_version_id": "sha256:518f8978e9535a0afcfe4d8292ef90159f7788aa9b2fe510d7dc88e33dd5e4b7",
+          "candidate_version_id": "sha256:93361405a62604cde1f070dcafe497a25cab0171fbd9c6c1c9e4119256679a9f",
+          "display_name": "project-d-development",
+          "skill_key": "path:3ce29dd001dba1f55271c1fb"
+        }
+      ],
+      "execution_status": "blocked",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "replay_evaluation": "local-20261015T032319Z-491737bac1e5/replay-evaluation.json",
+      "report": "local-20261015T032319Z-491737bac1e5/report.json",
+      "run_id": "local-20261015T032319Z-491737bac1e5",
+      "skill_evolution": "local-20261015T032319Z-491737bac1e5/skill-evolution.json"
+    },
+    {
+      "created_at": "2026-10-15T01:44:30.090569+00:00",
+      "execution_status": "not_assessed",
+      "guide_reason_code": "quality_only",
+      "guide_status": "completed",
+      "origin": "local",
+      "purpose": "project_assessment",
+      "report": "local-20261015T014430Z-09891fe82cf8/report.json",
+      "run_id": "local-20261015T014430Z-09891fe82cf8"
+    },
+    {
+      "created_at": "2026-10-15T00:28:38.897920+00:00",
+      "execution_reason_code": "baseline_saturated",
+      "execution_status": "completed",
+      "guide_status": "not_assessed",
+      "origin": "local",
+      "purpose": "baseline",
+      "report": "local-20261015T002838Z-718b3ce87296/report.json",
+      "run_id": "local-20261015T002838Z-718b3ce87296"
+    }
+  ],
+  "project": {
+    "current_run": "local-20261015T022226Z-95a81ba1c579",
+    "detected_skills": [
+      {
+        "display_name": "project-d-development",
+        "skill_key": "path:3ce29dd001dba1f55271c1fb",
+        "source_path": ".github/skills/project-d-development"
+      }
+    ],
+    "history_count": 6,
+    "id": "project_d",
+    "index": "project_d/index.json",
+    "skill_discovery_error": null,
+    "state": "active"
+  },
+  "schema_version": 1
+}
