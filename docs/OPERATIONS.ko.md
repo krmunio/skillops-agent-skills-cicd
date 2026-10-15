@@ -275,6 +275,50 @@ Active 버전/영수증 해시 쌍을 저장합니다. 검증된 사용과 작�
 [게시 절차와 정확한 offline 후보](REVIEWED-PUBLICATION.md)에 명령·권한·제한·세션5
 인계를 정리했습니다. 기능 브랜치 공개는 결과 브랜치 저장·운영 배포·새 모델 호출의 허가가 아닙니다.
 
+### 원본 Skill 기준 평가를 로컬 대시보드에 표시
+
+원본만 실행한 기준 평가는 후보 비교가 아닙니다. 저장된 development 필수 검사를
+모두 통과한 기록은 모델 호출 없이 다음과 같이 내보냅니다.
+
+```bash
+python3 -B skillops/baseline_results.py \
+  --summary .skillops-private/run-attempts/project-d-baseline.json \
+  --work-item .skillops-private/work-items/project_d-development.json \
+  --receipt .skillops-private/project-d-baseline/application/developer.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+WorkItem 해시, 원본 Skill 활성화, 검사 결과, 사용량, 고정된 소스 트리를 대조합니다.
+과거 실행에 현재 평가기 해시를 붙이지 않고 원래 커밋에서 fingerprint를 재구성합니다.
+이는 커밋된 코드의 식별 정보이며 새로운 실행 환경 증명이 아닙니다.
+보고서 시각은 저장된 summary 파일의 수정 시각입니다. 기존 불변 결과 저장소와
+공식 정적 빌더를 사용합니다.
+
+숫자 요약과 식별 해시만 허용 목록으로 내보내며 요청문·프롬프트·생성 코드·로그·
+비공개 경로·모델 응답은 제외합니다. 화면은 과제 수와 필수 검사 수, CLI 사용 단위와
+실제 청구액, 원본 실행 완료와 지침 품질 미평가를 구분합니다. GEPA 생략은 실행 오류가
+아니라 실험 중단 규칙입니다. 독립 validation·최종 확인·승인·적용을 추정하지 않습니다.
+
+정제된 결과만 빌드하고 생성된 `site/`만 `127.0.0.1`에서 제공합니다.
+저장소 전체나 `.skillops-private/` 자체를 웹으로 제공하지 마세요.
+통합 이후에도 원래 데이터셋과 실행 기록은 과거 근거로 유지하며 화면을 최신으로
+보이게 하려고 식별 정보를 재생성하거나 덮어쓰지 않습니다. 이 로컬 변환은 공개 배포를
+허가하지 않습니다.
+
+원본 전용 품질 평가도 추가 모델 호출 없이 별도 기록으로 연결할 수 있습니다.
+
+```bash
+python3 -B skillops/quality_results.py \
+  --summary .skillops-private/quality/<quality-run>/summary.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+완료된 judge 호출 1회와 같은 폴더의 `result.json`, `judge-1.json`을 받습니다.
+파일 해시·루브릭·커밋된 원본 Skill·정확한 프롬프트·재계산 점수를 확인하고 숫자형
+품질·사용량 지표만 내보냅니다. 프롬프트와 모델의 설명 원문은 비공개로 유지합니다.
+과거 기준 평가를 수정하거나 후보·과제 수행·적용 완료를 만들어내지 않습니다.
+기존 baseline 및 이후 실제 반복 평가 결과와 함께 로컬 빌드에 포함하세요.
+
 ### 오프라인 발표 백업
 
 **유료 호출 없는 터미널 데모·백업**은 커밋된 변경 없는 통합 checkout에서 새 경로로 생성합니다.
@@ -416,6 +460,12 @@ python3 skillops/skillops.py probe --model gpt-6-astra
 이 명령은 실제 모델을 호출하므로 Copilot 사용량이 발생할 수 있습니다.
 도구를 제공하지 않고, 발견된 스킬·사용자 지침·hooks·memory를 비활성화합니다.
 예상 밖의 플러그인, 사용자 MCP 서버와 대체 provider 설정은 차단합니다.
+CLI가 보고한 비활성 내장 플러그인은 inventory 기록에 보존합니다.
+활성 플러그인·외부 플러그인·알 수 없는 inventory 형식은 계속 차단하며,
+실제 역할별 도구 목록도 기존 허용 목록과 일치해야 합니다.
+전용 설정에서 기본 GitHub MCP 서버를 명시적으로 비활성화하고 사전점검으로
+비활성 내장 서버임을 확인합니다. 이름만 기록하며 endpoint나 header는 보존하지
+않습니다. 활성 서버와 사용자 정의 서버는 계속 차단합니다.
 인증 실패는 평가 성공이 아니라 진행 차단으로 기록합니다.
 
 probe는 가짜 파일에 접근해 보도록 요청한 뒤, 실제 도구 manifest가 비어 있고 도구 호출이 없으며

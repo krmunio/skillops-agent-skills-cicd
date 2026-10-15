@@ -1,0 +1,45 @@
+dist/urllib3-0.0.0+reproduction-py3-none-any.whl
+ENVIRONMENT {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/tmp/urllib3/src/urllib3/__init__.py", "version_build": "offline hatchling, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+reproduction", "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]]}
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.3.5, pluggy-1.5.0 -- /usr/local/bin/python
+rootdir: /dev
+configfile: null
+collecting ... collected 4 items
+
+../dev::test_numeric_cap_and_clone FAILED                                [ 25%]
+../dev::test_http_date_cap FAILED                                        [ 50%]
+../dev::test_sleep_receives_bounded_duration FAILED                      [ 75%]
+../dev::test_existing_header_semantics PASSED                            [100%]
+
+=================================== FAILURES ===================================
+__________________________ test_numeric_cap_and_clone __________________________
+/checks/check.py:15: in test_numeric_cap_and_clone
+    assert retry.parse_retry_after("9999999999") == 21600
+E   AssertionError: assert 9999999999 == 21600
+E    +  where 9999999999 = parse_retry_after('9999999999')
+E    +    where parse_retry_after = Retry(total=10, connect=None, read=None, redirect=None, status=None).parse_retry_after
+______________________________ test_http_date_cap ______________________________
+/checks/check.py:27: in test_http_date_cap
+    assert Retry().parse_retry_after(formatdate(now + 999999, usegmt=True)) == 21600
+E   AssertionError: assert 999999 == 21600
+E    +  where 999999 = parse_retry_after('Sun, 26 Nov 2023 11:59:59 GMT')
+E    +    where parse_retry_after = Retry(total=10, connect=None, read=None, redirect=None, status=None).parse_retry_after
+E    +      where Retry(total=10, connect=None, read=None, redirect=None, status=None) = Retry()
+E    +    and   'Sun, 26 Nov 2023 11:59:59 GMT' = formatdate((1700000000 + 999999), usegmt=True)
+_____________________ test_sleep_receives_bounded_duration _____________________
+/checks/check.py:36: in test_sleep_receives_bounded_duration
+    sleep.assert_called_once_with(21600)
+/usr/local/lib/python3.12/unittest/mock.py:961: in assert_called_once_with
+    return self.assert_called_with(*args, **kwargs)
+/usr/local/lib/python3.12/unittest/mock.py:949: in assert_called_with
+    raise AssertionError(_error_message()) from cause
+E   AssertionError: expected call not found.
+E   Expected: sleep(21600)
+E     Actual: sleep(9999999999)
+--------------------- generated xml file: /tmp/results.xml ---------------------
+=========================== short test summary info ============================
+FAILED ../dev::test_numeric_cap_and_clone - AssertionError: assert 9999999999...
+FAILED ../dev::test_http_date_cap - AssertionError: assert 999999 == 21600
+FAILED ../dev::test_sleep_receives_bounded_duration - AssertionError: expecte...
+========================= 3 failed, 1 passed in 0.13s ==========================
+RESULT_JSON {"exit_code": 1, "environment": {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/tmp/urllib3/src/urllib3/__init__.py", "version_build": "offline hatchling, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+reproduction", "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]]}, "tests": [{"name": "test_numeric_cap_and_clone", "class": "", "outcome": "failure", "detail": "/checks/check.py:15: in test_numeric_cap_and_clone\n    assert retry.parse_retry_after(\"9999999999\") == 21600\nE   AssertionError: assert 9999999999 == 21600\nE    +  where 9999999999 = parse_retry_after('9999999999')\nE    +    where parse_retry_after = Retry(total=10, connect=None, read=None, redirect=None, status=None).parse_retry_after"}, {"name": "test_http_date_cap", "class": "", "outcome": "failure", "detail": "/checks/check.py:27: in test_http_date_cap\n    assert Retry().parse_retry_after(formatdate(now + 999999, usegmt=True)) == 21600\nE   AssertionError: assert 999999 == 21600\nE    +  where 999999 = parse_retry_after('Sun, 26 Nov 2023 11:59:59 GMT')\nE    +    where parse_retry_after = Retry(total=10, connect=None, read=None, redirect=None, status=None).parse_retry_after\nE    +      where Retry(total=10, connect=None, read=None, redirect=None, status=None) = Retry()\nE    +    and   'Sun, 26 Nov 2023 11:59:59 GMT' = formatdate((1700000000 + 999999), usegmt=True)"}, {"name": "test_sleep_receives_bounded_duration", "class": "", "outcome": "failure", "detail": "/checks/check.py:36: in test_sleep_receives_bounded_duration\n    sleep.assert_called_once_with(21600)\n/usr/local/lib/python3.12/unittest/mock.py:961: in assert_called_once_with\n    return self.assert_called_with(*args, **kwargs)\n/usr/local/lib/python3.12/unittest/mock.py:949: in assert_called_with\n    raise AssertionError(_error_message()) from cause\nE   AssertionError: expected call not found.\nE   Expected: sleep(21600)\nE     Actual: sleep(9999999999)"}, {"name": "test_existing_header_semantics", "class": "", "outcome": "passed", "detail": ""}]}

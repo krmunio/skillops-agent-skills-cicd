@@ -35,18 +35,27 @@ COUNTS = {
     "correctness_successes", "judge_score_denominator", "skills", "pass", "review",
     "base_correctness_successes", "candidate_correctness_successes", "cli_invocations",
     "controls", "base_requested", "candidate_requested",
+    "required_cases", "passed_cases", "input_tokens", "output_tokens",
+    "static_errors", "static_warnings",
 }
+QUALITY_DIMENSIONS = (
+    "trigger_description", "workflow_clarity", "generalization", "instruction_quality",
+    "progressive_disclosure", "resource_organization", "principle_of_lack_of_surprise",
+)
 METRICS = COUNTS | {
     "mean_judge_score", "base_judge_score", "candidate_judge_score",
     "base_cost_nano_aiu", "candidate_cost_nano_aiu",
     "base_elapsed_seconds", "candidate_elapsed_seconds",
     "cost_improvement_percent", "time_improvement_percent",
-}
+    "total_elapsed_seconds",
+} | {"quality_" + name for name in QUALITY_DIMENSIONS}
 REASONS = {
     "no_skills", "no_adapter", "live_disabled", "missing_auth", "missing_limits",
     "guide_integration_pending", "historical_import", "evaluation_completed",
     "evaluation_failed", "unsupported_adapter", "unsafe_project", "runtime_error",
     "call_limit", "time_limit", "assessment_unverified", "adoption_observation",
+    "baseline_screening_only", "baseline_saturated",
+    "quality_only",
 }
 STATES = {"completed", "failed", "blocked", "not_assessed", "configuration_required"}
 DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_passed", "calibration_failed"}
@@ -55,6 +64,7 @@ CORE = tuple("skillops/" + name for name in (
     "project_results.py", "project_evaluation.py", "project_profiles.json", "skill_guide.py", "evolution_records.py",
     "skill_assessments.py", "project_checks.py", "skill_pipeline.py", "skill_iterations.py", "skill_approvals.py",
     "evaluation_telemetry.py", "requirements-evaluator.txt", "gepa_search.py", "requirements-gepa.txt",
+    "evaluation_datasets.py",
 ))
 
 
@@ -174,6 +184,41 @@ def validate(row):
         if requested is not None:
             for key in ("attempted", "evaluation_completed", "correctness_successes", "judge_score_denominator"):
                 require(metrics.get(key) is None or metrics[key] <= requested)
+        if metrics.get("passed_cases") is not None:
+            require(metrics.get("required_cases") is not None
+                    and metrics["passed_cases"] <= metrics["required_cases"])
+    if row["execution"]["reason_code"] == "baseline_saturated":
+        metrics = row["execution"]["metrics"] or {}
+        require(row["origin"] == "local" and row["purpose"] == "baseline"
+                and row["guide"] == axis("not_assessed", "baseline_screening_only")
+                and row["execution"]["status"] == "completed"
+                and row["execution"]["decision"] is None
+                and type(metrics.get("required_cases")) is int
+                and metrics["required_cases"] > 0
+                and metrics.get("passed_cases") == metrics["required_cases"]
+                and all(metrics.get(key) == 1 for key in
+                        ("requested", "attempted", "evaluation_completed",
+                         "correctness_successes", "cli_invocations"))
+                and not any(key.startswith("candidate_") or key.endswith("improvement_percent")
+                            for key in metrics))
+    if row["guide"]["reason_code"] == "quality_only" or row["execution"]["reason_code"] == "quality_only":
+        metrics = row["guide"]["metrics"] or {}
+        keys = {"quality_" + name for name in QUALITY_DIMENSIONS}
+        require(row["origin"] == "local" and row["purpose"] == "project_assessment"
+                and row["guide"]["status"] == "completed" and row["guide"]["decision"] is None
+                and row["guide"]["reason_code"] == "quality_only"
+                and row["execution"] == axis("not_assessed", "quality_only")
+                and keys <= set(metrics)
+                and metrics.get("skills") == 1 and metrics.get("cli_invocations") == 1
+                and all(type(metrics.get(key)) is int for key in
+                        ("pass", "review", "blocked", "static_errors", "static_warnings"))
+                and sum(metrics[key] for key in ("pass", "review", "blocked")) == 1
+                and not any(key.startswith("candidate_") or key.endswith("improvement_percent")
+                            for key in metrics))
+        scores = [metrics[key] for key in keys if metrics[key] is not None]
+        require(scores and all(type(value) is int and 0 <= value <= 4 for value in scores)
+                and metrics.get("judge_score_denominator") == len(scores)
+                and metrics.get("mean_judge_score") == round(sum(scores) / (4 * len(scores)) * 100, 2))
     if row["origin"] == "sample":
         require(all(row[part]["decision"] is None for part in ("guide", "execution")))
         require(all((row[part]["metrics"] or {}).get("cli_invocations", 0) == 0 for part in ("guide", "execution")))
@@ -481,12 +526,12 @@ def load_replays(results, rows=None):
 
 def validate_cycle(data, *, report, evaluations):
     from copilot_runtime import MIN_AI_CREDITS
-    gepa = isinstance(data, dict) and type(data.get("schema_version")) is int and data["schema_version"] == 2
+    gepa = isinstance(data, dict) and type(data.get("schema_version")) is int and data["schema_version"] in (2, 3)
     evolution.exact(data, "schema_version project_id run_id report_sha256 execution_mode cycle_id skill_key source_path "
                          "input_sha256 reference_sha256 original_version_id max_rounds budget rounds stop_reason "
                          "selected_candidate_version_id confirmation_ref confirmation_status" + (" optimizer" if gepa else ""))
     validate(report)
-    require(type(data["schema_version"]) is int and data["schema_version"] in (1, 2), "invalid_cycle")
+    require(type(data["schema_version"]) is int and data["schema_version"] in (1, 2, 3), "invalid_cycle")
     require(data["project_id"] == report["project_id"] and data["run_id"] == report["run_id"] == data["cycle_id"]
             and data["report_sha256"] == sha256(encoded(report)).hexdigest(), "cycle_report_mismatch")
     require(report["purpose"] == "project_assessment", "cycle_report_mismatch")
@@ -628,6 +673,12 @@ def validate_cycle(data, *, report, evaluations):
         require(final["input_sha256"] != development["input_sha256"] and final["task_id"] != development["task_id"]
                 and not set(final["checks"]["required_case_ids"]) & set(development["checks"]["required_case_ids"]),
                 "cycle_confirmation_overlap")
+        if data["schema_version"] == 3:
+            validation = data["optimizer"]["validation"]["work"]
+            require(final["input_sha256"] != validation["input_sha256"]
+                    and final["task_id"] != validation["task_id"]
+                    and not set(final["checks"]["required_case_ids"]) & set(validation["checks"]["required_case_ids"]),
+                    "cycle_confirmation_overlap")
         require(all(confirmation["reference"][key] == original_ref[key] for key in
                     ("rubric_sha256", "quality_context_sha256", "policy_sha256", "plan_sha256",
                      "environment_sha256", "protected_sha256")), "cycle_confirmation_mismatch")
@@ -1122,6 +1173,9 @@ def reindex(root, results, *, identity_history=None):
             "run_id": row["run_id"], "created_at": row["created_at"], "origin": row["origin"],
             "purpose": row["purpose"], "guide_status": row["guide"]["status"],
             "execution_status": row["execution"]["status"], "report": f"{row['run_id']}/report.json",
+            **({"execution_reason_code": "baseline_saturated"}
+               if row["execution"]["reason_code"] == "baseline_saturated" else {}),
+            **({"guide_reason_code": "quality_only"} if row["guide"]["reason_code"] == "quality_only" else {}),
         } for row in rows]
         for summary in summaries:
             snapshot = snapshots.get((identifier, summary["run_id"]))

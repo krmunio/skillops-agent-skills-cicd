@@ -1,0 +1,188 @@
+{
+  "revision": "7d7f925c9a4a5bc0ac5d947d0a227e5fe167c44c",
+  "check_sha256": "65dd660cec442e1cbb1345484f7dab27cb07938a05abf252f1e35a4af1d44748",
+  "python_image": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+  "redis_image": "redis@sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e",
+  "command": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "skillops-candidates-bb0f62f86a0c",
+    "--network",
+    "container:skillops-candidates-bb0f62f86a0c-redis",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--pids-limit=64",
+    "--memory=512m",
+    "--memory-swap=512m",
+    "--cpus=1",
+    "--ulimit=nofile=1024:1024",
+    "--tmpfs=/tmp:rw,nosuid,nodev,size=128m",
+    "--user=65534:65534",
+    "--env=HOME=/tmp",
+    "--env=PYTHONDONTWRITEBYTECODE=1",
+    "--env=PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+    "--env=PYTHONPATH=/src:/src/src:/deps",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/7d7f925c9a4a5bc0ac5d947d0a227e5fe167c44c,dst=/src,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/deps,dst=/deps,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/evaluator/rq-2516/check.py,dst=/checks/check.py,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/inside.py,dst=/runner/inside.py,readonly",
+    "--workdir=/tmp",
+    "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "python",
+    "/runner/inside.py",
+    "rq"
+  ],
+  "process_exit_code": 0,
+  "result": {
+    "exit_code": 0,
+    "environment": {
+      "python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]",
+      "architecture": "aarch64",
+      "uid": 65534,
+      "interfaces": [
+        [
+          1,
+          "lo"
+        ]
+      ],
+      "module": "/src/rq/__init__.py",
+      "version_build": null,
+      "dependencies": [
+        [
+          "click",
+          "8.1.8"
+        ],
+        [
+          "croniter",
+          "6.0.0"
+        ],
+        [
+          "hatch-vcs",
+          "0.4.0"
+        ],
+        [
+          "hatchling",
+          "1.27.0"
+        ],
+        [
+          "iniconfig",
+          "2.1.0"
+        ],
+        [
+          "packaging",
+          "25.0"
+        ],
+        [
+          "pathspec",
+          "0.12.1"
+        ],
+        [
+          "pluggy",
+          "1.5.0"
+        ],
+        [
+          "pytest",
+          "8.3.5"
+        ],
+        [
+          "python-dateutil",
+          "2.9.0.post0"
+        ],
+        [
+          "pytz",
+          "2025.2"
+        ],
+        [
+          "redis",
+          "5.0.8"
+        ],
+        [
+          "setuptools",
+          "75.8.0"
+        ],
+        [
+          "setuptools-scm",
+          "8.2.0"
+        ],
+        [
+          "six",
+          "1.17.0"
+        ],
+        [
+          "trove-classifiers",
+          "2026.9.21.13"
+        ]
+      ],
+      "redis_server": "7.2.5"
+    },
+    "tests": [
+      {
+        "name": "test_terminal_failure_contract[none-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[none-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[dependents-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[dependents-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[persist-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[persist-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[persist_once-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[persist_once-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[release-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[release-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      }
+    ]
+  }
+}

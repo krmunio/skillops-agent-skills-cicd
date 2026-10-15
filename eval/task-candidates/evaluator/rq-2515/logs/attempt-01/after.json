@@ -1,0 +1,463 @@
+{
+  "revision": "f114a649c57555bed3100b7b1e00fb8996d5d1d5",
+  "check_sha256": "fe79a599bb9fd94f57fba9e065253e8c954ae62986db1fb2f6a40507b2ab182e",
+  "python_image": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+  "redis_image": "redis@sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e",
+  "command": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "skillops-candidates-0c041dbbb6c1",
+    "--network",
+    "container:skillops-candidates-0c041dbbb6c1-redis",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--pids-limit=64",
+    "--memory=512m",
+    "--memory-swap=512m",
+    "--cpus=1",
+    "--ulimit=nofile=1024:1024",
+    "--tmpfs=/tmp:rw,nosuid,nodev,size=128m",
+    "--user=65534:65534",
+    "--env=HOME=/tmp",
+    "--env=PYTHONDONTWRITEBYTECODE=1",
+    "--env=PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+    "--env=PYTHONPATH=/src:/src/src:/deps",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/f114a649c57555bed3100b7b1e00fb8996d5d1d5,dst=/src,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/deps,dst=/deps,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/evaluator/rq-2515/check.py,dst=/checks/check.py,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/inside.py,dst=/runner/inside.py,readonly",
+    "--workdir=/tmp",
+    "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "python",
+    "/runner/inside.py",
+    "rq"
+  ],
+  "process_exit_code": 0,
+  "result": {
+    "exit_code": 0,
+    "environment": {
+      "python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]",
+      "architecture": "aarch64",
+      "uid": 65534,
+      "interfaces": [
+        [
+          1,
+          "lo"
+        ]
+      ],
+      "module": "/src/rq/__init__.py",
+      "dependencies": [
+        [
+          "click",
+          "8.1.8"
+        ],
+        [
+          "croniter",
+          "6.0.0"
+        ],
+        [
+          "iniconfig",
+          "2.1.0"
+        ],
+        [
+          "packaging",
+          "25.0"
+        ],
+        [
+          "pluggy",
+          "1.5.0"
+        ],
+        [
+          "pytest",
+          "8.3.5"
+        ],
+        [
+          "python-dateutil",
+          "2.9.0.post0"
+        ],
+        [
+          "pytz",
+          "2025.2"
+        ],
+        [
+          "redis",
+          "5.0.8"
+        ],
+        [
+          "six",
+          "1.17.0"
+        ]
+      ],
+      "redis_server": "7.2.5"
+    },
+    "tests": [
+      {
+        "name": "test_all_custom_job",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_all_queues",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_all_queues_with_only_deferred_jobs",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_compact",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_create_default_queue",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_create_queue",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_create_queue_with_serializer",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_default_timeout",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_dequeue_any",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_dequeue_any_ignores_nonexisting_jobs",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_dequeue_any_reliable",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_does_not_enqueue_dependent_if_other_dependencies_not_finished",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_empty_queue",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_empty_removes_jobs",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_empty_removes_results",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_deferred_job_removes_it_from_deferred_registry",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_dependents",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_dependents_on_multiple_queues",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_different_queues_with_passed_pipeline",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_explicit_args",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_dependency",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_dependency_and_pipeline",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_dependency_and_timeout",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_dependency_by_id",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_multiple_finished_dependencies",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_multiple_queued_dependencies",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_job_with_no_dependency_prior_watch_and_pipeline",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_many_internal_pipeline",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_many_with_generator",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_many_with_passed_pipeline",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_meta_arg",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_sets_metadata",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_sets_status",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_with_failure_ttl",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_with_retry",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_with_ttl",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueues_dependent_if_other_dependencies_finished",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_equality",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_fetch_job_different_queue",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_fetch_job_missing",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_fetch_job_successful",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_from_queue_key",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_from_queue_key_error",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_getting_registries",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_getting_registries_with_serializer",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_intermediate_queue",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_job_timeout",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_jobs",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_pop_job_id",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_position",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_queue_delete",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_queue_delete_but_keep_jobs",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_queue_is_empty",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_remove",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_synchronous_ended_at",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_synchronous_timeout",
+        "class": "._TestQueue",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_many_internal_pipeline",
+        "class": ".TestOneShot",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_many_with_generator",
+        "class": ".TestOneShot",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_enqueue_many_with_passed_pipeline",
+        "class": ".TestOneShot",
+        "outcome": "passed",
+        "detail": ""
+      }
+    ]
+  }
+}

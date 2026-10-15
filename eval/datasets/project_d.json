@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "dataset_id": "project-d-queue-v1",
+  "project_id": "project_d",
+  "origin": "synthetic",
+  "tasks": [
+    {
+      "task_id": "failure-lifecycle",
+      "family": "failure",
+      "split": "development",
+      "request": "Repair finish_failure and finish_retry in failure.py, preserving Job, BackendError and both signatures. The backend protocol is documented in the source. Jobs are well formed and their retries count is a nonnegative integer. Never mutate a Job. Every backend action must be attempted at most once per invocation. finish_failure must first call persist_failed(job). If that raises BackendError, immediately call record_error('persist_failed', the same exception) and return {'status': 'persistence_failed', 'errors': ['persist_failed']} with no notification, enqueue or release attempt. If persistence succeeds, attempt notify(job) unless stopped, then enqueue(job) if enqueue_dependents, then release(job). These follow-up actions are independent: on BackendError, immediately record_error with the exact operation name ('notify', 'enqueue', or 'release') and original exception, append that name to errors, and still attempt the remaining enabled actions in order. Return {'status': 'failed', 'errors': operation names in occurrence order}; follow-up errors do not undo the committed failed state. stopped suppresses only notify; enqueue_dependents suppresses only enqueue; neither suppresses release after a successful commit. finish_retry must validate max_retries as a nonnegative integer excluding booleans before any backend call, raising ValueError otherwise. If job.retries >= max_retries, use the same terminal failure rules as finish_failure with both default flags, including identical error handling and return status. Otherwise call persist_retry(job); this atomically persists the incremented retry count and does not mutate Job. On its BackendError, log 'persist_retry' and return persistence_failed with that error and no release. After successful retry persistence, attempt release with the same isolated error recording rule and return {'status': 'retry_scheduled', 'errors': [] or ['release']}; do not notify or enqueue dependents. Catch only BackendError, not unexpected programming errors. record_error never raises. Return dictionaries must contain exactly status and errors. Modify only failure.py; leave protected tests and other project files unchanged.",
+      "sources": ["failure.py"],
+      "required_case_ids": [
+        "python-tests:test_failure.FailureTests.test_commit_failure_blocks_side_effects",
+        "python-tests:test_failure.FailureTests.test_dependency_error_does_not_skip_release",
+        "python-tests:test_failure.FailureTests.test_error_order",
+        "python-tests:test_failure.FailureTests.test_exhausted_retry_uses_failure_rules",
+        "python-tests:test_failure.FailureTests.test_exhausted_retry_with_faults",
+        "python-tests:test_failure.FailureTests.test_input_job_unchanged",
+        "python-tests:test_failure.FailureTests.test_invalid_retry_limit",
+        "python-tests:test_failure.FailureTests.test_notification_error_isolated",
+        "python-tests:test_failure.FailureTests.test_optional_dependencies",
+        "python-tests:test_failure.FailureTests.test_partial_side_effect_matrix",
+        "python-tests:test_failure.FailureTests.test_release_error_reported",
+        "python-tests:test_failure.FailureTests.test_retry_commit_failure",
+        "python-tests:test_failure.FailureTests.test_retry_scheduled_without_terminal_actions",
+        "python-tests:test_failure.FailureTests.test_retry_slot_error",
+        "python-tests:test_failure.FailureTests.test_stopped_suppresses_notification",
+        "python-tests:test_failure.FailureTests.test_successful_failure_order",
+        "python-tests:test_failure.FailureTests.test_unexpected_error_propagates",
+        "python-tests:test_failure.FailureTests.test_zero_retry_limit"
+      ]
+    },
+    {
+      "task_id": "batch-iterable",
+      "family": "enqueue",
+      "split": "validation",
+      "request": "Repair enqueue_many(items, backend) in enqueue.py. items may be any finite iterable, including a one-shot generator, containing well-formed Item values. Partition once into items without dependencies (queued) and items with dependencies (deferred). Call backend.save(item, status) exactly once per input item: first all queued items in their input order, then all deferred items in their input order. Return that same ordered list of items. Preserve input objects and caller-owned lists; an empty iterable returns [] with no backend calls. Backend save succeeds for this task. Preserve the Item type and function signature. Modify only enqueue.py and leave tests unchanged.",
+      "sources": ["enqueue.py"],
+      "required_case_ids": [
+        "python-tests:test_enqueue.EnqueueTests.test_dependent_generator",
+        "python-tests:test_enqueue.EnqueueTests.test_empty_iterable",
+        "python-tests:test_enqueue.EnqueueTests.test_generator_matches_list",
+        "python-tests:test_enqueue.EnqueueTests.test_input_is_unchanged",
+        "python-tests:test_enqueue.EnqueueTests.test_stable_partition"
+      ]
+    },
+    {
+      "task_id": "bounded-retry-after",
+      "family": "retry",
+      "split": "confirmation",
+      "request": "Repair retry_after(value, now, cap=60) in retry.py. value is either a whitespace-trimmed nonnegative ASCII integer delay of at most 100 digits or an HTTP date with explicit timezone. For an integer delay return min(cap, delay). For a date return min(cap, max(0, date.timestamp() - now)). now and cap must be finite int or float values excluding booleans; cap must be nonnegative. Invalid values raise ValueError. A zero cap is valid. Do not sleep or access the current clock or network; use only the supplied now timestamp. Preserve the signature. Modify only retry.py and leave all tests unchanged.",
+      "sources": ["retry.py"],
+      "required_case_ids": [
+        "python-tests:test_retry.RetryTests.test_date_cap",
+        "python-tests:test_retry.RetryTests.test_digit_length_bound",
+        "python-tests:test_retry.RetryTests.test_invalid_input",
+        "python-tests:test_retry.RetryTests.test_invalid_limits",
+        "python-tests:test_retry.RetryTests.test_numeric_cap",
+        "python-tests:test_retry.RetryTests.test_past_date",
+        "python-tests:test_retry.RetryTests.test_zero_cap"
+      ]
+    }
+  ]
+}
