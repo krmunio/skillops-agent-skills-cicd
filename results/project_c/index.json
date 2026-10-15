@@ -1,9 +1,19 @@
 {
-  "history": [],
+  "history": [
+    {
+      "created_at": "2026-10-15T04:47:50.164780+00:00",
+      "execution_status": "blocked",
+      "guide_status": "not_assessed",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "38682826489-1/report.json",
+      "run_id": "38682826489-1"
+    }
+  ],
   "project": {
-    "current_run": null,
+    "current_run": "38682826489-1",
     "detected_skills": [],
-    "history_count": 0,
+    "history_count": 1,
     "id": "project_c",
     "index": "project_c/index.json",
     "skill_discovery_error": null,

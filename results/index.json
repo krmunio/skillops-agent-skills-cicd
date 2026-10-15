@@ -1,7 +1,7 @@
 {
   "projects": [
     {
-      "current_run": null,
+      "current_run": "38682826489-1",
       "detected_skills": [
         {
           "display_name": "schedule-development",
@@ -9,14 +9,14 @@
           "source_path": ".github/skills/schedule-development"
         }
       ],
-      "history_count": 22,
+      "history_count": 23,
       "id": "project-a",
       "index": "project-a/index.json",
       "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": null,
+      "current_run": "38682826489-1",
       "detected_skills": [
         {
           "display_name": "brainstorming",
@@ -89,23 +89,23 @@
           "source_path": "skills/writing-skills"
         }
       ],
-      "history_count": 24,
+      "history_count": 25,
       "id": "project-b",
       "index": "project-b/index.json",
       "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": null,
+      "current_run": "38682826489-1",
       "detected_skills": [],
-      "history_count": 0,
+      "history_count": 1,
       "id": "project_c",
       "index": "project_c/index.json",
       "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": "local-20261015T022226Z-95a81ba1c579",
+      "current_run": "38682826489-1",
       "detected_skills": [
         {
           "display_name": "project-d-development",
@@ -113,14 +113,14 @@
           "source_path": ".github/skills/project-d-development"
         }
       ],
-      "history_count": 6,
+      "history_count": 7,
       "id": "project_d",
       "index": "project_d/index.json",
       "skill_discovery_error": null,
       "state": "active"
     },
     {
-      "current_run": null,
+      "current_run": "38682826489-1",
       "detected_skills": [
         {
           "display_name": "develop",
@@ -128,7 +128,7 @@
           "source_path": ".github/skills/develop"
         }
       ],
-      "history_count": 50,
+      "history_count": 51,
       "id": "sample_repo",
       "index": "sample_repo/index.json",
       "skill_discovery_error": null,

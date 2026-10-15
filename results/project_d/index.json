@@ -1,6 +1,15 @@
 {
   "history": [
     {
+      "created_at": "2026-10-15T04:47:50.187304+00:00",
+      "execution_status": "blocked",
+      "guide_status": "blocked",
+      "origin": "github_actions",
+      "purpose": "project_assessment",
+      "report": "38682826489-1/report.json",
+      "run_id": "38682826489-1"
+    },
+    {
       "created_at": "2026-10-15T03:29:51.799026+00:00",
       "cycle": "local-20261015T022226Z-95a81ba1c579/cycle.json",
       "execution_status": "blocked",
@@ -89,7 +98,7 @@
     }
   ],
   "project": {
-    "current_run": "local-20261015T022226Z-95a81ba1c579",
+    "current_run": "38682826489-1",
     "detected_skills": [
       {
         "display_name": "project-d-development",
@@ -97,7 +106,7 @@
         "source_path": ".github/skills/project-d-development"
       }
     ],
-    "history_count": 6,
+    "history_count": 7,
     "id": "project_d",
     "index": "project_d/index.json",
     "skill_discovery_error": null,
