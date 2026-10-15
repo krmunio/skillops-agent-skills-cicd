@@ -322,6 +322,39 @@ See [reviewed publication and exact offline candidates](REVIEWED-PUBLICATION.md)
 for commands, permissions, bounds and session 5 handoff. Feature-branch disclosure
 does not authorize result-branch writes, production deployment or new model calls.
 
+### Original-Skill screening on the local dashboard
+
+A completed original-only screen is not a candidate comparison. Export a saved,
+fully passing development screen without running models:
+
+```bash
+python3 -B skillops/baseline_results.py \
+  --summary .skillops-private/run-attempts/project-d-baseline.json \
+  --work-item .skillops-private/work-items/project_d-development.json \
+  --receipt .skillops-private/project-d-baseline/application/developer.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+The exporter binds the WorkItem digest, original Skill activation, check
+observations, measured usage and pinned source tree. It reconstructs the evaluator
+fingerprint from the committed source rather than stamping an old run with today's
+code. This is a committed-code identity, not a new runtime attestation. The report
+timestamp comes from the saved summary's modification time. Existing immutable
+result storage and the official static builder remain in use.
+
+Only allowlisted numeric summaries and identity hashes are exported. Prompts,
+task requests, generated code, logs, private paths and model responses stay private.
+The dashboard distinguishes one task from its required checks, measured CLI usage
+from currency charges, original-only completion from unassessed instruction
+quality, and the experiment's GEPA-skip rule from an execution error. No independent
+validation, confirmation, approval or adoption is inferred.
+
+Build only the sanitized results and serve only the resulting `site/` directory
+on `127.0.0.1`. Never serve the repository or `.skillops-private/` itself.
+The original dataset and receipt remain historical after integration changes;
+do not regenerate their identity or overwrite them just to make the screen current.
+This local projection does not authorize public deployment.
+
 ### Offline presentation backup
 
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration

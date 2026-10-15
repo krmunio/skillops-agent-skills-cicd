@@ -35,18 +35,21 @@ COUNTS = {
     "correctness_successes", "judge_score_denominator", "skills", "pass", "review",
     "base_correctness_successes", "candidate_correctness_successes", "cli_invocations",
     "controls", "base_requested", "candidate_requested",
+    "required_cases", "passed_cases", "input_tokens", "output_tokens",
 }
 METRICS = COUNTS | {
     "mean_judge_score", "base_judge_score", "candidate_judge_score",
     "base_cost_nano_aiu", "candidate_cost_nano_aiu",
     "base_elapsed_seconds", "candidate_elapsed_seconds",
     "cost_improvement_percent", "time_improvement_percent",
+    "total_elapsed_seconds",
 }
 REASONS = {
     "no_skills", "no_adapter", "live_disabled", "missing_auth", "missing_limits",
     "guide_integration_pending", "historical_import", "evaluation_completed",
     "evaluation_failed", "unsupported_adapter", "unsafe_project", "runtime_error",
     "call_limit", "time_limit", "assessment_unverified", "adoption_observation",
+    "baseline_screening_only", "baseline_saturated",
 }
 STATES = {"completed", "failed", "blocked", "not_assessed", "configuration_required"}
 DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_passed", "calibration_failed"}
@@ -175,6 +178,23 @@ def validate(row):
         if requested is not None:
             for key in ("attempted", "evaluation_completed", "correctness_successes", "judge_score_denominator"):
                 require(metrics.get(key) is None or metrics[key] <= requested)
+        if metrics.get("passed_cases") is not None:
+            require(metrics.get("required_cases") is not None
+                    and metrics["passed_cases"] <= metrics["required_cases"])
+    if row["execution"]["reason_code"] == "baseline_saturated":
+        metrics = row["execution"]["metrics"] or {}
+        require(row["origin"] == "local" and row["purpose"] == "baseline"
+                and row["guide"] == axis("not_assessed", "baseline_screening_only")
+                and row["execution"]["status"] == "completed"
+                and row["execution"]["decision"] is None
+                and type(metrics.get("required_cases")) is int
+                and metrics["required_cases"] > 0
+                and metrics.get("passed_cases") == metrics["required_cases"]
+                and all(metrics.get(key) == 1 for key in
+                        ("requested", "attempted", "evaluation_completed",
+                         "correctness_successes", "cli_invocations"))
+                and not any(key.startswith("candidate_") or key.endswith("improvement_percent")
+                            for key in metrics))
     if row["origin"] == "sample":
         require(all(row[part]["decision"] is None for part in ("guide", "execution")))
         require(all((row[part]["metrics"] or {}).get("cli_invocations", 0) == 0 for part in ("guide", "execution")))
@@ -1129,6 +1149,8 @@ def reindex(root, results, *, identity_history=None):
             "run_id": row["run_id"], "created_at": row["created_at"], "origin": row["origin"],
             "purpose": row["purpose"], "guide_status": row["guide"]["status"],
             "execution_status": row["execution"]["status"], "report": f"{row['run_id']}/report.json",
+            **({"execution_reason_code": "baseline_saturated"}
+               if row["execution"]["reason_code"] == "baseline_saturated" else {}),
         } for row in rows]
         for summary in summaries:
             snapshot = snapshots.get((identifier, summary["run_id"]))

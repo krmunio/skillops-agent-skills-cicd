@@ -817,6 +817,56 @@ test('shows project history and clearly labels unassessed guide data', async ({ 
   await expect(page.locator('body')).not.toContainText('공식 인증 완료');
 });
 
+test('saturated original baseline displays measured usage and skipped GEPA without candidate claims', async ({ page }) => {
+  page.dashboardLocale = 'default';
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('skillops.dashboard.locale')) localStorage.setItem('skillops.dashboard.locale', 'ko');
+  });
+  const report = {
+    schema_version: 1, project_id: 'project_d', run_id: '123-1', purpose: 'baseline',
+    created_at: '2026-10-15T00:28:38Z', origin: 'local', source_commit: 'a'.repeat(40),
+    guide: { status: 'not_assessed', reason_code: 'baseline_screening_only', metrics: null, decision: null },
+    execution: { status: 'completed', reason_code: 'baseline_saturated', decision: null, metrics: {
+      requested: 1, attempted: 1, evaluation_completed: 1, correctness_successes: 1, cli_invocations: 1,
+      required_cases: 18, passed_cases: 18, base_cost_nano_aiu: 9600700000,
+      base_elapsed_seconds: 20, total_elapsed_seconds: 27.078, input_tokens: 8839, output_tokens: 699,
+    } },
+  };
+  await page.route('http://dashboard.test/results/project_d/index.json', route => route.fulfill({
+    json: { schema_version: 1, history: [{ run_id: report.run_id, purpose: report.purpose,
+      created_at: report.created_at, origin: report.origin, guide_status: 'not_assessed',
+      execution_status: 'completed', execution_reason_code: 'baseline_saturated', report: '123-1/report.json' }] },
+  }));
+  await page.route('http://dashboard.test/results/project_d/123-1/report.json', route => route.fulfill({ json: report }));
+  await pageWith(page, { schema_version: 1, projects: [{
+    id: 'project_d', state: 'active', history_count: 1, current_run: null,
+  }] });
+  await expect(page.locator('#error')).toBeHidden();
+  await expect(page.locator('#execution .decision-title')).toHaveText('원본 기준 평가 완료 · GEPA 생략');
+  await expect(page.locator('#task-results')).toContainText('18/18');
+  await expect(page.locator('#summary-history')).toContainText('완료 1');
+  await expect(page.locator('#guide .badge')).toHaveText('미평가');
+  await expect(page.locator('#execution-scope')).toContainText('독립 validation·최종 확인·승인·적용은 수행하지 않았습니다');
+  await expect(page.locator('#cost-card .big-number')).toHaveText('9.6007');
+  await expect(page.locator('#time-card .big-number')).toHaveText('27.078');
+  await expect(page.locator('#cost-card')).not.toContainText('%');
+  await expect(page.locator('#decision-reasons')).toContainText('GEPA 실행 오류가 아닙니다');
+  await page.locator('#language-select').selectOption('en');
+  await expect(page.locator('#execution .decision-title')).toHaveText('Original baseline completed · GEPA skipped');
+  await expect(page.locator('#cost-card')).toContainText('not an invoice');
+  await expect(page.locator('#execution-scope')).toContainText('were not performed');
+  await page.reload();
+  await expect(page.locator('#task-results')).toContainText('18/18');
+  await expect(page.locator('#error')).toBeHidden();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  report.execution.metrics.base_cost_nano_aiu = null;
+  report.execution.metrics.total_elapsed_seconds = null;
+  await page.reload();
+  await expect(page.locator('#cost-card .big-number')).toHaveText('Unrecorded');
+  await expect(page.locator('#time-card .big-number')).toHaveText('Unrecorded');
+});
+
 test('sample instructions and diff render HTML-looking content as inert text', async ({ page }) => {
   await pageWith(page, { schema_version: 1, projects: [] });
   const sample = JSON.parse(fs.readFileSync('dashboard/sample-data.json', 'utf8'));

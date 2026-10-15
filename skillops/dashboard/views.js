@@ -13,6 +13,8 @@ const decisions = {
   calibration_passed: t('교정 통과'), calibration_failed: t('교정 실패'),
 };
 const reasons = {
+  baseline_screening_only: t('원본 Skill의 개발 과제 수행만 평가했습니다. 지침 품질 평가는 수행하지 않았습니다.'),
+  baseline_saturated: t('원본 개발 검사가 모두 통과하여 이번 실험의 중단 조건에 따라 GEPA를 실행하지 않았습니다.'),
   no_skills: t('프로젝트에서 평가할 스킬이 발견되지 않았습니다.'),
   no_adapter: t('실행 기반 평가 어댑터를 설정해야 합니다.'),
   live_disabled: t('실제 모델 평가가 아직 활성화되지 않았습니다.'),
@@ -30,6 +32,9 @@ const reasons = {
   assessment_unverified: t('개선 또는 프로젝트 회귀 검증에 필요한 근거가 부족합니다.'),
 };
 const metricLabels = {
+  required_cases: t('필수 개발 검사'), passed_cases: t('통과한 개발 검사'),
+  total_elapsed_seconds: t('전체 소요 시간 (초)'),
+  input_tokens: t('입력 토큰'), output_tokens: t('출력 토큰'),
   requested: t('요청 작업'), attempted: t('시도 작업'), evaluation_completed: t('평가 완료 작업'),
   errors: t('오류'), blocked: t('차단'), correctness_successes: t('정답 작업'),
   mean_judge_score: t('Judge 점수'), judge_score_denominator: t('Judge 평가 분모'),
@@ -141,7 +146,9 @@ export function table(headers, rows) {
 
 export function summarizeHistory(runs) {
   const skills = new Set(), legacySkills = new Set(), versions = new Set(), legacyVersions = new Set();
-  const completed = run => run.guide_status === 'completed' && run.execution_status === 'completed';
+  const completed = run => run.execution_status === 'completed' &&
+    (run.guide_status === 'completed' || run.purpose === 'baseline' &&
+      run.execution_reason_code === 'baseline_saturated');
   const blocked = run => ['blocked', 'configuration_required'].includes(run.execution_status);
   const imported = run => run.origin === 'historical_import';
   for (const run of runs) {
@@ -345,6 +352,7 @@ export function renderMetric(container, title, key, metrics, origin = null) {
 
 function renderExecution(report, detail) {
   const metrics = report.execution.metrics || {};
+  const baseline = report.purpose === 'baseline' && report.execution.reason_code === 'baseline_saturated';
   $('all-metrics').replaceChildren(metricList(metrics));
   const container = $('execution');
   const decision = report.execution.decision;
@@ -385,6 +393,26 @@ function renderExecution(report, detail) {
   } else {
     empty($('task-results'), t('작업별 상세 결과가 공개 기록에 없습니다.'),
       t('위의 전체 지표와 별개입니다. 작업별 검사 수와 근거가 기록되면 이 영역에 표시합니다.'));
+  }
+  if (baseline) {
+    setText(heading.querySelector('strong'), t('원본 기준 평가 완료 · GEPA 생략'));
+    setText($('execution-scope'), t('개발 과제 1개의 검사 결과입니다. 독립 validation·최종 확인·승인·적용은 수행하지 않았습니다.'));
+    $('decision-reasons').replaceChildren(
+      node('p', reasons.baseline_saturated, 'conclusion'),
+      node('p', t('GEPA 실행 오류가 아닙니다. 한 번의 원본 통과는 일반화 성능이나 후보 개선을 입증하지 않습니다.')));
+    $('task-results').replaceChildren(
+      table([t('평가 작업'), t('개발 검사 통과')],
+        [[t('원본 Skill · 개발 과제 1개'), fraction(metrics.passed_cases, metrics.required_cases)]]));
+    for (const [id, title, value, note] of [
+      ['cost-card', t('원본 적용 사용량'), typeof metrics.base_cost_nano_aiu === 'number' ?
+        metrics.base_cost_nano_aiu / 1e9 : null, t('AIU · CLI 기록값을 10억 nano-AIU로 나눈 값이며 실제 청구액이 아닙니다.')],
+      ['time-card', t('전체 소요 시간'), metrics.total_elapsed_seconds,
+        t('초 · 준비·모델 실행·검사를 포함한 기록된 전체 시간')],
+    ]) {
+      $(id).classList.toggle('is-empty', value === null || value === undefined);
+      $(id).replaceChildren(node('h3', title), node('strong', number(value, 4), 'big-number'),
+        node('p', note, 'metric-note'));
+    }
   }
 }
 
