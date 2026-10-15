@@ -36,20 +36,26 @@ COUNTS = {
     "base_correctness_successes", "candidate_correctness_successes", "cli_invocations",
     "controls", "base_requested", "candidate_requested",
     "required_cases", "passed_cases", "input_tokens", "output_tokens",
+    "static_errors", "static_warnings",
 }
+QUALITY_DIMENSIONS = (
+    "trigger_description", "workflow_clarity", "generalization", "instruction_quality",
+    "progressive_disclosure", "resource_organization", "principle_of_lack_of_surprise",
+)
 METRICS = COUNTS | {
     "mean_judge_score", "base_judge_score", "candidate_judge_score",
     "base_cost_nano_aiu", "candidate_cost_nano_aiu",
     "base_elapsed_seconds", "candidate_elapsed_seconds",
     "cost_improvement_percent", "time_improvement_percent",
     "total_elapsed_seconds",
-}
+} | {"quality_" + name for name in QUALITY_DIMENSIONS}
 REASONS = {
     "no_skills", "no_adapter", "live_disabled", "missing_auth", "missing_limits",
     "guide_integration_pending", "historical_import", "evaluation_completed",
     "evaluation_failed", "unsupported_adapter", "unsafe_project", "runtime_error",
     "call_limit", "time_limit", "assessment_unverified", "adoption_observation",
     "baseline_screening_only", "baseline_saturated",
+    "quality_only",
 }
 STATES = {"completed", "failed", "blocked", "not_assessed", "configuration_required"}
 DECISIONS = {None, "rejected", "eligible_for_canary", "blocked", "calibration_passed", "calibration_failed"}
@@ -195,6 +201,24 @@ def validate(row):
                          "correctness_successes", "cli_invocations"))
                 and not any(key.startswith("candidate_") or key.endswith("improvement_percent")
                             for key in metrics))
+    if row["guide"]["reason_code"] == "quality_only" or row["execution"]["reason_code"] == "quality_only":
+        metrics = row["guide"]["metrics"] or {}
+        keys = {"quality_" + name for name in QUALITY_DIMENSIONS}
+        require(row["origin"] == "local" and row["purpose"] == "project_assessment"
+                and row["guide"]["status"] == "completed" and row["guide"]["decision"] is None
+                and row["guide"]["reason_code"] == "quality_only"
+                and row["execution"] == axis("not_assessed", "quality_only")
+                and keys <= set(metrics)
+                and metrics.get("skills") == 1 and metrics.get("cli_invocations") == 1
+                and all(type(metrics.get(key)) is int for key in
+                        ("pass", "review", "blocked", "static_errors", "static_warnings"))
+                and sum(metrics[key] for key in ("pass", "review", "blocked")) == 1
+                and not any(key.startswith("candidate_") or key.endswith("improvement_percent")
+                            for key in metrics))
+        scores = [metrics[key] for key in keys if metrics[key] is not None]
+        require(scores and all(type(value) is int and 0 <= value <= 4 for value in scores)
+                and metrics.get("judge_score_denominator") == len(scores)
+                and metrics.get("mean_judge_score") == round(sum(scores) / (4 * len(scores)) * 100, 2))
     if row["origin"] == "sample":
         require(all(row[part]["decision"] is None for part in ("guide", "execution")))
         require(all((row[part]["metrics"] or {}).get("cli_invocations", 0) == 0 for part in ("guide", "execution")))
@@ -1151,6 +1175,7 @@ def reindex(root, results, *, identity_history=None):
             "execution_status": row["execution"]["status"], "report": f"{row['run_id']}/report.json",
             **({"execution_reason_code": "baseline_saturated"}
                if row["execution"]["reason_code"] == "baseline_saturated" else {}),
+            **({"guide_reason_code": "quality_only"} if row["guide"]["reason_code"] == "quality_only" else {}),
         } for row in rows]
         for summary in summaries:
             snapshot = snapshots.get((identifier, summary["run_id"]))

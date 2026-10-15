@@ -207,10 +207,10 @@ function renderHistory() {
     const button = node('button', undefined, 'run');
     button.type = 'button'; button.dataset.run = run.run_id;
     button.setAttribute('aria-pressed', String(run.run_id === activeRun));
-    const title = node('span', purposes[run.purpose]);
+    const title = node('span', run.guide_reason_code === 'quality_only' ? t('원본 Skill 품질 평가') : purposes[run.purpose]);
     title.append(node('small', sampleMode ? t('합성 샘플 · 실제 평가 아님') :
       run.origin === 'historical_import' ? t('과거 로컬 이력') : t('프로젝트 평가')));
-    const state = run.execution_status;
+    const state = run.guide_reason_code === 'quality_only' ? run.guide_status : run.execution_status;
     button.append(node('time', stamp(run.created_at)), title, node('span', labels[state], `badge ${state}`));
     button.addEventListener('click', () => selectRun(run, selection));
     return button;

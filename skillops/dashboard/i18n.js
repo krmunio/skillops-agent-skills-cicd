@@ -1,5 +1,15 @@
 // Only explicitly marked UI messages are localized. Recorded evidence stays literal.
 const english = {
+  '이 기록은 원본 Skill의 지침 품질만 평가했습니다. 과제 수행·후보 개선·승인과는 별도입니다.': 'This record evaluates original-Skill instruction quality only, separately from task execution, candidate improvement and approval.',
+  '정적 검사 오류': 'Static errors',
+  '정적 검사 경고': 'Static warnings',
+  '원본 Skill 품질 평가': 'Original Skill quality assessment',
+  '점수 (0–4)': 'Score (0–4)',
+  '정적 검사 오류 {0} · 경고 {1}': 'Static errors {0} · warnings {1}',
+  '모델 채점은 자동 평가의 관측값이며, 일반화 성능이나 적용 승인을 뜻하지 않습니다.': 'Model scores are automated observations, not evidence of generalization or approval for adoption.',
+  '과제 실행 미실행 · 품질 평가 전용': 'Task execution not run · Quality assessment only',
+  '품질 평가 사용량': 'Quality assessment usage',
+  '초 · 기록된 품질 평가 전체 시간': 'Seconds · Recorded total quality assessment time',
   '원본 Skill의 개발 과제 수행만 평가했습니다. 지침 품질 평가는 수행하지 않았습니다.': 'Only original-Skill development task execution was evaluated. Instruction quality was not assessed.',
   '원본 개발 검사가 모두 통과하여 이번 실험의 중단 조건에 따라 GEPA를 실행하지 않았습니다.': 'All original development checks passed, so GEPA was not run under this experiment’s stopping rule.',
   '필수 개발 검사': 'Required development checks',
