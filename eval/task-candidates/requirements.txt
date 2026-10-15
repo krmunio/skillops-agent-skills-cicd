@@ -1,0 +1,16 @@
+click==8.1.8
+croniter==6.0.0
+redis==5.0.8
+python-dateutil==2.9.0.post0
+pytz==2025.2
+six==1.17.0
+pytest==8.3.5
+iniconfig==2.1.0
+packaging==25.0
+pluggy==1.5.0
+hatchling==1.27.0
+hatch-vcs==0.4.0
+setuptools-scm==8.2.0
+setuptools==75.8.0
+pathspec==0.12.1
+trove-classifiers==2026.9.21.13

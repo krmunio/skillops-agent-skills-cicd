@@ -1,0 +1,28 @@
+ENVIRONMENT {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/src/rq/__init__.py", "version_build": null, "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]], "redis_server": "7.2.5"}
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.3.5, pluggy-1.5.0 -- /usr/local/bin/python
+rootdir: /dev
+configfile: null
+collecting ... collected 3 items
+
+../dev::TestOneShot::test_enqueue_many_internal_pipeline PASSED          [ 33%]
+../dev::TestOneShot::test_enqueue_many_with_generator FAILED             [ 66%]
+../dev::TestOneShot::test_enqueue_many_with_passed_pipeline PASSED       [100%]
+
+=================================== FAILURES ===================================
+_________________ TestOneShot.test_enqueue_many_with_generator _________________
+/checks/check.py:30: in test_enqueue_many_with_generator
+    self.assertEqual([job.id for job in jobs], ['independent', 'dependent'])
+E   AssertionError: Lists differ: ['independent'] != ['independent', 'dependent']
+E   
+E   Second list contains 1 additional elements.
+E   First extra element 1:
+E   'dependent'
+E   
+E   - ['independent']
+E   + ['independent', 'dependent']
+--------------------- generated xml file: /tmp/results.xml ---------------------
+=========================== short test summary info ============================
+FAILED ../dev::TestOneShot::test_enqueue_many_with_generator - AssertionError...
+========================= 1 failed, 2 passed in 0.06s ==========================
+RESULT_JSON {"exit_code": 1, "environment": {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/src/rq/__init__.py", "version_build": null, "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]], "redis_server": "7.2.5"}, "tests": [{"name": "test_enqueue_many_internal_pipeline", "class": ".TestOneShot", "outcome": "passed", "detail": ""}, {"name": "test_enqueue_many_with_generator", "class": ".TestOneShot", "outcome": "failure", "detail": "/checks/check.py:30: in test_enqueue_many_with_generator\n    self.assertEqual([job.id for job in jobs], ['independent', 'dependent'])\nE   AssertionError: Lists differ: ['independent'] != ['independent', 'dependent']\nE   \nE   Second list contains 1 additional elements.\nE   First extra element 1:\nE   'dependent'\nE   \nE   - ['independent']\nE   + ['independent', 'dependent']"}, {"name": "test_enqueue_many_with_passed_pipeline", "class": ".TestOneShot", "outcome": "passed", "detail": ""}]}

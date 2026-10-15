@@ -1,0 +1,151 @@
+{
+  "revision": "a41a36b431b67e329d671bc5cf7455df5890ab1e",
+  "check_sha256": "13f03475c8aebc95ec132083fad86883db475a7a8828bf6c24631038c5106685",
+  "python_image": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+  "redis_image": "redis@sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e",
+  "command": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "skillops-candidates-76f5511cbe48",
+    "--network",
+    "container:skillops-candidates-76f5511cbe48-redis",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--pids-limit=64",
+    "--memory=512m",
+    "--memory-swap=512m",
+    "--cpus=1",
+    "--ulimit=nofile=1024:1024",
+    "--tmpfs=/tmp:rw,nosuid,nodev,size=128m",
+    "--user=65534:65534",
+    "--env=HOME=/tmp",
+    "--env=PYTHONDONTWRITEBYTECODE=1",
+    "--env=PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+    "--env=PYTHONPATH=/src:/src/src:/deps",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/a41a36b431b67e329d671bc5cf7455df5890ab1e,dst=/src,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/deps,dst=/deps,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/evaluator/rq-2516/check.py,dst=/checks/check.py,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/inside.py,dst=/runner/inside.py,readonly",
+    "--workdir=/tmp",
+    "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "python",
+    "/runner/inside.py",
+    "rq"
+  ],
+  "process_exit_code": 1,
+  "result": {
+    "exit_code": 1,
+    "environment": {
+      "python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]",
+      "architecture": "aarch64",
+      "uid": 65534,
+      "interfaces": [
+        [
+          1,
+          "lo"
+        ]
+      ],
+      "module": "/src/rq/__init__.py",
+      "dependencies": [
+        [
+          "click",
+          "8.1.8"
+        ],
+        [
+          "croniter",
+          "6.0.0"
+        ],
+        [
+          "iniconfig",
+          "2.1.0"
+        ],
+        [
+          "packaging",
+          "25.0"
+        ],
+        [
+          "pluggy",
+          "1.5.0"
+        ],
+        [
+          "pytest",
+          "8.3.5"
+        ],
+        [
+          "python-dateutil",
+          "2.9.0.post0"
+        ],
+        [
+          "pytz",
+          "2025.2"
+        ],
+        [
+          "redis",
+          "5.0.8"
+        ],
+        [
+          "six",
+          "1.17.0"
+        ]
+      ],
+      "redis_server": "7.2.5"
+    },
+    "tests": [
+      {
+        "name": "test_terminal_failure_contract[none-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[none-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[dependents-failure]",
+        "class": "",
+        "outcome": "failure",
+        "detail": "/checks/check.py:86: in test_terminal_failure_contract\n    assert \"release\" in events, f\"slot release was skipped: {events}\"\nE   AssertionError: slot release was skipped: ['persist', 'persist', 'webhook', 'dependents']\nE   assert 'release' in ['persist', 'persist', 'webhook', 'dependents']"
+      },
+      {
+        "name": "test_terminal_failure_contract[dependents-retry_exhausted]",
+        "class": "",
+        "outcome": "failure",
+        "detail": "/checks/check.py:86: in test_terminal_failure_contract\n    assert \"release\" in events, f\"slot release was skipped: {events}\"\nE   AssertionError: slot release was skipped: ['persist', 'webhook', 'dependents']\nE   assert 'release' in ['persist', 'webhook', 'dependents']"
+      },
+      {
+        "name": "test_terminal_failure_contract[persist-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[persist-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[release-failure]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      },
+      {
+        "name": "test_terminal_failure_contract[release-retry_exhausted]",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      }
+    ]
+  }
+}

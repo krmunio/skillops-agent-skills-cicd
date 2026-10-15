@@ -1,0 +1,16 @@
+dist/urllib3-0.0.0+reproduction-py3-none-any.whl
+ENVIRONMENT {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/tmp/urllib3/src/urllib3/__init__.py", "version_build": "offline hatchling, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+reproduction", "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]]}
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.3.5, pluggy-1.5.0 -- /usr/local/bin/python
+rootdir: /dev
+configfile: null
+collecting ... collected 4 items
+
+../dev::test_numeric_cap_and_clone PASSED                                [ 25%]
+../dev::test_http_date_cap PASSED                                        [ 50%]
+../dev::test_sleep_receives_bounded_duration PASSED                      [ 75%]
+../dev::test_existing_header_semantics PASSED                            [100%]
+
+--------------------- generated xml file: /tmp/results.xml ---------------------
+============================== 4 passed in 0.09s ===============================
+RESULT_JSON {"exit_code": 0, "environment": {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/tmp/urllib3/src/urllib3/__init__.py", "version_build": "offline hatchling, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+reproduction", "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]]}, "tests": [{"name": "test_numeric_cap_and_clone", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_http_date_cap", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_sleep_receives_bounded_duration", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_existing_header_semantics", "class": "", "outcome": "passed", "detail": ""}]}
