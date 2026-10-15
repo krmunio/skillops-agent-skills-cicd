@@ -136,6 +136,10 @@ stochastic trial.
 
 Independent validation requires the existing verified Docker model-process
 boundary from **before the first model call**, even without confirmation.
+The pinned Node slim image has no OS CA store. Native CLI invocations receive
+`SSL_CERT_FILE` pointing to a per-container PEM bundle built from that same
+image's bundled Node public roots. TLS verification remains enabled; no host
+certificate directory, credential profile or additional filesystem is mounted.
 It uses fresh per-invocation homes/workspaces; only the selected Skill is mounted
 for developer calls. Repository/private artifacts, other calls' logs, checker
 files and outputs are not mounted into model processes. Unsupported isolation

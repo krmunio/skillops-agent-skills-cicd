@@ -24,6 +24,14 @@ TOKEN_KEYS = ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
 PROMPT_LIMIT = 100000
 MIN_AI_CREDITS = 30
 MODEL_IMAGE = "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5"
+# The pinned slim image has Node's public roots but no native OS certificate store.
+NATIVE_TLS_BOOTSTRAP = (
+    "const fs=require('fs');const ca='/tmp/skillops-ca.pem';"
+    "fs.writeFileSync(ca,require('tls').rootCertificates.join('\\n')+'\\n',{flag:'wx',mode:0o600});"
+    "const child=require('child_process').spawnSync(process.argv[1],process.argv.slice(2),"
+    "{stdio:'inherit',env:{...process.env,SSL_CERT_FILE:ca}});"
+    "if(child.error)throw child.error;process.exit(child.status===null?1:child.status);"
+)
 _BOUNDARIES = WeakKeyDictionary()
 _SANDBOX_CALLS = WeakKeyDictionary()
 
@@ -399,12 +407,14 @@ class CopilotRuntime:
         name = "skillops-model-" + uuid4().hex
         env = {key: value for key, value in self.env.items() if key not in TOKEN_KEYS}
         env.update(tokens or {})
+        argv = (["/usr/local/bin/node", "-e", NATIVE_TLS_BOOTSTRAP, *args]
+                if args[0] == "/opt/copilot" else args)
         command = [
             state["docker"], "run", "--rm", "--init", "--pull=never", "--name", name,
             "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
             "--user", f"{os.getuid()}:{os.getgid()}", "--pids-limit=128", "--memory=1g", "--cpus=2",
             "--network", network, "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=67108864",
-            "--workdir", "/work", "--entrypoint", args[0],
+            "--workdir", "/work", "--entrypoint", argv[0],
         ]
         for source, destination, readonly in (
                 (workspace, "/work", True), (home, "/home/copilot", False),
@@ -421,7 +431,7 @@ class CopilotRuntime:
             if key not in TOKEN_KEYS:
                 raise RuntimeFailure("confirmation_isolation_unverified", "Unapproved model environment key.")
             command.extend(["--env", key])
-        command.extend([state["image"], *args[1:]])
+        command.extend([state["image"], *argv[1:]])
         try:
             return capture(command, env=env, timeout=timeout)
         finally:

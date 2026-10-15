@@ -114,6 +114,12 @@ class ConfirmationRuntimeTests(unittest.TestCase):
             self.assertEqual(len(mounts), 4)
             self.assertFalse(any("docker.sock" in item or f"src={runtime.private}," in item for item in mounts))
             self.assertEqual(options["env"]["GITHUB_TOKEN"], "private-token-sentinel")
+            self.assertEqual(command[command.index("--entrypoint") + 1], "/usr/local/bin/node")
+            self.assertEqual(command[-2:], ["/opt/copilot", "--version"])
+            bootstrap = command[command.index("-e") + 1]
+            self.assertIn("rootCertificates", bootstrap)
+            self.assertIn("SSL_CERT_FILE", bootstrap)
+            self.assertNotIn("NODE_TLS_REJECT_UNAUTHORIZED", bootstrap)
 
     def test_container_timeout_cleans_exact_owned_container_without_retry(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -162,6 +168,29 @@ class ConfirmationRuntimeTests(unittest.TestCase):
 @unittest.skipUnless(os.environ.get("SKILLOPS_ISOLATION_TESTS") == "1",
                      "Set SKILLOPS_ISOLATION_TESTS=1 for real non-model Docker isolation probes.")
 class ActualConfirmationIsolationTests(unittest.TestCase):
+    def test_native_certificate_bootstrap_uses_pinned_public_roots_without_disabling_tls(self):
+        with tempfile.TemporaryDirectory() as folder:
+            runtime = runtime_module.CopilotRuntime(Path(folder), inherited={"PATH": os.environ["PATH"]})
+            with runtime.locked(), tempfile.TemporaryDirectory(dir=runtime.private) as temporary:
+                work, home, output = [Path(temporary) / name for name in ("work", "home", "output")]
+                for path in (work, home, output):
+                    path.mkdir(mode=0o700)
+                state = runtime._isolation_material(time.monotonic() + 90)
+                probe = (
+                    "const fs=require('fs'),tls=require('tls');"
+                    "const raw=fs.readFileSync(process.env.SSL_CERT_FILE,'utf8');"
+                    "if(raw!==tls.rootCertificates.join('\\n')+'\\n')throw Error('wrong roots');"
+                    "if(process.env.NODE_TLS_REJECT_UNAUTHORIZED==='0')throw Error('TLS disabled');"
+                    "for(const pem of tls.rootCertificates)new(require('crypto').X509Certificate)(pem);"
+                    "console.log('pinned-public-roots');"
+                )
+                result = runtime._container_capture(
+                    ["/usr/local/bin/node", "-e", runtime_module.NATIVE_TLS_BOOTSTRAP,
+                     "/usr/local/bin/node", "-e", probe],
+                    state=state, workspace=work, home=home, output=output, timeout=60)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), "pinned-public-roots")
+
     def test_actual_boundary_blocks_host_files_and_preserves_exact_skill_inventory(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
