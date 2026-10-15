@@ -24,6 +24,14 @@ TOKEN_KEYS = ("COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
 PROMPT_LIMIT = 100000
 MIN_AI_CREDITS = 30
 MODEL_IMAGE = "node@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5"
+# The pinned slim image has Node's public roots but no native OS certificate store.
+NATIVE_TLS_BOOTSTRAP = (
+    "const fs=require('fs');const ca='/tmp/skillops-ca.pem';"
+    "fs.writeFileSync(ca,require('tls').rootCertificates.join('\\n')+'\\n',{flag:'wx',mode:0o600});"
+    "const child=require('child_process').spawnSync(process.argv[1],process.argv.slice(2),"
+    "{stdio:'inherit',env:{...process.env,SSL_CERT_FILE:ca}});"
+    "if(child.error)throw child.error;process.exit(child.status===null?1:child.status);"
+)
 _BOUNDARIES = WeakKeyDictionary()
 _SANDBOX_CALLS = WeakKeyDictionary()
 
@@ -295,6 +303,25 @@ def usage_metrics(value, model):
     return result
 
 
+def private_directory(project):
+    """Initialize the owned store without requiring a CLI or model invocation."""
+    private = Path(project).resolve(strict=True) / ".skillops-private"
+    marker = private / ".owner"
+    if private.is_symlink():
+        raise RuntimeFailure("unsafe_profile", "Private profile must not be a symlink.")
+    if private.exists():
+        if not private.is_dir() or private.stat().st_uid != os.getuid():
+            raise RuntimeFailure("unsafe_profile", "Private directory has an unexpected owner.")
+        if private.stat().st_mode & 0o077:
+            raise RuntimeFailure("unsafe_profile", "Private directory must have mode 0700.")
+        if marker.is_symlink() or not marker.is_file() or marker.read_text() != "skillops-profile-v1\n":
+            raise RuntimeFailure("unsafe_profile", "Refusing an unowned private directory.")
+    else:
+        private.mkdir(mode=0o700)
+        marker.write_text("skillops-profile-v1\n")
+    return private
+
+
 class CopilotRuntime:
     def __init__(self, project, inherited=None):
         source = os.environ if inherited is None else inherited
@@ -303,20 +330,7 @@ class CopilotRuntime:
         if self.cli is None:
             raise RuntimeFailure("missing_cli", "Copilot CLI is not installed.")
         self.cli = str(Path(self.cli).absolute())
-        self.private = self.project / ".skillops-private"
-        marker = self.private / ".owner"
-        if self.private.is_symlink():
-            raise RuntimeFailure("unsafe_profile", "Private profile must not be a symlink.")
-        if self.private.exists():
-            if not self.private.is_dir() or self.private.stat().st_uid != os.getuid():
-                raise RuntimeFailure("unsafe_profile", "Private directory has an unexpected owner.")
-            if self.private.stat().st_mode & 0o077:
-                raise RuntimeFailure("unsafe_profile", "Private directory must have mode 0700.")
-            if marker.is_symlink() or not marker.is_file() or marker.read_text() != "skillops-profile-v1\n":
-                raise RuntimeFailure("unsafe_profile", "Refusing an unowned private directory.")
-        else:
-            self.private.mkdir(mode=0o700)
-            marker.write_text("skillops-profile-v1\n")
+        self.private = private_directory(self.project)
         self.home = self.private / "home"
         self.config = self.home / ".copilot"
         for directory in (self.home, self.config, self.home / ".cache", self.home / ".config"):
@@ -393,12 +407,14 @@ class CopilotRuntime:
         name = "skillops-model-" + uuid4().hex
         env = {key: value for key, value in self.env.items() if key not in TOKEN_KEYS}
         env.update(tokens or {})
+        argv = (["/usr/local/bin/node", "-e", NATIVE_TLS_BOOTSTRAP, *args]
+                if args[0] == "/opt/copilot" else args)
         command = [
             state["docker"], "run", "--rm", "--init", "--pull=never", "--name", name,
             "--read-only", "--cap-drop=ALL", "--security-opt=no-new-privileges",
             "--user", f"{os.getuid()}:{os.getgid()}", "--pids-limit=128", "--memory=1g", "--cpus=2",
             "--network", network, "--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=67108864",
-            "--workdir", "/work", "--entrypoint", args[0],
+            "--workdir", "/work", "--entrypoint", argv[0],
         ]
         for source, destination, readonly in (
                 (workspace, "/work", True), (home, "/home/copilot", False),
@@ -415,7 +431,7 @@ class CopilotRuntime:
             if key not in TOKEN_KEYS:
                 raise RuntimeFailure("confirmation_isolation_unverified", "Unapproved model environment key.")
             command.extend(["--env", key])
-        command.extend([state["image"], *args[1:]])
+        command.extend([state["image"], *argv[1:]])
         try:
             return capture(command, env=env, timeout=timeout)
         finally:
@@ -623,6 +639,7 @@ class CopilotRuntime:
         settings = {
             "disableAllHooks": True, "memory": False, "ide": {"autoConnect": False},
             "customAgents": {"defaultLocalOnly": True}, "disabledSkills": disabled,
+            "disabledMcpServers": ["github-mcp-server"],
         }
         descriptor, path = tempfile.mkstemp(prefix=".settings-", dir=self.config)
         try:
@@ -645,13 +662,27 @@ class CopilotRuntime:
             raise RuntimeFailure("skill_mismatch", "Enabled skills do not match the role allowlist.")
         if self.inventory(workdir, "instruction"):
             raise RuntimeFailure("unexpected_instructions", "Unexpected instructions discovered in the role workspace.")
-        if self.inventory(workdir, "plugin") != []:
-            raise RuntimeFailure("unexpected_plugins", "The dedicated profile must not contain plugins.")
-        if self.inventory(workdir, "mcp") != {"mcpServers": {}}:
+        plugins = self.inventory(workdir, "plugin")
+        if not isinstance(plugins, list) or len(plugins) > 128 or any(
+            not isinstance(row, dict)
+            or set(row) != {"name", "marketplace", "version", "enabled", "source"}
+            or row["enabled"] is not False or row["source"] != "builtin" or row["marketplace"] != ""
+            or any(not isinstance(row[key], str) or not 0 < len(row[key]) <= 256 for key in ("name", "version"))
+            for row in plugins
+        ):
+            raise RuntimeFailure("unexpected_plugins", "Only disabled CLI builtin plugins are allowed.")
+        mcps = self.inventory(workdir, "mcp")
+        if (not isinstance(mcps, dict) or set(mcps) != {"mcpServers"}
+                or not isinstance(mcps["mcpServers"], dict) or any(
+                    name != "github-mcp-server" or not isinstance(server, dict)
+                    or server.get("source") != "builtin" or server.get("enabled") is not False
+                    or server.get("isDefaultServer") is not True
+                    for name, server in mcps["mcpServers"].items())):
             raise RuntimeFailure("unexpected_mcp", "The dedicated profile must not contain custom MCP servers.")
         return {
             "enabled_skills": enabled, "discovered_count": len(checked),
-            "instructions": [], "plugins": [], "custom_mcp_servers": [],
+            "instructions": [], "plugins": plugins, "custom_mcp_servers": [],
+            "disabled_builtin_mcp_servers": sorted(mcps["mcpServers"]),
         }
 
     def invoke(self, prompt, model, role, workdir, artifact, expected_skill=None, *, timeout=180,

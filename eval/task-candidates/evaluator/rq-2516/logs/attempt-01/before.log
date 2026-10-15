@@ -1,0 +1,35 @@
+ENVIRONMENT {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/src/rq/__init__.py", "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["six", "1.17.0"]], "redis_server": "7.2.5"}
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.3.5, pluggy-1.5.0 -- /usr/local/bin/python
+rootdir: /dev
+configfile: null
+collecting ... collected 8 items
+
+../dev::test_terminal_failure_contract[none-failure] PASSED              [ 12%]
+../dev::test_terminal_failure_contract[none-retry_exhausted] PASSED      [ 25%]
+../dev::test_terminal_failure_contract[dependents-failure] FAILED        [ 37%]
+../dev::test_terminal_failure_contract[dependents-retry_exhausted] FAILED [ 50%]
+../dev::test_terminal_failure_contract[persist-failure] PASSED           [ 62%]
+../dev::test_terminal_failure_contract[persist-retry_exhausted] PASSED   [ 75%]
+../dev::test_terminal_failure_contract[release-failure] PASSED           [ 87%]
+../dev::test_terminal_failure_contract[release-retry_exhausted] PASSED   [100%]
+
+=================================== FAILURES ===================================
+______________ test_terminal_failure_contract[dependents-failure] ______________
+/checks/check.py:86: in test_terminal_failure_contract
+    assert "release" in events, f"slot release was skipped: {events}"
+E   AssertionError: slot release was skipped: ['persist', 'persist', 'webhook', 'dependents']
+E   assert 'release' in ['persist', 'persist', 'webhook', 'dependents']
+__________ test_terminal_failure_contract[dependents-retry_exhausted] __________
+/checks/check.py:86: in test_terminal_failure_contract
+    assert "release" in events, f"slot release was skipped: {events}"
+E   AssertionError: slot release was skipped: ['persist', 'webhook', 'dependents']
+E   assert 'release' in ['persist', 'webhook', 'dependents']
+------------------------------ Captured log call -------------------------------
+WARNING  rq.worker:base.py:1408 Worker 7cfa4ac892de465db8edcf6d13ef2e73: job 176a0f53-867b-4c3c-a44c-27a22de0d438 has exceeded maximum retry attempts (1)
+--------------------- generated xml file: /tmp/results.xml ---------------------
+=========================== short test summary info ============================
+FAILED ../dev::test_terminal_failure_contract[dependents-failure] - Assertion...
+FAILED ../dev::test_terminal_failure_contract[dependents-retry_exhausted] - A...
+========================= 2 failed, 6 passed in 0.10s ==========================
+RESULT_JSON {"exit_code": 1, "environment": {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/src/rq/__init__.py", "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["six", "1.17.0"]], "redis_server": "7.2.5"}, "tests": [{"name": "test_terminal_failure_contract[none-failure]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[none-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[dependents-failure]", "class": "", "outcome": "failure", "detail": "/checks/check.py:86: in test_terminal_failure_contract\n    assert \"release\" in events, f\"slot release was skipped: {events}\"\nE   AssertionError: slot release was skipped: ['persist', 'persist', 'webhook', 'dependents']\nE   assert 'release' in ['persist', 'persist', 'webhook', 'dependents']"}, {"name": "test_terminal_failure_contract[dependents-retry_exhausted]", "class": "", "outcome": "failure", "detail": "/checks/check.py:86: in test_terminal_failure_contract\n    assert \"release\" in events, f\"slot release was skipped: {events}\"\nE   AssertionError: slot release was skipped: ['persist', 'webhook', 'dependents']\nE   assert 'release' in ['persist', 'webhook', 'dependents']"}, {"name": "test_terminal_failure_contract[persist-failure]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[persist-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[release-failure]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[release-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}]}

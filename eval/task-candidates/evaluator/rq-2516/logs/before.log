@@ -1,0 +1,56 @@
+ENVIRONMENT {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/src/rq/__init__.py", "version_build": null, "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]], "redis_server": "7.2.5"}
+============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-8.3.5, pluggy-1.5.0 -- /usr/local/bin/python
+rootdir: /dev
+configfile: null
+collecting ... collected 10 items
+
+../dev::test_terminal_failure_contract[none-failure] PASSED              [ 10%]
+../dev::test_terminal_failure_contract[none-retry_exhausted] PASSED      [ 20%]
+../dev::test_terminal_failure_contract[dependents-failure] FAILED        [ 30%]
+../dev::test_terminal_failure_contract[dependents-retry_exhausted] FAILED [ 40%]
+../dev::test_terminal_failure_contract[persist-failure] PASSED           [ 50%]
+../dev::test_terminal_failure_contract[persist-retry_exhausted] PASSED   [ 60%]
+../dev::test_terminal_failure_contract[persist_once-failure] FAILED      [ 70%]
+../dev::test_terminal_failure_contract[persist_once-retry_exhausted] PASSED [ 80%]
+../dev::test_terminal_failure_contract[release-failure] PASSED           [ 90%]
+../dev::test_terminal_failure_contract[release-retry_exhausted] PASSED   [100%]
+
+=================================== FAILURES ===================================
+______________ test_terminal_failure_contract[dependents-failure] ______________
+/checks/check.py:93: in test_terminal_failure_contract
+    assert (job.id in registry.get_allowed_job_ids()) is (fault == "release"), f"slot leaked: {events}"
+E   AssertionError: slot leaked: ['persist', 'persist', 'webhook', 'dependents']
+E   assert ('2f91ef49-fe5e-4890-97d6-9b7e6f12d04a' in ['2f91ef49-fe5e-4890-97d6-9b7e6f12d04a']) is ('dependents' == 'release'
+E    +  where '2f91ef49-fe5e-4890-97d6-9b7e6f12d04a' = Job('2f91ef49-fe5e-4890-97d6-9b7e6f12d04a', enqueued_at=datetime.datetime(2026, 10, 15, 0, 34, 19, 82676, tzinfo=datetime.timezone.utc)).id
+E    +  and   ['2f91ef49-fe5e-4890-97d6-9b7e6f12d04a'] = get_allowed_job_ids()
+E    +    where get_allowed_job_ids = <rq.rate_limit.RateLimitRegistry object at 0xfb7cd4d04d40>.get_allowed_job_ids
+E     
+E     - release
+E     + dependents)
+__________ test_terminal_failure_contract[dependents-retry_exhausted] __________
+/checks/check.py:93: in test_terminal_failure_contract
+    assert (job.id in registry.get_allowed_job_ids()) is (fault == "release"), f"slot leaked: {events}"
+E   AssertionError: slot leaked: ['persist', 'webhook', 'dependents']
+E   assert ('0bd55931-31d6-4415-9d9a-8cff2753ee19' in ['0bd55931-31d6-4415-9d9a-8cff2753ee19']) is ('dependents' == 'release'
+E    +  where '0bd55931-31d6-4415-9d9a-8cff2753ee19' = Job('0bd55931-31d6-4415-9d9a-8cff2753ee19', enqueued_at=datetime.datetime(2026, 10, 15, 0, 34, 19, 99662, tzinfo=datetime.timezone.utc)).id
+E    +  and   ['0bd55931-31d6-4415-9d9a-8cff2753ee19'] = get_allowed_job_ids()
+E    +    where get_allowed_job_ids = <rq.rate_limit.RateLimitRegistry object at 0xfb7cd4d06090>.get_allowed_job_ids
+E     
+E     - release
+E     + dependents)
+------------------------------ Captured log call -------------------------------
+WARNING  rq.worker:base.py:1408 Worker ee6c5025cd204ae1bbffe6f19cf8d3b6: job 0bd55931-31d6-4415-9d9a-8cff2753ee19 has exceeded maximum retry attempts (1)
+_____________ test_terminal_failure_contract[persist_once-failure] _____________
+/checks/check.py:84: in test_terminal_failure_contract
+    assert not set(events) & {"webhook", "dependents", "release"}, events
+E   AssertionError: ['persist', 'persist', 'webhook', 'dependents']
+E   assert not ({'dependents', 'persist', 'webhook'} & {'dependents', 'release', 'webhook'})
+E    +  where {'dependents', 'persist', 'webhook'} = set(['persist', 'persist', 'webhook', 'dependents'])
+--------------------- generated xml file: /tmp/results.xml ---------------------
+=========================== short test summary info ============================
+FAILED ../dev::test_terminal_failure_contract[dependents-failure] - Assertion...
+FAILED ../dev::test_terminal_failure_contract[dependents-retry_exhausted] - A...
+FAILED ../dev::test_terminal_failure_contract[persist_once-failure] - Asserti...
+========================= 3 failed, 7 passed in 0.09s ==========================
+RESULT_JSON {"exit_code": 1, "environment": {"python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]", "architecture": "aarch64", "uid": 65534, "interfaces": [[1, "lo"]], "module": "/src/rq/__init__.py", "version_build": null, "dependencies": [["click", "8.1.8"], ["croniter", "6.0.0"], ["hatch-vcs", "0.4.0"], ["hatchling", "1.27.0"], ["iniconfig", "2.1.0"], ["packaging", "25.0"], ["pathspec", "0.12.1"], ["pluggy", "1.5.0"], ["pytest", "8.3.5"], ["python-dateutil", "2.9.0.post0"], ["pytz", "2025.2"], ["redis", "5.0.8"], ["setuptools", "75.8.0"], ["setuptools-scm", "8.2.0"], ["six", "1.17.0"], ["trove-classifiers", "2026.9.21.13"]], "redis_server": "7.2.5"}, "tests": [{"name": "test_terminal_failure_contract[none-failure]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[none-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[dependents-failure]", "class": "", "outcome": "failure", "detail": "/checks/check.py:93: in test_terminal_failure_contract\n    assert (job.id in registry.get_allowed_job_ids()) is (fault == \"release\"), f\"slot leaked: {events}\"\nE   AssertionError: slot leaked: ['persist', 'persist', 'webhook', 'dependents']\nE   assert ('2f91ef49-fe5e-4890-97d6-9b7e6f12d04a' in ['2f91ef49-fe5e-4890-97d6-9b7e6f12d04a']) is ('dependents' == 'release'\nE    +  where '2f91ef49-fe5e-4890-97d6-9b7e6f12d04a' = Job('2f91ef49-fe5e-4890-97d6-9b7e6f12d04a', enqueued_at=datetime.datetime(2026, 10, 15, 0, 34, 19, 82676, tzinfo=datetime.timezone.utc)).id\nE    +  and   ['2f91ef49-fe5e-4890-97d6-9b7e6f12d04a'] = get_allowed_job_ids()\nE    +    where get_allowed_job_ids = <rq.rate_limit.RateLimitRegistry object at 0xfb7cd4d04d40>.get_allowed_job_ids\nE     \nE     - release\nE     + dependents)"}, {"name": "test_terminal_failure_contract[dependents-retry_exhausted]", "class": "", "outcome": "failure", "detail": "/checks/check.py:93: in test_terminal_failure_contract\n    assert (job.id in registry.get_allowed_job_ids()) is (fault == \"release\"), f\"slot leaked: {events}\"\nE   AssertionError: slot leaked: ['persist', 'webhook', 'dependents']\nE   assert ('0bd55931-31d6-4415-9d9a-8cff2753ee19' in ['0bd55931-31d6-4415-9d9a-8cff2753ee19']) is ('dependents' == 'release'\nE    +  where '0bd55931-31d6-4415-9d9a-8cff2753ee19' = Job('0bd55931-31d6-4415-9d9a-8cff2753ee19', enqueued_at=datetime.datetime(2026, 10, 15, 0, 34, 19, 99662, tzinfo=datetime.timezone.utc)).id\nE    +  and   ['0bd55931-31d6-4415-9d9a-8cff2753ee19'] = get_allowed_job_ids()\nE    +    where get_allowed_job_ids = <rq.rate_limit.RateLimitRegistry object at 0xfb7cd4d06090>.get_allowed_job_ids\nE     \nE     - release\nE     + dependents)"}, {"name": "test_terminal_failure_contract[persist-failure]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[persist-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[persist_once-failure]", "class": "", "outcome": "failure", "detail": "/checks/check.py:84: in test_terminal_failure_contract\n    assert not set(events) & {\"webhook\", \"dependents\", \"release\"}, events\nE   AssertionError: ['persist', 'persist', 'webhook', 'dependents']\nE   assert not ({'dependents', 'persist', 'webhook'} & {'dependents', 'release', 'webhook'})\nE    +  where {'dependents', 'persist', 'webhook'} = set(['persist', 'persist', 'webhook', 'dependents'])"}, {"name": "test_terminal_failure_contract[persist_once-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[release-failure]", "class": "", "outcome": "passed", "detail": ""}, {"name": "test_terminal_failure_contract[release-retry_exhausted]", "class": "", "outcome": "passed", "detail": ""}]}

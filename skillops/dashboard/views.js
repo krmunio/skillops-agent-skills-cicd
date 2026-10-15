@@ -13,6 +13,9 @@ const decisions = {
   calibration_passed: t('교정 통과'), calibration_failed: t('교정 실패'),
 };
 const reasons = {
+  quality_only: t('이 기록은 원본 Skill의 지침 품질만 평가했습니다. 과제 수행·후보 개선·승인과는 별도입니다.'),
+  baseline_screening_only: t('원본 Skill의 개발 과제 수행만 평가했습니다. 지침 품질 평가는 수행하지 않았습니다.'),
+  baseline_saturated: t('원본 개발 검사가 모두 통과하여 이번 실험의 중단 조건에 따라 GEPA를 실행하지 않았습니다.'),
   no_skills: t('프로젝트에서 평가할 스킬이 발견되지 않았습니다.'),
   no_adapter: t('실행 기반 평가 어댑터를 설정해야 합니다.'),
   live_disabled: t('실제 모델 평가가 아직 활성화되지 않았습니다.'),
@@ -29,7 +32,17 @@ const reasons = {
   time_limit: t('허용된 평가 시간에 도달했습니다.'),
   assessment_unverified: t('개선 또는 프로젝트 회귀 검증에 필요한 근거가 부족합니다.'),
 };
+const qualityDimensions = {
+  trigger_description: t('사용 조건 설명'), workflow_clarity: t('작업 흐름 명확성'), generalization: t('일반화'),
+  instruction_quality: t('지침 품질'), progressive_disclosure: t('단계적 정보 제공'),
+  resource_organization: t('리소스 구성'), principle_of_lack_of_surprise: t('예측 가능한 동작'),
+};
 const metricLabels = {
+  static_errors: t('정적 검사 오류'), static_warnings: t('정적 검사 경고'),
+  ...Object.fromEntries(Object.entries(qualityDimensions).map(([key, label]) => [`quality_${key}`, label])),
+  required_cases: t('필수 개발 검사'), passed_cases: t('통과한 개발 검사'),
+  total_elapsed_seconds: t('전체 소요 시간 (초)'),
+  input_tokens: t('입력 토큰'), output_tokens: t('출력 토큰'),
   requested: t('요청 작업'), attempted: t('시도 작업'), evaluation_completed: t('평가 완료 작업'),
   errors: t('오류'), blocked: t('차단'), correctness_successes: t('정답 작업'),
   mean_judge_score: t('Judge 점수'), judge_score_denominator: t('Judge 평가 분모'),
@@ -141,7 +154,10 @@ export function table(headers, rows) {
 
 export function summarizeHistory(runs) {
   const skills = new Set(), legacySkills = new Set(), versions = new Set(), legacyVersions = new Set();
-  const completed = run => run.guide_status === 'completed' && run.execution_status === 'completed';
+  const completed = run => run.guide_status === 'completed' && run.guide_reason_code === 'quality_only' ||
+    run.execution_status === 'completed' &&
+    (run.guide_status === 'completed' || run.purpose === 'baseline' &&
+      run.execution_reason_code === 'baseline_saturated');
   const blocked = run => ['blocked', 'configuration_required'].includes(run.execution_status);
   const imported = run => run.origin === 'historical_import';
   for (const run of runs) {
@@ -244,6 +260,30 @@ export function renderProjectSummary(runs = null, evidence = [], completedReport
 function renderQuality(report, detail) {
   const container = $('guide');
   setText($('quality-summary'), detail ? t('선택 Skill · 합성 평가 예시') : t('기록된 검사만 표시'));
+  if (report.guide.reason_code === 'quality_only') {
+    const metrics = report.guide.metrics;
+    const values = Object.keys(qualityDimensions).map(key => metrics?.[`quality_${key}`]);
+    const scores = values.filter(value => value !== null);
+    if (report.origin !== 'local' || report.purpose !== 'project_assessment' ||
+        report.guide.status !== 'completed' || report.guide.decision !== null || report.execution.decision !== null ||
+        metrics?.skills !== 1 || metrics.cli_invocations !== 1 ||
+        !scores.length || scores.some(value => !Number.isInteger(value) || value < 0 || value > 4) ||
+        scores.length !== metrics.judge_score_denominator ||
+        Math.round(scores.reduce((sum, value) => sum + value, 0) / (4 * scores.length) * 10000) / 100 !== metrics.mean_judge_score ||
+        report.execution.status !== 'not_assessed' || report.execution.reason_code !== 'quality_only' ||
+        !['pass', 'review', 'blocked'].every(key => Number.isInteger(metrics[key]) && metrics[key] >= 0) ||
+        metrics.pass + metrics.review + metrics.blocked !== 1) throw new Error('Invalid standalone quality evidence');
+    const status = metrics.blocked ? 'blocked' : metrics.review ? 'review' : 'pass';
+    setText($('quality-summary'), t('원본 Skill 품질 평가'));
+    container.replaceChildren(
+      node('strong', t`${number(metrics.mean_judge_score)}/100`, 'big-number'), badge(status),
+      node('p', reasons.quality_only),
+      table([t('평가 항목'), t('점수 (0–4)')], Object.entries(qualityDimensions).map(([key, label]) =>
+        [label, metrics[`quality_${key}`] === null ? t('적용 제외') : number(metrics[`quality_${key}`])])),
+      node('p', t`정적 검사 오류 ${number(metrics.static_errors)} · 경고 ${number(metrics.static_warnings)}`),
+      node('p', t('모델 채점은 자동 평가의 관측값이며, 일반화 성능이나 적용 승인을 뜻하지 않습니다.')));
+    return;
+  }
   if (!detail?.quality?.length) {
     container.replaceChildren(badge(report.guide.status));
     container.append(metricList(report.guide.metrics));
@@ -344,7 +384,9 @@ export function renderMetric(container, title, key, metrics, origin = null) {
 }
 
 function renderExecution(report, detail) {
-  const metrics = report.execution.metrics || {};
+  const qualityOnly = report.guide.reason_code === 'quality_only';
+  const metrics = (qualityOnly ? report.guide.metrics : report.execution.metrics) || {};
+  const baseline = report.purpose === 'baseline' && report.execution.reason_code === 'baseline_saturated';
   $('all-metrics').replaceChildren(metricList(metrics));
   const container = $('execution');
   const decision = report.execution.decision;
@@ -385,6 +427,33 @@ function renderExecution(report, detail) {
   } else {
     empty($('task-results'), t('작업별 상세 결과가 공개 기록에 없습니다.'),
       t('위의 전체 지표와 별개입니다. 작업별 검사 수와 근거가 기록되면 이 영역에 표시합니다.'));
+  }
+  if (baseline) {
+    setText(heading.querySelector('strong'), t('원본 기준 평가 완료 · GEPA 생략'));
+    setText($('execution-scope'), t('개발 과제 1개의 검사 결과입니다. 독립 validation·최종 확인·승인·적용은 수행하지 않았습니다.'));
+    $('decision-reasons').replaceChildren(
+      node('p', reasons.baseline_saturated, 'conclusion'),
+      node('p', t('GEPA 실행 오류가 아닙니다. 한 번의 원본 통과는 일반화 성능이나 후보 개선을 입증하지 않습니다.')));
+    $('task-results').replaceChildren(
+      table([t('평가 작업'), t('개발 검사 통과')],
+        [[t('원본 Skill · 개발 과제 1개'), fraction(metrics.passed_cases, metrics.required_cases)]]));
+  }
+  if (qualityOnly) {
+    setText(heading.querySelector('strong'), t('과제 실행 미실행 · 품질 평가 전용'));
+    setText($('execution-scope'), reasons.quality_only);
+    $('decision-reasons').replaceChildren(node('p', reasons.quality_only));
+  }
+  if (baseline || qualityOnly) {
+    for (const [id, title, value, note] of [
+      ['cost-card', qualityOnly ? t('품질 평가 사용량') : t('원본 적용 사용량'), typeof metrics.base_cost_nano_aiu === 'number' ?
+        metrics.base_cost_nano_aiu / 1e9 : null, t('AIU · CLI 기록값을 10억 nano-AIU로 나눈 값이며 실제 청구액이 아닙니다.')],
+      ['time-card', t('전체 소요 시간'), metrics.total_elapsed_seconds,
+        qualityOnly ? t('초 · 기록된 품질 평가 전체 시간') : t('초 · 준비·모델 실행·검사를 포함한 기록된 전체 시간')],
+    ]) {
+      $(id).classList.toggle('is-empty', value === null || value === undefined);
+      $(id).replaceChildren(node('h3', title), node('strong', number(value, 4), 'big-number'),
+        node('p', note, 'metric-note'));
+    }
   }
 }
 

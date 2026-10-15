@@ -322,6 +322,54 @@ See [reviewed publication and exact offline candidates](REVIEWED-PUBLICATION.md)
 for commands, permissions, bounds and session 5 handoff. Feature-branch disclosure
 does not authorize result-branch writes, production deployment or new model calls.
 
+### Original-Skill screening on the local dashboard
+
+A completed original-only screen is not a candidate comparison. Export a saved,
+fully passing development screen without running models:
+
+```bash
+python3 -B skillops/baseline_results.py \
+  --summary .skillops-private/run-attempts/project-d-baseline.json \
+  --work-item .skillops-private/work-items/project_d-development.json \
+  --receipt .skillops-private/project-d-baseline/application/developer.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+The exporter binds the WorkItem digest, original Skill activation, check
+observations, measured usage and pinned source tree. It reconstructs the evaluator
+fingerprint from the committed source rather than stamping an old run with today's
+code. This is a committed-code identity, not a new runtime attestation. The report
+timestamp comes from the saved summary's modification time. Existing immutable
+result storage and the official static builder remain in use.
+
+Only allowlisted numeric summaries and identity hashes are exported. Prompts,
+task requests, generated code, logs, private paths and model responses stay private.
+The dashboard distinguishes one task from its required checks, measured CLI usage
+from currency charges, original-only completion from unassessed instruction
+quality, and the experiment's GEPA-skip rule from an execution error. No independent
+validation, confirmation, approval or adoption is inferred.
+
+Build only the sanitized results and serve only the resulting `site/` directory
+on `127.0.0.1`. Never serve the repository or `.skillops-private/` itself.
+The original dataset and receipt remain historical after integration changes;
+do not regenerate their identity or overwrite them just to make the screen current.
+This local projection does not authorize public deployment.
+
+An original-only quality run can also be projected without another model call:
+
+```bash
+python3 -B skillops/quality_results.py \
+  --summary .skillops-private/quality/<quality-run>/summary.json \
+  --results .skillops-private/dashboard-inputs
+```
+
+This bounded importer accepts one completed judge call with its sibling
+`result.json` and `judge-1.json`. It verifies receipt hashes, rubric, original
+committed Skill bundle, exact judge prompt and recomputed scores. Only numeric
+quality/usage metrics are exported, not prompts or model rationales. The separate
+record does not revise the old baseline, invent a candidate, or mark task execution
+or adoption completed. Stage it with the baseline and later real iteration graphs.
+
 ### Offline presentation backup
 
 For a **no-paid-calls terminal demo/backup**, use a clean committed integration
@@ -478,6 +526,12 @@ python3 skillops/skillops.py probe --model gpt-6-astra
 This invokes the model and can consume Copilot usage. It requests no tools,
 disables discovered skills, custom instructions, hooks and memory, and rejects
 unexpected plugins, custom MCP servers and alternate-provider registries.
+CLI-reported disabled builtin plugins are retained in the inventory receipt.
+Enabled plugins, third-party plugins and unknown inventory shapes remain blocked;
+the actual role tool manifest must still match the existing allowlist.
+The dedicated settings explicitly disable the default GitHub MCP server and
+preflight verifies its disabled builtin identity. Only its name is retained,
+not its endpoint or headers. Active servers and custom servers still block.
 Authentication failure is a blocker, not a successful evaluation.
 
 The probe asks for dummy-file access, verifies an actual zero-tool manifest

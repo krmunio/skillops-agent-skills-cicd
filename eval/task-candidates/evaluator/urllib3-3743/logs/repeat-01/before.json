@@ -1,0 +1,151 @@
+{
+  "revision": "8c480bf87bcefd321b3a1ae47f04e908b6b2ed7b",
+  "check_sha256": "1d6e3fd499671526908dbb22fa4996303c015b8713438ed4443eea9b5a7f8439",
+  "python_image": "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+  "redis_image": null,
+  "command": [
+    "docker",
+    "run",
+    "--rm",
+    "--name",
+    "skillops-candidates-fbe374816c7b",
+    "--network",
+    "none",
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--pids-limit=64",
+    "--memory=512m",
+    "--memory-swap=512m",
+    "--cpus=1",
+    "--ulimit=nofile=1024:1024",
+    "--tmpfs=/tmp:rw,nosuid,nodev,size=128m",
+    "--user=65534:65534",
+    "--env=HOME=/tmp",
+    "--env=PYTHONDONTWRITEBYTECODE=1",
+    "--env=PYTEST_DISABLE_PLUGIN_AUTOLOAD=1",
+    "--env=PYTHONPATH=/src:/src/src:/deps",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/8c480bf87bcefd321b3a1ae47f04e908b6b2ed7b,dst=/src,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/.cache/deps,dst=/deps,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/evaluator/urllib3-3743/check.py,dst=/checks/check.py,readonly",
+    "--mount",
+    "type=bind,src=/home/kymun/krmunio/dev/skillops/.worktrees/task-candidates-78115b58/eval/task-candidates/inside.py,dst=/runner/inside.py,readonly",
+    "--workdir=/tmp",
+    "python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea",
+    "python",
+    "/runner/inside.py",
+    "urllib3"
+  ],
+  "process_exit_code": 1,
+  "result": {
+    "exit_code": 1,
+    "environment": {
+      "python": "3.12.14 (main, Aug 31 2026, 23:47:53) [GCC 14.2.0]",
+      "architecture": "aarch64",
+      "uid": 65534,
+      "interfaces": [
+        [
+          1,
+          "lo"
+        ]
+      ],
+      "module": "/tmp/urllib3/src/urllib3/__init__.py",
+      "version_build": "offline hatchling, SETUPTOOLS_SCM_PRETEND_VERSION=0.0.0+reproduction",
+      "dependencies": [
+        [
+          "click",
+          "8.1.8"
+        ],
+        [
+          "croniter",
+          "6.0.0"
+        ],
+        [
+          "hatch-vcs",
+          "0.4.0"
+        ],
+        [
+          "hatchling",
+          "1.27.0"
+        ],
+        [
+          "iniconfig",
+          "2.1.0"
+        ],
+        [
+          "packaging",
+          "25.0"
+        ],
+        [
+          "pathspec",
+          "0.12.1"
+        ],
+        [
+          "pluggy",
+          "1.5.0"
+        ],
+        [
+          "pytest",
+          "8.3.5"
+        ],
+        [
+          "python-dateutil",
+          "2.9.0.post0"
+        ],
+        [
+          "pytz",
+          "2025.2"
+        ],
+        [
+          "redis",
+          "5.0.8"
+        ],
+        [
+          "setuptools",
+          "75.8.0"
+        ],
+        [
+          "setuptools-scm",
+          "8.2.0"
+        ],
+        [
+          "six",
+          "1.17.0"
+        ],
+        [
+          "trove-classifiers",
+          "2026.9.21.13"
+        ]
+      ]
+    },
+    "tests": [
+      {
+        "name": "test_numeric_cap_and_clone",
+        "class": "",
+        "outcome": "failure",
+        "detail": "/checks/check.py:15: in test_numeric_cap_and_clone\n    assert retry.parse_retry_after(\"9999999999\") == 21600\nE   AssertionError: assert 9999999999 == 21600\nE    +  where 9999999999 = parse_retry_after('9999999999')\nE    +    where parse_retry_after = Retry(total=10, connect=None, read=None, redirect=None, status=None).parse_retry_after"
+      },
+      {
+        "name": "test_http_date_cap",
+        "class": "",
+        "outcome": "failure",
+        "detail": "/checks/check.py:27: in test_http_date_cap\n    assert Retry().parse_retry_after(formatdate(now + 999999, usegmt=True)) == 21600\nE   AssertionError: assert 999999 == 21600\nE    +  where 999999 = parse_retry_after('Sun, 26 Nov 2023 11:59:59 GMT')\nE    +    where parse_retry_after = Retry(total=10, connect=None, read=None, redirect=None, status=None).parse_retry_after\nE    +      where Retry(total=10, connect=None, read=None, redirect=None, status=None) = Retry()\nE    +    and   'Sun, 26 Nov 2023 11:59:59 GMT' = formatdate((1700000000 + 999999), usegmt=True)"
+      },
+      {
+        "name": "test_sleep_receives_bounded_duration",
+        "class": "",
+        "outcome": "failure",
+        "detail": "/checks/check.py:36: in test_sleep_receives_bounded_duration\n    sleep.assert_called_once_with(21600)\n/usr/local/lib/python3.12/unittest/mock.py:961: in assert_called_once_with\n    return self.assert_called_with(*args, **kwargs)\n/usr/local/lib/python3.12/unittest/mock.py:949: in assert_called_with\n    raise AssertionError(_error_message()) from cause\nE   AssertionError: expected call not found.\nE   Expected: sleep(21600)\nE     Actual: sleep(9999999999)"
+      },
+      {
+        "name": "test_existing_header_semantics",
+        "class": "",
+        "outcome": "passed",
+        "detail": ""
+      }
+    ]
+  }
+}

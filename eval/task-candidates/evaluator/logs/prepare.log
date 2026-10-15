@@ -1,0 +1,59 @@
+docker.io/library/python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea: Pulling from library/python
+Digest: sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+Status: Image is up to date for python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+docker.io/library/python@sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea
+docker.io/library/redis@sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e: Pulling from library/redis
+Digest: sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e
+Status: Image is up to date for redis@sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e
+docker.io/library/redis@sha256:3aaec283e6e593bde528077d60280ac1589887067a39273348860837c9346d7e
+Collecting click==8.1.8 (from -r /requirements.txt (line 1))
+  Downloading click-8.1.8-py3-none-any.whl.metadata (2.3 kB)
+Collecting croniter==6.0.0 (from -r /requirements.txt (line 2))
+  Downloading croniter-6.0.0-py2.py3-none-any.whl.metadata (32 kB)
+Collecting redis==5.0.8 (from -r /requirements.txt (line 3))
+  Downloading redis-5.0.8-py3-none-any.whl.metadata (9.2 kB)
+Collecting python-dateutil==2.9.0.post0 (from -r /requirements.txt (line 4))
+  Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+Collecting pytz==2025.2 (from -r /requirements.txt (line 5))
+  Downloading pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+Collecting six==1.17.0 (from -r /requirements.txt (line 6))
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting pytest==8.3.5 (from -r /requirements.txt (line 7))
+  Downloading pytest-8.3.5-py3-none-any.whl.metadata (7.6 kB)
+Collecting iniconfig==2.1.0 (from -r /requirements.txt (line 8))
+  Downloading iniconfig-2.1.0-py3-none-any.whl.metadata (2.7 kB)
+Collecting packaging==25.0 (from -r /requirements.txt (line 9))
+  Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+Collecting pluggy==1.5.0 (from -r /requirements.txt (line 10))
+  Downloading pluggy-1.5.0-py3-none-any.whl.metadata (4.8 kB)
+Collecting hatchling==1.27.0 (from -r /requirements.txt (line 11))
+  Downloading hatchling-1.27.0-py3-none-any.whl.metadata (3.8 kB)
+Collecting hatch-vcs==0.4.0 (from -r /requirements.txt (line 12))
+  Downloading hatch_vcs-0.4.0-py3-none-any.whl.metadata (8.6 kB)
+Collecting setuptools-scm==8.2.0 (from -r /requirements.txt (line 13))
+  Downloading setuptools_scm-8.2.0-py3-none-any.whl.metadata (6.8 kB)
+Collecting setuptools==75.8.0 (from -r /requirements.txt (line 14))
+  Downloading setuptools-75.8.0-py3-none-any.whl.metadata (6.7 kB)
+Collecting pathspec==0.12.1 (from -r /requirements.txt (line 15))
+  Downloading pathspec-0.12.1-py3-none-any.whl.metadata (21 kB)
+Collecting trove-classifiers==2026.9.21.13 (from -r /requirements.txt (line 16))
+  Downloading trove_classifiers-2026.9.21.13-py3-none-any.whl.metadata (2.4 kB)
+Downloading click-8.1.8-py3-none-any.whl (98 kB)
+Downloading croniter-6.0.0-py2.py3-none-any.whl (25 kB)
+Downloading redis-5.0.8-py3-none-any.whl (255 kB)
+Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+Downloading pytz-2025.2-py2.py3-none-any.whl (509 kB)
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading pytest-8.3.5-py3-none-any.whl (343 kB)
+Downloading iniconfig-2.1.0-py3-none-any.whl (6.0 kB)
+Downloading packaging-25.0-py3-none-any.whl (66 kB)
+Downloading pluggy-1.5.0-py3-none-any.whl (20 kB)
+Downloading hatchling-1.27.0-py3-none-any.whl (75 kB)
+Downloading hatch_vcs-0.4.0-py3-none-any.whl (8.4 kB)
+Downloading setuptools_scm-8.2.0-py3-none-any.whl (43 kB)
+Downloading setuptools-75.8.0-py3-none-any.whl (1.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 8.8 MB/s eta 0:00:00
+Downloading pathspec-0.12.1-py3-none-any.whl (31 kB)
+Downloading trove_classifiers-2026.9.21.13-py3-none-any.whl (14 kB)
+Installing collected packages: trove-classifiers, pytz, six, setuptools-scm, setuptools, redis, python-dateutil, pytest, pluggy, pathspec, packaging, iniconfig, hatchling, hatch-vcs, croniter, click
+Successfully installed click-8.1.8 croniter-6.0.0 hatch-vcs-0.4.0 hatchling-1.27.0 iniconfig-2.1.0 packaging-25.0 pathspec-0.12.1 pluggy-1.5.0 pytest-8.3.5 python-dateutil-2.9.0.post0 pytz-2025.2 redis-5.0.8 setuptools-75.8.0 setuptools-scm-8.2.0 six-1.17.0 trove-classifiers-2026.9.21.13

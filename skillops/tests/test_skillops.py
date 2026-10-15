@@ -291,6 +291,54 @@ class RuntimeTests(unittest.TestCase):
                     with self.assertRaises(self.runtime.RuntimeFailure):
                         runtime.configure(Path(directory))
 
+    def test_role_configuration_records_disabled_builtins_but_rejects_active_or_external_plugins(self):
+        builtin = {"name": "github-copilot-browser", "marketplace": "", "version": "0.0.3",
+                   "enabled": False, "source": "builtin"}
+        variants = ([builtin], [dict(builtin, enabled=True)], [dict(builtin, enabled=0)],
+                    [dict(builtin, source="user")], [dict(builtin, marketplace="external")],
+                    [{"name": "unknown"}], {}, [None])
+        for index, plugins in enumerate(variants):
+            with self.subTest(plugins=plugins), tempfile.TemporaryDirectory() as directory:
+                runtime = self.runtime.CopilotRuntime(Path(directory))
+                inventories = {"skill": [], "instruction": [], "plugin": plugins, "mcp": {"mcpServers": {}}}
+                with patch.object(runtime, "inventory", side_effect=lambda work, kind: inventories[kind]):
+                    if index == 0:
+                        try:
+                            receipt = runtime.configure(Path(directory))
+                        except self.runtime.RuntimeFailure as error:
+                            self.fail(f"Disabled builtin must not block an isolated role: {error.code}")
+                        self.assertEqual(receipt["plugins"], [builtin])
+                    else:
+                        with self.assertRaises(self.runtime.RuntimeFailure) as error:
+                            runtime.configure(Path(directory))
+                        self.assertEqual(error.exception.code, "unexpected_plugins")
+
+    def test_role_configuration_disables_default_github_mcp_and_verifies_inventory(self):
+        builtin = {"source": "builtin", "enabled": False, "isDefaultServer": True}
+        variants = ({"github-mcp-server": builtin},
+                    {"github-mcp-server": dict(builtin, enabled=True)},
+                    {"github-mcp-server": dict(builtin, enabled=0)},
+                    {"github-mcp-server": dict(builtin, source="user")},
+                    {"other": builtin}, {"github-mcp-server": None})
+        for index, servers in enumerate(variants):
+            with self.subTest(servers=servers), tempfile.TemporaryDirectory() as directory:
+                runtime = self.runtime.CopilotRuntime(Path(directory))
+                inventories = {"skill": [], "instruction": [], "plugin": [], "mcp": {"mcpServers": servers}}
+                with patch.object(runtime, "inventory", side_effect=lambda work, kind: inventories[kind]):
+                    if index == 0:
+                        try:
+                            receipt = runtime.configure(Path(directory))
+                        except self.runtime.RuntimeFailure as error:
+                            self.fail(f"Explicitly disabled builtin MCP must be supported: {error.code}")
+                        settings = json.loads((runtime.config / "settings.json").read_text())
+                        self.assertEqual(settings["disabledMcpServers"], ["github-mcp-server"])
+                        self.assertEqual(receipt["disabled_builtin_mcp_servers"], ["github-mcp-server"])
+                        self.assertEqual(receipt["custom_mcp_servers"], [])
+                    else:
+                        with self.assertRaises(self.runtime.RuntimeFailure) as error:
+                            runtime.configure(Path(directory))
+                        self.assertEqual(error.exception.code, "unexpected_mcp")
+
     def test_cli_entrypoint_exposes_preflight_and_probe(self):
         entrypoint = Path(__file__).resolve().parents[1] / "skillops.py"
         self.assertTrue(entrypoint.is_file(), "The SkillOps entrypoint is missing.")

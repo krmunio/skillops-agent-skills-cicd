@@ -1,0 +1,86 @@
+{
+  "budget": {
+    "max_ai_credits_per_session": 30,
+    "max_invocations": 30,
+    "max_seconds": 120
+  },
+  "confirmation_ref": {
+    "path": "replay-evaluation.json",
+    "project_id": "sample_repo",
+    "run_id": "local-20260918T094536Z-9682e9279e50",
+    "sha256": "9e1574d0fe0d1982cfba5b505c669d19858e21a552a6279095e569d417c0118f"
+  },
+  "confirmation_status": "unverified",
+  "cycle_id": "local-20260918T094535Z-b9a681f6cfb2",
+  "execution_mode": "offline_test",
+  "input_sha256": "bb193a4918df7479c05bcb66f31290eadfedbc73772ab7926790fc7449c2f751",
+  "max_rounds": 2,
+  "original_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+  "project_id": "sample_repo",
+  "reference_sha256": "ab6941ca0a1a72c81dd2e3b2568d546aea31aa293d87e9faefb0eba580996466",
+  "report_sha256": "ed2859107ecb462c744bb78f496c6d78a95753aa964c91d05cb46392453b41e0",
+  "rounds": [
+    {
+      "candidate_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "not_improved"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "sample_repo",
+        "run_id": "local-20260918T094536Z-7edf6eeea659",
+        "sha256": "704134fe7538b9459f798345681428e4af76f4d99ab7b6a5d700970342b79449"
+      },
+      "feedback_sha256": "ec1b3f944deda4fd4616a0ed073c36f7b3005843a649e30d87b4b50432e319bd",
+      "feedback_source_round_id": null,
+      "input_sha256": "bb193a4918df7479c05bcb66f31290eadfedbc73772ab7926790fc7449c2f751",
+      "parent_version_id": "sha256:1e6ff105d31e4cff44ea21a1341352f88d2621647fa739414dcf51cfab60c1bf",
+      "reference_sha256": "ab6941ca0a1a72c81dd2e3b2568d546aea31aa293d87e9faefb0eba580996466",
+      "round_id": "local-20260918T094535Z-b9a681f6cfb2-r1",
+      "round_number": 1,
+      "run_id": "local-20260918T094536Z-7edf6eeea659",
+      "stop_reason": null
+    },
+    {
+      "candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+      "decision": {
+        "policy_id": "replay-v1",
+        "reasons": [],
+        "regression": {
+          "reasons": [],
+          "regressions": [],
+          "status": "passed"
+        },
+        "status": "improved"
+      },
+      "evaluation_ref": {
+        "path": "replay-evaluation.json",
+        "project_id": "sample_repo",
+        "run_id": "local-20260918T094536Z-98e47884cb71",
+        "sha256": "95fa571329d8a9063d8d1bc381056ec2a674b6a0225e7ccc071ac18d947b22fa"
+      },
+      "feedback_sha256": "d183201030a9de57010ec666bd13c1a9cfff393866752bb45ba76e98497356b2",
+      "feedback_source_round_id": "local-20260918T094535Z-b9a681f6cfb2-r1",
+      "input_sha256": "bb193a4918df7479c05bcb66f31290eadfedbc73772ab7926790fc7449c2f751",
+      "parent_version_id": "sha256:c952551e821637f817a8fc795266f87cd03bb5d937caf9312fb4a9ae1b5e06fe",
+      "reference_sha256": "ab6941ca0a1a72c81dd2e3b2568d546aea31aa293d87e9faefb0eba580996466",
+      "round_id": "local-20260918T094535Z-b9a681f6cfb2-r2",
+      "round_number": 2,
+      "run_id": "local-20260918T094536Z-98e47884cb71",
+      "stop_reason": "improved"
+    }
+  ],
+  "run_id": "local-20260918T094535Z-b9a681f6cfb2",
+  "schema_version": 1,
+  "selected_candidate_version_id": "sha256:6d6fdc185940bc34b38b6ff042845dd1ca91709ecb3d43d438dda2df57bd34ee",
+  "skill_key": "path:90ae807bd3d394fc140a6df8",
+  "source_path": "skills/develop",
+  "stop_reason": "improved"
+}
