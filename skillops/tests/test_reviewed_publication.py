@@ -366,7 +366,7 @@ class ReviewedPublicationTests(unittest.TestCase):
         validate, rest = text.split("\n  validate:\n", 1)[1].split("\n  persist:\n", 1)
         persist, deploy = rest.split("\n  deploy:\n", 1)
         self.assertNotIn("contents: write", validate)
-        self.assertNotIn("${{ secrets.", validate)
+        self.assertNotIn("${{ secrets.", validate.replace("${{ secrets.SKILLOPS_PUBLIC_URL }}", ""))
         self.assertIn("contents: write", persist)
         self.assertNotIn("SWA_CLI_DEPLOYMENT_TOKEN", persist)
         self.assertNotIn("contents: write", deploy)

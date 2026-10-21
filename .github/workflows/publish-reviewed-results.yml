@@ -42,6 +42,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
+      - name: Mask dashboard hostname before deployment
+        if: inputs.operation == 'deploy'
+        env:
+          PUBLIC_URL: ${{ secrets.SKILLOPS_PUBLIC_URL }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          host = urlsplit(os.environ["PUBLIC_URL"]).hostname
+          if not host:
+              raise SystemExit("SKILLOPS_PUBLIC_URL secret is required.")
+          print(f"::add-mask::{host}")
+          PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ env.CODE_SHA }}
@@ -68,7 +81,7 @@ jobs:
         id: check
         env:
           OPERATION: ${{ inputs.operation }}
-          PUBLIC_URL: ${{ vars.SKILLOPS_PUBLIC_URL }}
+          PUBLIC_URL: ${{ secrets.SKILLOPS_PUBLIC_URL }}
         run: |
           set -euo pipefail
           args=()
@@ -146,8 +159,18 @@ jobs:
       cancel-in-progress: false
     env:
       STORED_SHA: ${{ needs.persist.outputs.stored_sha }}
-      PUBLIC_URL: ${{ vars.SKILLOPS_PUBLIC_URL }}
+      PUBLIC_URL: ${{ secrets.SKILLOPS_PUBLIC_URL }}
     steps:
+      - name: Mask dashboard hostname before deployment
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          host = urlsplit(os.environ["PUBLIC_URL"]).hostname
+          if not host:
+              raise SystemExit("SKILLOPS_PUBLIC_URL secret is required.")
+          print(f"::add-mask::{host}")
+          PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: ${{ env.CODE_SHA }}
