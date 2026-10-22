@@ -18,3 +18,7 @@ ci-results/
 ci-sample-results/
 test-results/
 playwright-report/
+/README.backup-*.md
+/artifacts/
+/copilot-debug-logs-*.tgz
+/docs/DEMO-VIDEO-HANDOFF.ko.md
