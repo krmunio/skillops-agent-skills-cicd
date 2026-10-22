@@ -96,8 +96,11 @@ commands are present. Concurrent non-fast-forward writes fail explicitly; no
 force push or retry hides the conflict. A later separately approved dispatch
 can revalidate against the newer branch.
 
-Deployment requires the repository variable `SKILLOPS_PUBLIC_URL`, an HTTPS
-`*.azurestaticapps.net` root origin. No settings are provisioned by this feature.
+Deployment requires the repository **secret** `SKILLOPS_PUBLIC_URL`, an HTTPS
+`*.azurestaticapps.net` root origin, for both deployment workflows. Do not put the
+actual address in repository variables, documentation, PRs or comments. Actions
+masks the URL as a secret and registers its hostname for masking before validation
+or deployment output. No settings are provisioned by this feature.
 After static deployment, GET verification compares the actual HTML, hashed
 modules, CSS, sample data, indexes and full public payload bytes with that exact
 build. Redirects and oversized/stale content fail. Deployment may succeed while

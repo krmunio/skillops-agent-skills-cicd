@@ -6,6 +6,34 @@ import unittest
 
 
 class WorkflowContractTests(unittest.TestCase):
+    def test_deployment_masks_secret_hostname_before_any_other_step(self):
+        root = Path(__file__).resolve().parents[2]
+        for filename, jobs in (
+            ("project-evaluation.yml", ("deploy",)),
+            ("publish-reviewed-results.yml", ("validate", "deploy")),
+        ):
+            text = (root / ".github/workflows" / filename).read_text()
+            self.assertNotIn("vars.SKILLOPS_PUBLIC_URL", text)
+            self.assertIn("secrets.SKILLOPS_PUBLIC_URL", text)
+            for job in jobs:
+                with self.subTest(workflow=filename, job=job):
+                    section = text.split(f"\n  {job}:\n", 1)[1]
+                    first = section.split("    steps:\n", 1)[1].split("      - uses:", 1)[0]
+                    self.assertIn("name: Mask dashboard hostname", first)
+                    script = textwrap.dedent(first.split("        run: |\n", 1)[1])
+                    for url in ("https://dashboard.invalid/", ""):
+                        result = subprocess.run(
+                            ["bash", "-c", script],
+                            env={**os.environ, "PUBLIC_URL": url},
+                            capture_output=True, text=True, timeout=10,
+                        )
+                        if url:
+                            self.assertEqual(result.returncode, 0, result.stderr)
+                            self.assertEqual(result.stdout, "::add-mask::dashboard.invalid\n")
+                        else:
+                            self.assertNotEqual(result.returncode, 0)
+                            self.assertIn("secret is required", result.stderr)
+
     def test_current_quality_input_is_optional_distinct_and_passed_as_one_quoted_argument(self):
         text = (Path(__file__).resolve().parents[2] / ".github/workflows/project-evaluation.yml").read_text()
         self.assertIn("      assessment_skill_key:", text)

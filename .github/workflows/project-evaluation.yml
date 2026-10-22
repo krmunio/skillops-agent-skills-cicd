@@ -311,6 +311,18 @@ jobs:
       group: skillops-dashboard-production
       cancel-in-progress: false
     steps:
+      - name: Mask dashboard hostname before deployment
+        env:
+          PUBLIC_URL: ${{ secrets.SKILLOPS_PUBLIC_URL }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+          host = urlsplit(os.environ["PUBLIC_URL"]).hostname
+          if not host:
+              raise SystemExit("SKILLOPS_PUBLIC_URL secret is required.")
+          print(f"::add-mask::{host}")
+          PY
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           ref: main
